@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "aki.hiphop-radio",
+  "name": "Hip-Hop Radio",
+  "version": "1.0.0",
+  "author": "Aki",
+  "description": "Launch the Hip-Hop Radio terminal app",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Radio",
+    "description": "Open Hip-Hop Radio",
+    "category": "Media",
+    "allowMultiple": false
+  }
+}

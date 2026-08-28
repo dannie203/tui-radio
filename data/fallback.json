@@ -1,0 +1,8 @@
+[
+  {"name":"Chillhop Radio","country":"Worldwide","tags":"chillhop, lo-fi, beats","codec":"MP3","bitrate":128,"url":"https://streams.fluxfm.de/chillhop/mp3-128/streams.fluxfm.de/"},
+  {"name":"DEFJAY - Soulful Radio","country":"Germany","tags":"hiphop, soul, rap","codec":"MP3","bitrate":128,"url":"https://stream.defjay.com/stream"},
+  {"name":"West Coast Classics","country":"United States","tags":"rap, west coast, classics","codec":"MP3","bitrate":128,"url":"https://ice55.securenetsystems.net/KEIBAM"},
+  {"name":"Boom Bap Radio","country":"United States","tags":"boom bap, underground, hip-hop","codec":"MP3","bitrate":128,"url":"https://streaming.live365.com/a45254"},
+  {"name":"UK Drill Radio","country":"United Kingdom","tags":"uk drill, grime, rap","codec":"MP3","bitrate":128,"url":"https://stream.zeno.fm/6wz3q3xq8k8uv"},
+  {"name":"Lofi Girl - beats to relax","country":"France","tags":"lo-fi, chill, instrumental","codec":"MP3","bitrate":128,"url":"https://play.streamafrica.net/lofi"}
+]
