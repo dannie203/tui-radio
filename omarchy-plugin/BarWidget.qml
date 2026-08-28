@@ -11,9 +11,7 @@ BarWidget {
 
   function launchRadio() {
     Quickshell.execDetached([
-      "alacritty",
-      "-e",
-      "hiphop-radio"
+      "hiphop-radio-toggle"
     ])
   }
 
