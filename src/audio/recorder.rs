@@ -45,7 +45,13 @@ fn recordings_dir() -> PathBuf {
 
 pub fn send_notification(title: &str, message: &str) {
     let _ = Command::new("notify-send")
-        .args(["-a", "BOOMBOX RX-505", "-i", "boombox", title, message])
+        .args([
+            "-a", "BOOMBOX RX-505",
+            "-i", "audio-x-generic",
+            "-h", "string:category:transfer.complete",
+            title,
+            message,
+        ])
         .spawn();
 }
 
@@ -80,9 +86,9 @@ impl StreamRecorder {
         let mut to_remove = Vec::new();
         for (url, active) in jobs.iter_mut() {
             let status = match active.child.try_wait() {
-                Ok(Some(_)) => Some(true),
+                Ok(Some(s)) => Some(s.success()),
                 Ok(None) => None,
-                Err(_) => Some(true),
+                Err(_) => Some(false),
             };
             if let Some(code) = status {
                 let ok = !active.cancelled && code;

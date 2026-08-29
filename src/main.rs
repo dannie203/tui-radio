@@ -354,11 +354,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // B2. Poll Tape Recorder & Sync Status
         for (title, ok) in recorder.poll() {
             if ok {
-                audio::recorder::send_notification("✅ Tape Recording Complete", &format!("Saved to ~/Music/Boombox Recordings/{}", title));
-                state.recording_status = "SAVED".to_string();
+                audio::recorder::send_notification(
+                    "✅ Đã tải xong bài hát",
+                    &format!("🎵 {}\n📁 Đã lưu vào ~/Music/Boombox Recordings/", title),
+                );
+                state.recording_status = format!("✅ SAVED: {}", title);
             } else {
-                audio::recorder::send_notification("⚠️ Tape Recording Failed", &format!("Could not capture stream: {}", title));
-                state.recording_status = "FAILED".to_string();
+                audio::recorder::send_notification(
+                    "⚠️ Tải / Ghi âm thất bại",
+                    &format!("Không thể tải stream: {}", title),
+                );
+                state.recording_status = format!("⚠️ FAILED: {}", title);
             }
         }
         state.is_recording = recorder.is_recording();
