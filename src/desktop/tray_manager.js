@@ -153,19 +153,8 @@ export class TrayManager {
         this.actions.toggleBassBoost?.();
         break;
       case 'open_tui': {
-        const existingPid = readPidFile(PID_FILE);
-        if (existingPid && isProcessAlive(existingPid)) {
-          try {
-            process.kill(existingPid, 'SIGUSR1');
-          } catch {}
-          try {
-            spawn('hyprctl', ['dispatch', 'focuswindow', 'title:NEON//WAVE CYBERPUNK AUDIO TERMINAL'], { stdio: 'ignore' });
-          } catch {}
-          break;
-        }
-
         try {
-          spawn('hyprctl', ['dispatch', 'focuswindow', 'title:NEON//WAVE CYBERPUNK AUDIO TERMINAL'], { stdio: 'ignore' });
+          spawn('hiphop-radio-toggle', [], { stdio: 'ignore' });
         } catch {}
         break;
       }
