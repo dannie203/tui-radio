@@ -791,7 +791,7 @@ export function createLayout(store, actions, player) {
     bottom: 6,
     left: rightPaneLeft,
     width: rightPaneWidth,
-    label: ' 🌈 DUAL STEREO VU METERS & 16-BAND RGB CHROMA EQUALIZER ',
+    label: ' 🌈 DUAL STEREO VU METERS & 32-BAND ISO CHROMA EQUALIZER ',
     tags: true,
     wrap: false,
     overflow: 'hidden',
@@ -1582,11 +1582,7 @@ export function createLayout(store, actions, player) {
       showFullArtwork,
       telemetry
     );
-    const safeMonitorContent = monitorContent
-      .split('\n')
-      .map((line) => fitVisibleText(line, safeContentWidth))
-      .join('\n');
-    monitorConsole.setContent(safeMonitorContent);
+    monitorConsole.setContent(monitorContent);
 
     // Render Wide VU Meters & 32-band RGB Chroma Graphic Equalizer with Smooth Ballistics
     const vuL = formatVuMeter('L CH', telemetry.vuLeft, telemetry.peakLeft, 56);
@@ -1623,7 +1619,7 @@ export function createLayout(store, actions, player) {
       ``,
       ` {bold}{#f5c542-fg}32-BAND ${themeLabel} EQUALIZER SPECTRUM [20Hz — 20kHz]{/#f5c542-fg}{/bold}`,
       eq
-    ].map((line) => fitVisibleText(line, safeContentWidth)).join('\n');
+    ].join('\n');
     vuEqualizerBox.setContent(eqLines);
 
     if (store.state.settingsVisible) {
