@@ -841,10 +841,10 @@ export function createLayout(store, actions, player) {
       border: { fg: colors.borderDim }
     },
     content: [
-      ` {bold}{#ffb000-fg}[ ↵ / Play ]{/#ffb000-fg}{/bold} Select/Play  {bold}{#ffb000-fg}[ S ]{/#ffb000-fg}{/bold} Stereo/Mono/Wide     {bold}{#ffb000-fg}[ TAB / M ]{/#ffb000-fg}{/bold} Mode Select        {bold}{#ffb000-fg}[ + / - ]{/#ffb000-fg}{/bold} Volume ±5%`,
-      ` {bold}{#ffb000-fg}[ ← / → ]{/#ffb000-fg}{/bold} Crates/Genre  {bold}{#ffb000-fg}[ D ]{/#ffb000-fg}{/bold} Dolby NR (Off/B/C/S)  {bold}{#ffb000-fg}[ 1 - 4 ]{/#ffb000-fg}{/bold} Mode Categories    {bold}{#ffb000-fg}[ ␣ ]{/#ffb000-fg}{/bold} Pause  {bold}{#ffb000-fg}[ . / X ]{/#ffb000-fg}{/bold} Stop`,
-      ` {bold}{#ffb000-fg}[  N/P  ]{/#ffb000-fg}{/bold} Next/Prev Track {bold}{#ffb000-fg}[ T ]{/#ffb000-fg}{/bold} Tape Bias (I/II/IV)  {bold}{#ffb000-fg}[ W / L ]{/#ffb000-fg}{/bold} Cover Art / Lyrics  {bold}{#ffb000-fg}[   /   ]{/#ffb000-fg}{/bold} Search / Filter`,
-      ` {bold}{#ffb000-fg}[ Y / U ]{/#ffb000-fg}{/bold} Load YouTube/URL {bold}{#ffb000-fg}[ B ]{/#ffb000-fg}{/bold} Mega Bass Boost EQ   {bold}{#ffb000-fg}[   O   ]{/#ffb000-fg}{/bold} Settings / Theme     {bold}{#ffb000-fg}[ ^D / H ]{/#ffb000-fg}{/bold} Detach / Hide      {bold}{#ffb000-fg}[   Q   ]{/#ffb000-fg}{/bold} Eject / Quit`
+      ` {bold}{${colors.amber}-fg}[ ↵ / Play ]{/${colors.amber}-fg}{/bold} Select/Play  {bold}{${colors.amber}-fg}[ S / B ]{/${colors.amber}-fg}{/bold} 3D Wide / Mega Bass  {bold}{${colors.amber}-fg}[ TAB / 1-4 ]{/${colors.amber}-fg}{/bold} Mode Select    {bold}{${colors.amber}-fg}[ + / - ]{/${colors.amber}-fg}{/bold} Volume ±5%`,
+      ` {bold}{${colors.amber}-fg}[ ← / → ]{/${colors.amber}-fg}{/bold} Crates/Genre  {bold}{${colors.amber}-fg}[ D / t ]{/${colors.amber}-fg}{/bold} Dolby NR / Tape Bias   {bold}{${colors.amber}-fg}[ E / T ]{/${colors.amber}-fg}{/bold} EQ Profile / Theme  {bold}{${colors.amber}-fg}[ ␣ / X ]{/${colors.amber}-fg}{/bold} Pause / Stop`,
+      ` {bold}{${colors.amber}-fg}[  N/P  ]{/${colors.amber}-fg}{/bold} Next/Prev Track {bold}{${colors.amber}-fg}[ r / z ]{/${colors.amber}-fg}{/bold} Repeat / Shuffle      {bold}{${colors.amber}-fg}[ W / L ]{/${colors.amber}-fg}{/bold} Cover Art / Lyrics  {bold}{${colors.amber}-fg}[   /   ]{/${colors.amber}-fg}{/bold} Search / Filter`,
+      ` {bold}{${colors.amber}-fg}[ Y / U ]{/${colors.amber}-fg}{/bold} Load YT / URL   {bold}{${colors.amber}-fg}[ R / ^R ]{/${colors.amber}-fg}{/bold} Tape Record / Cancel  {bold}{${colors.amber}-fg}[ M / ^M ]{/${colors.amber}-fg}{/bold} Add to Mixtape     {bold}{${colors.amber}-fg}[   Q   ]{/${colors.amber}-fg}{/bold} Eject / Quit`
     ].join('\n')
   });
 
