@@ -2,27 +2,9 @@ import blessed from 'blessed';
 import { MODES, GENRE_FILTERS } from '../state/store.js';
 import { extractArtworkBuffer, renderHalfBlockArt } from '../audio/art.js';
 import { formatKaraokeText, scrambleLine } from '../api/lyrics.js';
+import { getTheme } from './theme.js';
 
-const colors = {
-  bgDark: '#0a0d13',
-  bgPanel: '#11151f',
-  bgLcd: '#06130a',
-  borderDim: '#243348',
-  borderFocus: '#ffb000',
-  borderLcd: '#1b4d24',
-  amber: '#ffb000',
-  amberBright: '#ffd24d',
-  amberDim: '#996900',
-  greenPhosphor: '#33ff33',
-  greenDim: '#114a1a',
-  gold: '#f5c542',
-  cyanDolby: '#00e5ff',
-  redLed: '#ff3344',
-  yellowLed: '#ffee33',
-  cream: '#f3ead8',
-  chrome: '#b8c4ce',
-  muted: '#6f7e91'
-};
+export const colors = { ...getTheme('SYSTEM_AUTO') };
 
 const SPOOL_FRAMES_LEFT = ['(◐)', '(◓)', '(◑)', '(◒)'];
 const SPOOL_FRAMES_RIGHT = ['(◑)', '(◒)', '(◐)', '(◓)'];
@@ -200,46 +182,46 @@ function formatHeader(state) {
 
     const label = `${idx + 1}. ${m} (${count})`;
     return m === state.mode
-      ? `{bold}{#0a0d13-bg}{#ffb000-fg} ▶ [ ${label} ] {/#ffb000-fg}{/#0a0d13-bg}{/bold}`
-      : `{#6f7e91-fg}[ ${label} ]{/#6f7e91-fg}`;
+      ? `{bold}{${colors.bgDark}-bg}{${colors.amber}-fg} ▶ [ ${label} ] {/${colors.amber}-fg}{/${colors.bgDark}-bg}{/bold}`
+      : `{${colors.muted}-fg}[ ${label} ]{/${colors.muted}-fg}`;
   }).join('   ');
 
   const normStereo = String(state.stereoMode || '').toUpperCase().trim();
   const stereoBadge = normStereo === 'STEREO'
-    ? '{#33ff33-fg}[● STEREO (S)]{/#33ff33-fg}'
+    ? `{${colors.greenPhosphor}-fg}[● STEREO (S)]{/${colors.greenPhosphor}-fg}`
     : normStereo === 'MONO'
-    ? '{#ffd24d-fg}[◉ MONO (S)]{/#ffd24d-fg}'
-    : '{#00e5ff-fg}[✦ 3D WIDE (S)]{/#00e5ff-fg}';
+    ? `{${colors.gold}-fg}[◉ MONO (S)]{/${colors.gold}-fg}`
+    : `{${colors.cyanDolby}-fg}[✦ 3D WIDE (S)]{/${colors.cyanDolby}-fg}`;
 
   const dolbyBadge = state.dolbyMode === 'OFF'
-    ? '{#566573-fg}[DOLBY: OFF (D)]{/#566573-fg}'
+    ? `{${colors.muted}-fg}[DOLBY: OFF (D)]{/${colors.muted}-fg}`
     : state.dolbyMode === 'DOLBY-B'
-    ? '{#00e5ff-fg}[DOLBY-B (D)]{/#00e5ff-fg}'
+    ? `{${colors.cyanDolby}-fg}[DOLBY-B (D)]{/${colors.cyanDolby}-fg}`
     : state.dolbyMode === 'DOLBY-C'
-    ? '{#33ff33-fg}[DOLBY-C (D)]{/#33ff33-fg}'
-    : '{#ffd24d-fg}[DOLBY-S (D)]{/#ffd24d-fg}';
+    ? `{${colors.greenPhosphor}-fg}[DOLBY-C (D)]{/${colors.greenPhosphor}-fg}`
+    : `{${colors.amberBright}-fg}[DOLBY-S (D)]{/${colors.amberBright}-fg}`;
 
   const tapeBadge = state.tapeType === 'TYPE-I'
-    ? '{#c79248-fg}[Type-I Fe (T)]{/#c79248-fg}'
+    ? `{${colors.gold}-fg}[Type-I Fe (T)]{/${colors.gold}-fg}`
     : state.tapeType === 'TYPE-II'
-    ? '{#f5c542-fg}[Type-II CrO2 (T)]{/#f5c542-fg}'
-    : '{#00e5ff-fg}[Type-IV Metal (T)]{/#00e5ff-fg}';
+    ? `{${colors.amberBright}-fg}[Type-II CrO2 (T)]{/${colors.amberBright}-fg}`
+    : `{${colors.cyanDolby}-fg}[Type-IV Metal (T)]{/${colors.cyanDolby}-fg}`;
 
   const bassBadge = state.bassBoost
-    ? '{bold}{#ff3344-fg}[🔊 BASS (B)]{/#ff3344-fg}{/bold}'
-    : '{#566573-fg}[BASS (B)]{/#566573-fg}';
+    ? `{bold}{${colors.redLed}-fg}[🔊 BASS (B)]{/${colors.redLed}-fg}{/bold}`
+    : `{${colors.muted}-fg}[BASS (B)]{/${colors.muted}-fg}`;
 
-  const shufBadge = state.shuffle ? '{#00e5ff-fg}[SHUF: ON]{/#00e5ff-fg}' : '{#475466-fg}[SHUF: OFF]{/#475466-fg}';
+  const shufBadge = state.shuffle ? `{${colors.cyanDolby}-fg}[SHUF: ON]{/${colors.cyanDolby}-fg}` : `{${colors.muted}-fg}[SHUF: OFF]{/${colors.muted}-fg}`;
   const repBadge = state.repeat !== 'off'
-    ? `{#f5c542-fg}[REP: ${state.repeat.toUpperCase()}]{/#f5c542-fg}`
-    : '{#475466-fg}[REP: OFF]{/#475466-fg}';
+    ? `{${colors.gold}-fg}[REP: ${state.repeat.toUpperCase()}]{/${colors.gold}-fg}`
+    : `{${colors.muted}-fg}[REP: OFF]{/${colors.muted}-fg}`;
 
-  const eqBadge = `{bold}{#00e5ff-fg}[EQ: ${state.eqPreset || 'FLAT'} (E)]{/#00e5ff-fg}{/bold}`;
-  const recBadge = state.recording ? '{bold}{#ff3344-fg}[● REC (R)]{/#ff3344-fg}{/bold}' : '';
+  const eqBadge = `{bold}{${colors.cyanDolby}-fg}[EQ: ${state.eqPreset || 'FLAT'} (E)]{/${colors.cyanDolby}-fg}{/bold}`;
+  const recBadge = state.recording ? `{bold}{${colors.redLed}-fg}[● REC (R)]{/${colors.redLed}-fg}{/bold}` : '';
 
   return [
-    ` {bold}{#ffb000-fg}▶ BOOMBOX RX-505{/#ffb000-fg}{/bold}  {#6f7e91-fg}│{/#6f7e91-fg}  ${stereoBadge}  ${dolbyBadge}  ${tapeBadge}  ${bassBadge}  ${eqBadge}  ${recBadge}  {#6f7e91-fg}│{/#6f7e91-fg}  ${shufBadge}  ${repBadge}`,
-    ` {bold}{#b8c4ce-fg}DECK MODE [TAB/1-4]:{/#b8c4ce-fg}{/bold}  ${modeTabs}`
+    ` {bold}{${colors.amber}-fg}▶ BOOMBOX RX-505{/${colors.amber}-fg}{/bold}  {${colors.muted}-fg}│{/${colors.muted}-fg}  ${stereoBadge}  ${dolbyBadge}  ${tapeBadge}  ${bassBadge}  ${eqBadge}  ${recBadge}  {${colors.muted}-fg}│{/${colors.muted}-fg}  ${shufBadge}  ${repBadge}`,
+    ` {bold}{${colors.chrome}-fg}DECK MODE [TAB/1-4]:{/${colors.chrome}-fg}{/bold}  ${modeTabs}`
   ].join('\n');
 }
 
@@ -621,18 +603,21 @@ function formatEqualizer(bands = [], peaks = [], height = 10, rgbPhase = 0, targ
         const hueIdx = Math.floor(((rgbPhase + b * 11.25 + (height - r) * 6) % 360) + 360) % 360;
         color = RGB_WHEEL[hueIdx];
         peakColor = RGB_PEAK_WHEEL[hueIdx];
-      } else if (theme === 'AMBER_GOLD') {
-        color = r >= height ? '#ff3344' : (r >= height - 2 ? '#ff9900' : (r >= height - 5 ? '#ffd24d' : '#ffb000'));
-        peakColor = '#ffd24d';
-      } else if (theme === 'GREEN_PHOSPHOR') {
-        color = r >= height ? '#ff3344' : (r >= height - 2 ? '#ffee33' : (r >= height - 5 ? '#33ff33' : '#11cc11'));
-        peakColor = '#33ff33';
-      } else if (theme === 'CYAN_NEON') {
-        color = r >= height ? '#ff007f' : (r >= height - 3 ? '#ff33aa' : (r >= height - 6 ? '#00e5ff' : '#00aacc'));
-        peakColor = '#ff007f';
-      } else if (theme === 'MONOCHROME') {
-        color = r >= height ? '#ffffff' : (r >= height - 3 ? '#e2e8f0' : (r >= height - 6 ? '#b8c4ce' : '#6f7e91'));
-        peakColor = '#ffffff';
+      } else {
+        const t = getTheme(theme) || colors;
+        if (r >= height) {
+          color = t.redLed || '#ff3344';
+          peakColor = t.redLed || '#ff3344';
+        } else if (r >= height - 2) {
+          color = t.yellowLed || t.gold || '#f5c542';
+          peakColor = t.amberBright || '#ffd24d';
+        } else if (r >= height - 5) {
+          color = t.amber || '#ffb000';
+          peakColor = t.amberBright || '#ffd24d';
+        } else {
+          color = t.cyanDolby || t.greenPhosphor || t.amber || '#00e5ff';
+          peakColor = t.amber || '#ffb000';
+        }
       }
 
       let block = ' '.repeat(bandWidth);
@@ -654,18 +639,13 @@ function formatEqualizer(bands = [], peaks = [], height = 10, rgbPhase = 0, targ
   }
 
   const labelRow = ' ' + Array.from({ length: numBands }, (_, b) => {
-    let labelColor = '#6f7e91';
+    let labelColor = colors.muted || '#6f7e91';
     if (theme === 'RGB_CHROMA') {
       const labelHue = Math.floor(((rgbPhase + b * 11.25) % 360) + 360) % 360;
       labelColor = RGB_WHEEL[labelHue];
-    } else if (theme === 'AMBER_GOLD') {
-      labelColor = '#ffb000';
-    } else if (theme === 'GREEN_PHOSPHOR') {
-      labelColor = '#33ff33';
-    } else if (theme === 'CYAN_NEON') {
-      labelColor = '#00e5ff';
-    } else if (theme === 'MONOCHROME') {
-      labelColor = '#b8c4ce';
+    } else {
+      const t = getTheme(theme) || colors;
+      labelColor = t.muted || colors.muted || '#6f7e91';
     }
 
     const formatted = getFormattedBandLabel(b, slotWidth);
@@ -990,7 +970,75 @@ export function createLayout(store, actions, player) {
     return fitVisibleText(slice, maxLen);
   }
 
+  let lastAppliedThemeId = null;
+
   function render(state) {
+    const activeTheme = getTheme(state.theme);
+    Object.assign(colors, activeTheme);
+
+    if (lastAppliedThemeId !== activeTheme.id) {
+      lastAppliedThemeId = activeTheme.id;
+      if (headerBox.style) {
+        headerBox.style.fg = colors.cream;
+        headerBox.style.bg = colors.bgDark;
+      }
+      if (searchBox.style) {
+        searchBox.style.fg = colors.amber;
+        searchBox.style.bg = colors.bgPanel;
+        if (searchBox.style.border) searchBox.style.border.fg = colors.borderDim;
+        if (searchBox.style.focus?.border) searchBox.style.focus.border.fg = colors.borderFocus;
+      }
+      if (subBar.style) {
+        subBar.style.fg = colors.cream;
+        subBar.style.bg = colors.bgDark;
+      }
+      if (explorerList.style) {
+        explorerList.style.fg = colors.cream;
+        explorerList.style.bg = colors.bgPanel;
+        if (explorerList.style.border) explorerList.style.border.fg = colors.borderDim;
+        if (explorerList.style.selected) {
+          explorerList.style.selected.fg = colors.bgDark;
+          explorerList.style.selected.bg = colors.amber;
+        }
+        if (explorerList.style.focus?.border) explorerList.style.focus.border.fg = colors.borderFocus;
+      }
+      if (explorerList.scrollbar?.style) {
+        explorerList.scrollbar.style.fg = colors.amber;
+        explorerList.scrollbar.style.bg = colors.bgPanel;
+      }
+      if (monitorConsole.style) {
+        monitorConsole.style.fg = colors.greenPhosphor;
+        monitorConsole.style.bg = colors.bgLcd;
+        if (monitorConsole.style.border) monitorConsole.style.border.fg = colors.borderLcd;
+      }
+      if (vuEqualizerBox.style) {
+        vuEqualizerBox.style.fg = colors.cream;
+        vuEqualizerBox.style.bg = colors.bgPanel;
+        if (vuEqualizerBox.style.border) vuEqualizerBox.style.border.fg = colors.borderDim;
+      }
+      if (controlsBox.style) {
+        controlsBox.style.fg = colors.muted;
+        controlsBox.style.bg = colors.bgPanel;
+        if (controlsBox.style.border) controlsBox.style.border.fg = colors.borderDim;
+      }
+      if (urlModal.style) {
+        urlModal.style.fg = colors.cream;
+        urlModal.style.bg = colors.bgDark;
+        if (urlModal.style.border) urlModal.style.border.fg = colors.amber;
+      }
+      if (urlInput.style) {
+        urlInput.style.fg = colors.amberBright;
+        urlInput.style.bg = colors.bgPanel;
+        if (urlInput.style.border) urlInput.style.border.fg = colors.borderDim;
+        if (urlInput.style.focus?.border) urlInput.style.focus.border.fg = colors.amber;
+      }
+      if (settingsModal.style) {
+        settingsModal.style.fg = colors.cream;
+        settingsModal.style.bg = colors.bgDark;
+        if (settingsModal.style.border) settingsModal.style.border.fg = colors.amber;
+      }
+    }
+
     // 1. Render Header
     headerBox.setContent(formatHeader(state));
 
