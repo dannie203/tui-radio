@@ -41,7 +41,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .open("/tmp/boombox-rs.lock")?;
     let lock_res = unsafe { libc::flock(lock_file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
     if lock_res != 0 {
-        let _ = std::process::Command::new("boombox-toggle").spawn();
         return Ok(());
     }
 
