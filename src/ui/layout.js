@@ -109,6 +109,87 @@ function sanitize(str, maxLen = 40) {
   return fitVisibleText(str, maxLen);
 }
 
+export function renderCarouselTabs(items, selectedItem, maxAvailableWidth = 50) {
+  if (!items || !items.length) return '';
+  const selectedIdx = Math.max(0, items.indexOf(selectedItem));
+
+  const formattedItems = items.map((item, idx) => {
+    const isSelected = idx === selectedIdx;
+    const plainText = isSelected ? `▶ [ ${item} ]` : `[ ${item} ]`;
+    const formattedText = isSelected
+      ? `{bold}{#ffb000-fg}▶ [ ${item} ]{/#ffb000-fg}{/bold}`
+      : `{#6f7e91-fg}[ ${item} ]{/#6f7e91-fg}`;
+    return {
+      name: item,
+      plainLen: plainText.length,
+      formatted: formattedText,
+      isSelected
+    };
+  });
+
+  const spacing = 2; // "  "
+  const leftArrowPlain = '◀ ';
+  const rightArrowPlain = ' ▶';
+  const leftArrowFormatted = '{bold}{#00e5ff-fg}◀{/#00e5ff-fg}{/bold} ';
+  const rightArrowFormatted = ' {bold}{#00e5ff-fg}▶{/#00e5ff-fg}{/bold}';
+
+  const budget = Math.max(20, maxAvailableWidth);
+
+  let startIdx = selectedIdx;
+  let endIdx = selectedIdx;
+  let currentLen = formattedItems[selectedIdx].plainLen;
+
+  let canExpandLeft = true;
+  let canExpandRight = true;
+
+  while (canExpandLeft || canExpandRight) {
+    if (endIdx + 1 < formattedItems.length) {
+      const nextRightLen = spacing + formattedItems[endIdx + 1].plainLen;
+      const extraRight = (endIdx + 2 < formattedItems.length) ? rightArrowPlain.length : 0;
+      const extraLeft = (startIdx > 0) ? leftArrowPlain.length : 0;
+
+      if (currentLen + nextRightLen + extraRight + extraLeft <= budget) {
+        endIdx++;
+        currentLen += nextRightLen;
+      } else {
+        canExpandRight = false;
+      }
+    } else {
+      canExpandRight = false;
+    }
+
+    if (startIdx - 1 >= 0) {
+      const nextLeftLen = spacing + formattedItems[startIdx - 1].plainLen;
+      const extraLeft = (startIdx - 2 >= 0) ? leftArrowPlain.length : 0;
+      const extraRight = (endIdx < formattedItems.length - 1) ? rightArrowPlain.length : 0;
+
+      if (currentLen + nextLeftLen + extraLeft + extraRight <= budget) {
+        startIdx--;
+        currentLen += nextLeftLen;
+      } else {
+        canExpandLeft = false;
+      }
+    } else {
+      canExpandLeft = false;
+    }
+  }
+
+  const visibleSlice = formattedItems.slice(startIdx, endIdx + 1);
+  let result = visibleSlice.map((i) => i.formatted).join('  ');
+
+  if (startIdx > 0) {
+    result = `${leftArrowFormatted}${result}`;
+  } else {
+    result = ` ${result}`;
+  }
+
+  if (endIdx < formattedItems.length - 1) {
+    result = `${result}${rightArrowFormatted}`;
+  }
+
+  return result;
+}
+
 function formatHeader(state) {
   const modeTabs = MODES.map((m, idx) => {
     let count = 0;
@@ -961,11 +1042,8 @@ export function createLayout(store, actions, player) {
 
       searchBox.setLabel(' 🔍 CRATES [/] ');
     } else if (state.mode === 'RADIO STATIONS') {
-      const genreTabsContent = ' ' + GENRE_FILTERS.map((g) => {
-        return g === state.genreFilter
-          ? `{bold}{#ffb000-fg}▶ [ ${g} ]{/#ffb000-fg}{/bold}`
-          : `{#6f7e91-fg}[ ${g} ]{/#6f7e91-fg}`;
-      }).join('  ') + '  {#6f7e91-fg}(← / → or g: filter){/#6f7e91-fg}';
+      const leftWidth = typeof subBar.width === 'number' ? subBar.width : Math.max(30, Math.floor((screen.width || 120) * 0.37) - 2);
+      const genreTabsContent = renderCarouselTabs(GENRE_FILTERS, state.genreFilter, leftWidth);
       subBar.setContent(genreTabsContent);
       explorerList.setLabel(` 📻 RADIO STATIONS // ${state.genreFilter} (${state.filteredStations.length}) `);
       searchBox.setLabel(' 🔍 STATIONS [/] ');

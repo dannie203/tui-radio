@@ -1,6 +1,6 @@
 {
   "name": "boombox-tui",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "A retro cyberpunk cassette boombox music player and radio explorer for local Hi-Res audio, YouTube streams, and global radio stations.",
   "type": "module",
   "license": "GPL-3.0-or-later",
