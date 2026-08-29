@@ -80,6 +80,7 @@ SNI_INTROSPECTION = """
     <property name="ToolTip" type="(sa(iiay)ss)" access="read"/>
     <property name="ItemIsMenu" type="b" access="read"/>
     <property name="Menu" type="o" access="read"/>
+    <property name="IconThemePath" type="s" access="read"/>
     <method name="ContextMenu">
       <arg direction="in" name="x" type="i"/>
       <arg direction="in" name="y" type="i"/>
@@ -389,13 +390,16 @@ class DesktopService:
 
     def handle_sni_get_prop(self, connection, sender, path, iface, prop):
         if prop == "Category": return GLib.Variant("s", "ApplicationStatus")
-        if prop == "Id": return GLib.Variant("s", "hiphop-radio-tui")
+        if prop == "Id": return GLib.Variant("s", "boombox-tui")
         if prop == "Title": return GLib.Variant("s", "BOOMBOX RX-505")
         if prop == "Status": return GLib.Variant("s", "Active")
         if prop == "WindowId": return GLib.Variant("i", 0)
         if prop == "IconName":
             is_playing = self.state.get("playing", False) and not self.state.get("paused", False)
-            return GLib.Variant("s", "media-playback-start" if is_playing else "audio-player")
+            return GLib.Variant("s", "boombox-tray-playing" if is_playing else "boombox-tray-paused")
+        if prop == "IconThemePath":
+            assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets", "icons", "hicolor")
+            return GLib.Variant("s", assets_dir if os.path.exists(assets_dir) else "")
         if prop == "IconPixmap": return GLib.Variant("a(iiay)", [])
         if prop == "OverlayIconName": return GLib.Variant("s", "")
         if prop == "OverlayIconPixmap": return GLib.Variant("a(iiay)", [])
@@ -409,7 +413,8 @@ class DesktopService:
             artist = str(self.state.get("artist", "Ready"))
             is_playing = self.state.get("playing", False) and not self.state.get("paused", False)
             status = "Playing" if is_playing else "Paused / Standby"
-            return GLib.Variant("(sa(iiay)ss)", ("audio-player", [], f"BOOMBOX RX-505 [{status}]", f"{title}\n{artist}"))
+            icon_name = "hiphop-radio-tray-playing" if is_playing else "hiphop-radio-tray-paused"
+            return GLib.Variant("(sa(iiay)ss)", (icon_name, [], f"BOOMBOX RX-505 [{status}]", f"{title}\n{artist}"))
         return None
 
     # --- DBusMenu Callbacks ---
@@ -541,7 +546,7 @@ class DesktopService:
                 "/StatusNotifierWatcher",
                 "org.kde.StatusNotifierWatcher",
                 "RegisterStatusNotifierItem",
-                GLib.Variant("(s)", ("org.mpris.MediaPlayer2.hiphop_radio",)),
+                GLib.Variant("(s)", ("/StatusNotifierItem",)),
                 None,
                 Gio.DBusCallFlags.NONE,
                 1000,
@@ -553,6 +558,14 @@ class DesktopService:
             pass
 
     def run(self):
+        Gio.bus_own_name(
+            Gio.BusType.SESSION,
+            "org.mpris.MediaPlayer2.boombox",
+            Gio.BusNameOwnerFlags.NONE,
+            self.on_bus_acquired,
+            None,
+            None
+        )
         Gio.bus_own_name(
             Gio.BusType.SESSION,
             "org.mpris.MediaPlayer2.hiphop_radio",

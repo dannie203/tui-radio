@@ -1,0 +1,28 @@
+[Desktop Entry]
+Name=Hip-Hop Radio
+GenericName=Boombox Audio Player & Radio
+Comment=Retro Cyberpunk Boombox audio player, mixtapes, and live radio streams
+Exec=hiphop-radio-toggle
+Icon=hiphop-radio
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Player;Music;
+Keywords=audio;music;player;radio;boombox;retro;tui;cyberpunk;mpv;lyrics;
+StartupWMClass=hiphop-radio
+Actions=Focus;TogglePlay;Next;Previous;
+
+[Desktop Action Focus]
+Name=Open / Focus Player
+Exec=hiphop-radio-toggle
+
+[Desktop Action TogglePlay]
+Name=Play / Pause
+Exec=playerctl -p hiphop_radio play-pause
+
+[Desktop Action Next]
+Name=Next Track
+Exec=playerctl -p hiphop_radio next
+
+[Desktop Action Previous]
+Name=Previous Track
+Exec=playerctl -p hiphop_radio previous

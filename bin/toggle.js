@@ -1,23 +1,22 @@
 #!/usr/bin/env node
-import { isProcessAlive, readPidFile } from '../src/desktop/instance_manager.js';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 
-const PID_FILE = '/tmp/hiphop-tui.pid';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-const pid = readPidFile(PID_FILE);
-if (pid && isProcessAlive(pid)) {
-  try {
-    process.kill(pid, 'SIGUSR1');
-  } catch {}
-  try {
-    spawn('hyprctl', ['dispatch', 'focuswindow', 'title:NEON//WAVE CYBERPUNK AUDIO TERMINAL'], { stdio: 'ignore' });
-  } catch {}
-  process.exit(0);
-}
+const localScript = join(homedir(), '.local', 'bin', 'hiphop-radio-toggle');
+const repoScript = join(__dirname, '..', 'omarchy-plugin', 'hiphop-radio-toggle');
 
-try {
-  spawn(process.execPath, ['bin/index.js'], { stdio: 'inherit', detached: true });
-} catch (error) {
-  console.error(error.message);
-  process.exit(1);
-}
+const targetScript = existsSync(localScript) ? localScript : repoScript;
+
+const child = spawn(targetScript, process.argv.slice(2), {
+  stdio: 'inherit'
+});
+
+child.on('exit', (code) => {
+  process.exit(code ?? 0);
+});

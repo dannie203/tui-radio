@@ -1,117 +1,117 @@
-# BOOMBOX RX-505
+# 📼 BOOMBOX-TUI (v2.0.0)
 
-A retro-inspired terminal music player for local libraries, radio stations, and online media sources. It combines a keyboard-driven interface with MPV-powered playback for a lightweight desktop-like experience in the shell.
+> **BOOMBOX RX-505** — A retro-cyberpunk cassette music player, Hi-Res local audio explorer, YouTube streamer, and worldwide radio deck for the Linux & Unix terminal.
 
-## Overview
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D20-green.svg)](https://nodejs.org)
+[![Version](https://img.shields.io/badge/Version-2.0.0-amber.svg)](package.json)
 
-This project is built for users who want to listen to music without leaving the terminal. It supports local media browsing, internet radio, queue control, basic metadata handling, and a few desktop integrations where available.
+---
 
-The interface is intentionally styled like a cassette deck, but the project remains practical: fast to launch, easy to control, and built around a simple local-first workflow.
+## ⚡ Features
 
-## Key features
+- 📼 **Retro Cassette Deck UI**: Dual rotating spools, tape-head bay, smoked cassette window, ANSI half-block album art decoding (JPEG/PNG).
+- 🎵 **Hi-Res Local Audio Player**: High-speed scanner and tag parser for FLAC (16/24/32-bit up to 192kHz), MP3, OPUS, OGG, M4A, WAV with folder hierarchy and artist/album sorting.
+- 📻 **Worldwide Radio Explorer**: Integrated Radio Browser API with 30,000+ stations across genres (Lofi, Jazz, Synthwave, Hip-Hop, Classical, Rock, EDM, Ambient) and countries.
+- 📺 **YouTube & Multi-Platform Streaming**: Search YouTube Music directly from the TUI, load tracks, playlists, SoundCloud, Bandcamp, Mixcloud, and direct stream URLs.
+- 🎚️ **Hardware DSP & Audio FX**:
+  - **3D WIDE**: Open-Air acoustic matrix soundstage expansion.
+  - **Mega Bass**: +7dB analog sub-harmonic low-end boost.
+  - **Dolby NR Tape Bias**: Analog tape simulation (Dolby B, C, S, Off).
+- 📊 **32-Band ISO Equalizer Visualizer**: Logarithmic FFT spectrum analyzer with asymmetric attack/decay ballistic physics and dynamic Hi-Res sample rate LUT.
+- 🎤 **Word-by-Word Synced Karaoke & Lyrics**: LRCLIB synced lyrics engine with Matrix-style word unscrambling and manual sync offset adjustment (`[` / `]`).
+- 🖥️ **Desktop & System Tray Integration**: FreeDesktop StatusNotifierItem (SNI) + MPRIS2 Media Controller + Quickshell / EasyEffects-style AppMenu with 22 quick controls.
+- 🪟 **Hyprland / Wayland Integration**: Smart workspace focus & scratchpad toggle script (`boombox-toggle`).
 
-- Local music playback and library browsing
-- Internet radio station support
-- YouTube / YouTube Music stream loading
-- Queue, repeat, shuffle, and playback controls
-- Keyboard-first terminal interface
-- Lyrics support using LRCLIB and local `.lrc` files
-- Tray and MPRIS integration on compatible Linux setups
-- Basic visualizer and themed UI elements
+---
 
-## Requirements
+## 📦 Requirements
 
-- Node.js 20+
-- MPV installed and available in `PATH`
-- Optional: `yt-dlp` for YouTube playback
-- Optional: Python GObject for tray/MPRIS support on Linux
+- **Node.js**: `>= 20.0.0`
+- **mpv**: Audio playback backend engine
+- **python-gobject** (optional): For desktop MPRIS2 & System Tray AppMenu on Linux
+- **yt-dlp** (optional): For YouTube streaming & music search
+- **jq** (optional): For Hyprland toggle script
 
-## Installation
+---
 
+## 🚀 Installation
+
+### Arch Linux (AUR)
+```bash
+paru -S boombox-tui
+# or
+yay -S boombox-tui
+```
+
+### From Source (All Platforms)
 ```bash
 git clone https://github.com/dannie203/tui-radio.git
 cd tui-radio
 npm install
-```
-
-## Run the app
-
-Start the TUI:
-
-```bash
-npm start
-```
-
-Run in tray/daemon mode:
-
-```bash
-node bin/index.js --tray
-```
-
-Or install globally:
-
-```bash
 npm link
+```
+
+---
+
+## 🎮 Usage
+
+Start the player:
+```bash
+boombox
+# or aliases:
+radio
 hiphop-radio
 ```
 
-## Common controls
-
-The app is designed primarily for keyboard use.
-
-- Arrow keys or `j` / `k` to move through items
-- Enter / Right Arrow to open or play
-- Left Arrow / Backspace to go back
-- Space to pause / resume
-- `N` / `P` for next / previous
-- `+` / `-` to adjust volume
-- Tab / `M` to switch deck mode
-- `/` to open search
-- `L` to toggle lyrics
-- `W` to toggle artwork
-- `Q` to quit
-
-## Configuration
-
-The app stores user preferences in the config directory. On Linux this is commonly:
-
+Toggle or focus existing window in Hyprland / Sway / Wayland:
 ```bash
-~/.config/hiphop-tui/config.json
+boombox-toggle
 ```
 
-## Project structure
-
-```text
-bin/
-  index.js
-src/
-  api/
-  audio/
-  desktop/
-  state/
-  ui/
-test/
+Run in background tray/daemon mode:
+```bash
+boombox --tray
 ```
 
-Main areas:
+---
 
-- `bin/index.js`: app entry point
-- `src/audio/`: playback, library, visuals, metadata
-- `src/api/`: stations, lyrics, YouTube integration
-- `src/state/`: configuration and app state
-- `src/ui/`: terminal layout and rendering
-- `test/`: automated tests
+## ⌨️ Keybindings
 
-## Testing
+| Key | Action |
+| :--- | :--- |
+| `Space` | Play / Pause |
+| `↑` / `↓` / `j` / `k` | Navigate lists & tracks |
+| `Enter` / `→` | Play selected track / Open folder |
+| `←` / `Backspace` | Go back / Parent directory |
+| `N` / `P` | Next / Previous track |
+| `+` / `-` | Volume up / down (+/- 5%) |
+| `Tab` / `M` | Cycle deck mode (Local / Radio / YouTube / Queue) |
+| `/` | Search current library / YouTube Music |
+| `L` | Toggle Synced Lyrics & Karaoke |
+| `[` / `]` | Adjust Lyrics Sync Offset (±200ms) |
+| `O` | Open DSP & Audio Settings Panel |
+| `B` | Toggle Mega Bass Boost (+7dB) |
+| `S` | Cycle Stereo DSP Mode (Stereo / 3D WIDE / Mono) |
+| `D` | Cycle Dolby NR Bias (Off / Dolby-B / Dolby-C / Dolby-S) |
+| `W` | Toggle Fullscreen Cassette / Album Artwork |
+| `F` | Add / Remove current track from Favorites |
+| `A` | Append selected track to Playback Queue |
+| `R` | Toggle Repeat mode |
+| `Z` | Toggle Shuffle mode |
+| `Esc` / `q` | Close overlay / Quit player |
 
+---
+
+## 🧪 Testing
+
+Run the automated test suite (73 unit tests across 25 suites):
 ```bash
 npm test
 ```
 
-## License
+---
 
-This project is licensed under the GNU GPL v3.0 or later. See [LICENSE](LICENSE) for details.
+## 📄 License
 
-## Notes
-
-This is a terminal-first music client intended for Linux and macOS users who prefer a lightweight, keyboard-centric workflow. It depends on external playback tooling such as MPV and may optionally use `yt-dlp` and desktop integrations for a fuller experience.
+This project is licensed under the **GNU General Public License v3.0 or later** (GPL-3.0-or-later). See [LICENSE](LICENSE) for details.

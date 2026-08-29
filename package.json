@@ -1,11 +1,15 @@
 {
-  "name": "hiphop-radio-tui",
-  "version": "1.0.0",
-  "description": "A retro boombox music player and radio explorer for local tracks, mixtapes, and live streams.",
+  "name": "boombox-tui",
+  "version": "2.0.0",
+  "description": "A retro cyberpunk cassette boombox music player and radio explorer for local Hi-Res audio, YouTube streams, and global radio stations.",
   "type": "module",
   "license": "GPL-3.0-or-later",
   "author": "Nguyễn Trần Duy Hưng",
   "bin": {
+    "boombox": "bin/index.js",
+    "boombox-tui": "bin/index.js",
+    "boombox-toggle": "bin/toggle.js",
+    "radio": "bin/index.js",
     "hiphop-radio": "bin/index.js",
     "hiphop-radio-toggle": "bin/toggle.js"
   },
@@ -19,7 +23,6 @@
   },
   "dependencies": {
     "blessed": "^0.1.81",
-    "blessed-contrib": "^4.8.20",
     "jpeg-js": "^0.4.4",
     "music-metadata": "^11.15.0",
     "pngjs": "^7.0.0"

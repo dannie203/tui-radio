@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="100%" height="100%">
+  <defs>
+    <linearGradient id="tray-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1f293d"/>
+      <stop offset="100%" stop-color="#0f1522"/>
+    </linearGradient>
+  </defs>
+  <!-- Cassette Body -->
+  <path d="M 2 5 C 2 3.89 2.89 3 4 3 L 20 3 C 21.11 3 22 3.89 22 5 L 22 17 C 22 18.11 21.11 19 20 19 L 18 19 L 17 21 L 7 21 L 6 19 L 4 19 C 2.89 19 2 18.11 2 17 Z" fill="url(#tray-body)" stroke="#00f5ff" stroke-width="1.2" stroke-linejoin="round"/>
+  
+  <!-- Label / Window Area -->
+  <rect x="5" y="6" width="14" height="8" rx="2" fill="#080c14" stroke="#253248" stroke-width="0.8"/>
+  
+  <!-- Left Spool -->
+  <circle cx="8.5" cy="10" r="2.2" fill="#ffd24d"/>
+  <circle cx="8.5" cy="10" r="1.1" fill="#080c14"/>
+  
+  <!-- Right Spool -->
+  <circle cx="15.5" cy="10" r="2.2" fill="#ffd24d"/>
+  <circle cx="15.5" cy="10" r="1.1" fill="#080c14"/>
+  
+  <!-- Connecting Tape -->
+  <line x1="8.5" y1="11.8" x2="15.5" y2="11.8" stroke="#ffb000" stroke-width="0.8"/>
+  
+  <!-- Bottom Tape Head Center -->
+  <rect x="10.5" y="17" width="3" height="2.5" rx="0.5" fill="#00f5ff"/>
+</svg>

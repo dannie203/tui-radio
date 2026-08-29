@@ -11,7 +11,7 @@ BarWidget {
 
   function launchRadio() {
     Quickshell.execDetached([
-      "hiphop-radio-toggle"
+      "boombox-toggle"
     ])
   }
 

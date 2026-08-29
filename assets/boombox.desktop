@@ -1,0 +1,28 @@
+[Desktop Entry]
+Name=BOOMBOX RX-505
+GenericName=Boombox Audio Player & Radio
+Comment=Retro Cyberpunk Boombox audio player, Hi-Res local audio, YouTube streams, and global radio
+Exec=boombox-toggle
+Icon=boombox
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Player;Music;
+Keywords=boombox;audio;music;player;radio;retro;tui;cyberpunk;mpv;lyrics;hi-res;
+StartupWMClass=boombox
+Actions=Focus;TogglePlay;Next;Previous;
+
+[Desktop Action Focus]
+Name=Open / Focus Player
+Exec=boombox-toggle
+
+[Desktop Action TogglePlay]
+Name=Play / Pause
+Exec=playerctl -p boombox,hiphop_radio play-pause
+
+[Desktop Action Next]
+Name=Next Track
+Exec=playerctl -p boombox,hiphop_radio next
+
+[Desktop Action Previous]
+Name=Previous Track
+Exec=playerctl -p boombox,hiphop_radio previous

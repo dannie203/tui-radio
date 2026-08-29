@@ -631,7 +631,7 @@ export function createLayout(store, actions, player) {
   const screen = blessed.screen({
     smartCSR: false,
     fastCSR: true,
-    title: 'NEON//WAVE CYBERPUNK AUDIO TERMINAL',
+    title: 'BOOMBOX RX-505 Retro Audio Terminal',
     fullUnicode: true
   });
   const leftPaneWidth = '37%';

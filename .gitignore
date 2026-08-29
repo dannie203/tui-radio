@@ -43,3 +43,9 @@ Thumbs.db
 # Python
 __pycache__/
 *.pyc
+
+# AI & Agent local instructions
+AGENTS.md
+GEMINI.md
+.agents/
+.agent/

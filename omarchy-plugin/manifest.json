@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "id": "aki.hiphop-radio",
-  "name": "Hip-Hop Radio",
-  "version": "1.0.0",
+  "id": "aki.boombox",
+  "name": "BOOMBOX RX-505",
+  "version": "2.0.0",
   "author": "Aki",
-  "description": "Launch the Hip-Hop Radio terminal app",
+  "description": "Launch the BOOMBOX RX-505 retro audio player and radio terminal app",
   "kinds": [
     "bar-widget"
   ],
@@ -12,8 +12,8 @@
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "Radio",
-    "description": "Open Hip-Hop Radio",
+    "displayName": "Boombox",
+    "description": "Open BOOMBOX RX-505 Audio Player",
     "category": "Media",
     "allowMultiple": false
   }

@@ -3,9 +3,6 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { isProcessAlive, readPidFile } from './instance_manager.js';
-
-const PID_FILE = '/tmp/hiphop-tui.pid';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -108,7 +105,7 @@ export class TrayManager {
       const body = `${artist}${album ? ` — ${album}` : ''}`;
       spawn('notify-send', [
         '-a', 'BOOMBOX RX-505',
-        '-i', 'audio-player',
+        '-i', 'boombox',
         '-h', 'string:category:music',
         summary,
         body
@@ -167,11 +164,14 @@ export class TrayManager {
         break;
       case 'open_tui': {
         try {
-          const localToggle = join(homedir(), '.local', 'bin', 'hiphop-radio-toggle');
-          if (existsSync(localToggle)) {
-            spawn(localToggle, [], { stdio: 'ignore' });
+          const boomboxLocal = join(homedir(), '.local', 'bin', 'boombox-toggle');
+          const radioLocal = join(homedir(), '.local', 'bin', 'hiphop-radio-toggle');
+          if (existsSync(boomboxLocal)) {
+            spawn(boomboxLocal, [], { stdio: 'ignore' });
+          } else if (existsSync(radioLocal)) {
+            spawn(radioLocal, [], { stdio: 'ignore' });
           } else {
-            spawn('hiphop-radio-toggle', [], { stdio: 'ignore' });
+            spawn('boombox-toggle', [], { stdio: 'ignore' });
           }
         } catch {}
         break;
