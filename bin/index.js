@@ -6,10 +6,12 @@ import { fetchLyrics, cleanTitleAndArtist } from '../src/api/lyrics.js';
 import { scanDirectory } from '../src/audio/library.js';
 import { MpvPlayer } from '../src/audio/player.js';
 import { createLayout } from '../src/ui/layout.js';
+import { TrayManager } from '../src/desktop/tray_manager.js';
 
 const store = new Store();
 const player = new MpvPlayer();
 let layout;
+let tray;
 let shuttingDown = false;
 let currentLyricsController = null;
 let currentLyricsReqId = 0;
@@ -24,37 +26,80 @@ async function shutdown(exitCode = 0) {
   shuttingDown = true;
   currentLyricsController?.abort();
   currentLyricsController = null;
+  try { await store.saveSession(); } catch {}
+  tray?.destroy();
   if (layout?.animTimer) clearInterval(layout.animTimer);
   layout?.screen?.destroy();
   try { await player.close(); }
   finally { process.exit(exitCode); }
 }
 
-process.on('exit', () => { player.close(); });
-process.on('SIGINT', () => { shutdown(0); });
+function detachToBackground() {
+  if (layout) {
+    if (layout.animTimer) clearInterval(layout.animTimer);
+    try {
+      layout.screen?.program?.input?.pause();
+      layout.screen?.destroy();
+    } catch {}
+    layout = null;
+  }
+  process.stdout.on('error', () => {});
+  process.stderr.on('error', () => {});
+  try { process.stdin.pause(); } catch {}
+
+  store.saveSession();
+  tray?.sendDesktopNotification(
+    'Minimized to System Tray',
+    store.state.current?.title || 'BOOMBOX RX-505',
+    'Music continues in background (Controlled via Tray & Media Keys)'
+  );
+}
+
+process.on('exit', () => { if (shuttingDown) player.close(); });
+process.on('SIGINT', () => { shutdown(0); }); // Ctrl+C explicitly shuts down
 process.on('SIGTERM', () => { shutdown(0); });
-process.on('SIGHUP', () => { shutdown(0); });
+process.on('SIGHUP', () => {
+  // Super+W / Window Close sends SIGHUP: detach and continue playing in background!
+  detachToBackground();
+});
 process.on('uncaughtException', (error) => {
   console.error(error);
   shutdown(1);
 });
 
 async function main() {
+  await store.initSettings();
   await store.loadFavorites();
 
-  // Scan local hierarchical music library with live progress feedback
-  setStatus('Scanning music library and audio metadata...');
-  const { library, tracks } = await scanDirectory(store.state.musicDir, (progress) => {
-    if (progress.phase === 'parsing') {
-      setStatus(`Scanning tags: ${progress.done}/${progress.total} audio files`);
-    }
+  // Apply loaded visualizer & DSP settings to player
+  player.updateBallistics({
+    peakHoldMs: store.config.visualizer?.peakHoldMs,
+    peakDecayRate: store.config.visualizer?.peakDecayRate
+  });
+  player.applyDsp({
+    stereoMode: store.state.stereoMode,
+    dolbyMode: store.state.dolbyMode,
+    tapeType: store.state.tapeType,
+    bassBoost: store.state.bassBoost
   });
 
-  store.setLibrary(library, tracks);
-  if (tracks.length === 0) {
-    store.setMode('RADIO STATIONS');
+  // Scan local hierarchical music library with live progress feedback
+  if (store.config.library?.scanOnStartup !== false) {
+    setStatus('Scanning music library and audio metadata...');
+    const { library, tracks } = await scanDirectory(store.state.musicDir, (progress) => {
+      if (progress.phase === 'parsing') {
+        setStatus(`Scanning tags: ${progress.done}/${progress.total} audio files`);
+      }
+    });
+
+    store.setLibrary(library, tracks);
+    if (tracks.length === 0) {
+      store.setMode('RADIO STATIONS');
+    } else {
+      setStatus(`Loaded ${tracks.length} tracks across ${Object.keys(library.artists).length} artists in Crates`);
+    }
   } else {
-    setStatus(`Loaded ${tracks.length} tracks across ${Object.keys(library.artists).length} artists in Crates`);
+    store.setMode('RADIO STATIONS');
   }
 
   // Fetch online radio stations in background
@@ -69,6 +114,9 @@ async function main() {
 
   try { await player.start(); }
   catch (error) { setStatus(error.message); }
+
+  // Restore previous session (last track, queue, mode, volume, DSP state)
+  await store.loadSession();
 
   function triggerLyricsFetch(item, { isRadio = false } = {}) {
     if (!item) return;
@@ -134,6 +182,14 @@ async function main() {
         return;
       }
 
+      // Sync queueIndex if item is in Queue
+      if (store.state.queue.length > 0) {
+        const qIdx = store.state.queue.findIndex((t) => t.id === item.id || (t.url && t.url === item.url));
+        if (qIdx !== -1) {
+          store.state.queueIndex = qIdx;
+        }
+      }
+
       lastRadioLyricsKey = '';
       player.play(item.url || item.path, item);
       triggerLyricsFetch(item);
@@ -158,9 +214,17 @@ async function main() {
         return;
       }
       player.togglePause();
+      const willBePaused = store.state.playing && !store.state.paused;
       store.update({
-        paused: !store.state.paused,
-        status: store.state.paused ? 'Resumed' : 'Paused'
+        status: willBePaused ? 'Paused' : 'Resumed'
+      });
+    },
+    stop: () => {
+      player.stop();
+      store.update({
+        playing: false,
+        paused: false,
+        status: 'Playback stopped'
       });
     },
     next: () => {
@@ -277,10 +341,49 @@ async function main() {
     toggleLyrics: (force) => store.toggleLyrics(force),
     scrollLyrics: (delta) => store.scrollLyrics(delta),
     adjustLyricsSyncOffset: (delta) => store.adjustLyricsSyncOffset(delta),
+    toggleSettings: (force) => store.toggleSettings(force),
+    moveSettingsSelection: (delta) => store.moveSettingsSelection(delta),
+    cycleSettingValue: (delta) => {
+      const res = store.cycleSettingValue(delta);
+      if (res) {
+        if (res.section.id.startsWith('dsp.')) {
+          player.applyDsp({
+            stereoMode: store.state.stereoMode,
+            dolbyMode: store.state.dolbyMode,
+            tapeType: store.state.tapeType,
+            bassBoost: store.state.bassBoost
+          });
+        }
+        if (res.section.id.startsWith('visualizer.')) {
+          player.updateBallistics({
+            peakHoldMs: store.config.visualizer.peakHoldMs,
+            peakDecayRate: store.config.visualizer.peakDecayRate
+          });
+        }
+      }
+      return res;
+    },
     quit: () => shutdown(0)
   };
 
-  layout = createLayout(store, actions, player);
+  // Start Desktop Tray & MPRIS2 Media Controller Daemon
+  tray = new TrayManager(store, actions, player);
+  tray.start();
+
+  const isDaemonMode = process.argv.includes('--daemon') || process.argv.includes('--tray') || process.argv.includes('--minimized') || process.argv.includes('-d');
+  if (!isDaemonMode) {
+    layout = createLayout(store, actions, player);
+  } else {
+    // If started in background tray mode, resume last session track or play first track
+    const target = store.state.current || store.state.localTracks?.[0] || store.state.stations?.[0];
+    if (target) actions.play(target);
+  }
+
+  // Periodic session background saver
+  const sessionSaveTimer = setInterval(() => {
+    store.saveSession();
+  }, 15000);
+  sessionSaveTimer.unref();
 
   player.on('state', (state) => {
     store.update({ playing: state === 'playing' || state === 'buffering', paused: state === 'paused' });

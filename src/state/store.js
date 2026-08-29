@@ -2,8 +2,15 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { findActiveLyricIndex } from '../api/lyrics.js';
+import {
+  CONFIG_DIR,
+  loadConfig,
+  saveConfig,
+  DEFAULT_CONFIG,
+  SETTINGS_SECTIONS
+} from './config.js';
+import { loadSession, saveSession } from './session.js';
 
-const CONFIG_DIR = join(homedir(), '.config', 'hiphop-tui');
 const FAVORITES_FILE = join(CONFIG_DIR, 'favorites.json');
 
 export const MODES = ['LOCAL TRACKS', 'RADIO STATIONS', 'QUEUE', 'YOUTUBE MUSIC'];
@@ -24,7 +31,8 @@ export const DOLBY_MODES = ['DOLBY-B', 'DOLBY-C', 'DOLBY-S', 'OFF'];
 export const TAPE_TYPES = ['TYPE-II', 'TYPE-I', 'TYPE-IV'];
 
 export class Store {
-  constructor() {
+  constructor(initialConfig = DEFAULT_CONFIG) {
+    this.config = structuredClone ? structuredClone(initialConfig || DEFAULT_CONFIG) : JSON.parse(JSON.stringify(initialConfig || DEFAULT_CONFIG));
     this.state = {
       mode: 'LOCAL TRACKS',
       library: {
@@ -52,11 +60,11 @@ export class Store {
       selectedIndex: 0,
       query: '',
       genreFilter: 'ALL',
-      musicDir: join(homedir(), 'Music'),
+      musicDir: this.config.library?.musicDir || join(homedir(), 'Music'),
       current: null,
       playing: false,
       paused: false,
-      volume: 80,
+      volume: this.config.dsp?.volume ?? 80,
       timePos: 0,
       duration: 0,
       percentPos: 0,
@@ -66,16 +74,20 @@ export class Store {
       tapeCounter: '00:00',
       shuffle: false,
       repeat: 'off', // 'off' | 'all' | 'one'
-      stereoMode: 'STEREO', // 'STEREO' | 'MONO' | '3D WIDE'
-      dolbyMode: 'DOLBY-B', // 'DOLBY-B' | 'DOLBY-C' | 'DOLBY-S' | 'OFF'
-      tapeType: 'TYPE-II', // 'TYPE-II' | 'TYPE-I' | 'TYPE-IV'
-      bassBoost: false,
+      stereoMode: this.config.dsp?.stereoMode || 'STEREO',
+      dolbyMode: this.config.dsp?.dolbyMode || 'DOLBY-B',
+      tapeType: this.config.dsp?.tapeType || 'TYPE-II',
+      bassBoost: Boolean(this.config.dsp?.bassBoost),
+      config: this.config,
+      settingsVisible: false,
+      settingsSelectedIndex: 0,
+      settingsSections: SETTINGS_SECTIONS,
       lyrics: null,
       lyricsStatus: 'idle', // 'idle' | 'loading' | 'found' | 'unavailable' | 'error'
       lyricsTrackId: null,
       lyricsVisible: false,
       lyricsScrollOffset: 0,
-      lyricsSyncOffset: 0,
+      lyricsSyncOffset: this.config.lyrics?.syncOffset || 0,
       activeLyricIndex: -1,
       youtubeResults: [],
       youtubeQuery: '',
@@ -290,10 +302,13 @@ export class Store {
   }
 
   cycleStereoMode(delta = 1) {
-    const currentIndex = Math.max(0, STEREO_MODES.indexOf(this.state.stereoMode));
+    let currentMode = this.state.stereoMode;
+    if (currentMode === 'STEREO-3D' || currentMode === '3D' || currentMode === 'WIDE') currentMode = '3D WIDE';
+    const currentIndex = Math.max(0, STEREO_MODES.indexOf(currentMode));
     const nextIndex = (currentIndex + delta + STEREO_MODES.length) % STEREO_MODES.length;
     this.state.stereoMode = STEREO_MODES[nextIndex];
     this.state.status = `Stereo Mode: [ ${this.state.stereoMode} ]`;
+    if (this.config.dsp) this.config.dsp.stereoMode = this.state.stereoMode;
     this.emit();
     return this.state.stereoMode;
   }
@@ -602,6 +617,11 @@ export class Store {
 
     // Check queue first
     if (this.state.queue.length > 0) {
+      if (this.state.current && this.state.queueIndex === -1) {
+        const currId = this.state.current.id;
+        const found = this.state.queue.findIndex((t) => t.id === currId || (t.url && t.url === this.state.current.url));
+        if (found !== -1) this.state.queueIndex = found;
+      }
       if (this.state.shuffle) {
         const nextIdx = Math.floor(Math.random() * this.state.queue.length);
         this.state.queueIndex = nextIdx;
@@ -622,14 +642,18 @@ export class Store {
       const list = this.state.youtubeResults;
       if (!list.length) return null;
 
+      const currId = this.state.current?.id;
+      let currIdx = list.findIndex((t) => t.id === currId);
+      if (currIdx === -1) currIdx = this.state.selectedIndex;
+
       if (this.state.shuffle) {
         const randomIdx = Math.floor(Math.random() * list.length);
         this.state.selectedIndex = randomIdx;
         return list[randomIdx];
       }
-      if (this.state.selectedIndex < list.length - 1) {
-        this.state.selectedIndex++;
-        return list[this.state.selectedIndex];
+      if (currIdx < list.length - 1) {
+        this.state.selectedIndex = currIdx + 1;
+        return list[currIdx + 1];
       }
       if (this.state.repeat === 'all') {
         this.state.selectedIndex = 0;
@@ -816,6 +840,108 @@ export class Store {
       this.emit();
     }
     return index;
+  }
+
+  async initSettings() {
+    const loaded = await loadConfig();
+    this.config = loaded;
+    this.state.config = loaded;
+    this.state.musicDir = loaded.library?.musicDir || this.state.musicDir;
+    this.state.stereoMode = loaded.dsp?.stereoMode || this.state.stereoMode;
+    this.state.dolbyMode = loaded.dsp?.dolbyMode || this.state.dolbyMode;
+    this.state.tapeType = loaded.dsp?.tapeType || this.state.tapeType;
+    this.state.bassBoost = Boolean(loaded.dsp?.bassBoost);
+    this.state.lyricsSyncOffset = loaded.lyrics?.syncOffset || this.state.lyricsSyncOffset;
+    this.emit();
+    return this.config;
+  }
+
+  toggleSettings(forceState) {
+    this.state.settingsVisible = forceState !== undefined ? Boolean(forceState) : !this.state.settingsVisible;
+    if (this.state.settingsVisible) {
+      this.state.status = 'Deck Menu: [ ⚙ SETTINGS & CONFIGURATION PANEL ]';
+    } else {
+      this.state.status = 'Deck View: [ CASSETTE DECK ]';
+    }
+    this.emit();
+    return this.state.settingsVisible;
+  }
+
+  moveSettingsSelection(delta) {
+    const total = this.state.settingsSections.length;
+    if (total === 0) return;
+    this.state.settingsSelectedIndex = (this.state.settingsSelectedIndex + delta + total) % total;
+    this.emit();
+  }
+
+  cycleSettingValue(delta = 1) {
+    const currentSection = this.state.settingsSections[this.state.settingsSelectedIndex];
+    if (!currentSection) return null;
+
+    const currentVal = currentSection.get(this.config);
+    const idx = currentSection.options.indexOf(currentVal);
+    const nextIdx = (idx + delta + currentSection.options.length) % currentSection.options.length;
+    const nextVal = currentSection.options[nextIdx];
+
+    currentSection.set(this.config, nextVal);
+    this.state.config = { ...this.config };
+
+    // Mirror to state if relevant
+    if (currentSection.id === 'dsp.stereoMode') this.state.stereoMode = nextVal;
+    if (currentSection.id === 'dsp.dolbyMode') this.state.dolbyMode = nextVal;
+    if (currentSection.id === 'dsp.tapeType') this.state.tapeType = nextVal;
+    if (currentSection.id === 'dsp.bassBoost') this.state.bassBoost = nextVal;
+
+    this.saveCurrentConfig();
+    this.state.status = `Updated: ${currentSection.label} ➔ ${currentSection.labels[nextIdx]}`;
+    this.emit();
+    return { section: currentSection, value: nextVal };
+  }
+
+  async saveCurrentConfig() {
+    await saveConfig(this.config);
+  }
+
+  async loadSession() {
+    try {
+      const session = await loadSession();
+      if (!session) return;
+      if (session.mode && MODES.includes(session.mode)) this.state.mode = session.mode;
+      if (session.nav) {
+        this.state.nav.level = session.nav.level || this.state.nav.level;
+        this.state.nav.selectedArtist = session.nav.selectedArtist || null;
+        this.state.nav.selectedAlbumKey = session.nav.selectedAlbumKey || null;
+        this.state.nav.selectedPlaylist = session.nav.selectedPlaylist || null;
+      }
+      if (session.queue && Array.isArray(session.queue)) {
+        this.state.queue = session.queue;
+        this.state.queueIndex = session.queueIndex ?? -1;
+      }
+      if (session.volume !== undefined) this.state.volume = session.volume;
+      if (session.shuffle !== undefined) this.state.shuffle = session.shuffle;
+      if (session.repeat) this.state.repeat = session.repeat;
+      if (session.genreFilter && GENRE_FILTERS.includes(session.genreFilter)) this.state.genreFilter = session.genreFilter;
+      if (session.stereoMode) this.state.stereoMode = session.stereoMode;
+      if (session.dolbyMode) this.state.dolbyMode = session.dolbyMode;
+      if (session.tapeType) this.state.tapeType = session.tapeType;
+      if (session.bassBoost !== undefined) this.state.bassBoost = session.bassBoost;
+      if (session.selectedIndex !== undefined) this.state.selectedIndex = session.selectedIndex;
+      if (session.lyricsSyncOffset !== undefined) this.state.lyricsSyncOffset = session.lyricsSyncOffset;
+      if (session.current) {
+        this.state.current = session.current;
+        this.state.timePos = session.timePos || 0;
+        this.state.duration = session.current.duration || 0;
+        const mins = Math.floor(this.state.timePos / 60);
+        const secs = Math.floor(this.state.timePos % 60);
+        this.state.tapeCounter = `${mins}:${String(secs).padStart(2, '0')}`;
+        this.state.status = `Session Restored: [ ${session.current.title || session.current.name} ]`;
+      }
+      this.applyFilter();
+    } catch {}
+  }
+
+  async saveSession() {
+    await saveSession(this.state);
   }
 }
 

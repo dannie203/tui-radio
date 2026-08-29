@@ -1,6 +1,7 @@
 import blessed from 'blessed';
 import { MODES, GENRE_FILTERS } from '../state/store.js';
 import { extractArtworkBuffer, renderHalfBlockArt } from '../audio/art.js';
+import { formatKaraokeText, scrambleLine } from '../api/lyrics.js';
 
 const colors = {
   bgDark: '#0a0d13',
@@ -27,8 +28,41 @@ const SPOOL_FRAMES_LEFT = ['(◐)', '(◓)', '(◑)', '(◒)'];
 const SPOOL_FRAMES_RIGHT = ['(◑)', '(◒)', '(◐)', '(◓)'];
 const WIDE_SPOOL_LEFT = ['(  |  )', '(  /  )', '(  -  )', '(  \\  )'];
 const WIDE_SPOOL_RIGHT = ['(  \\  )', '(  |  )', '(  /  )', '(  -  )'];
-const EQ_FREQ_LABELS = [' 31', ' 63', '125', '250', '500', ' 1k', ' 2k', ' 4k', ' 8k', '16k'];
 const BLOCK_CHARS = [' ', ' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+const EQ_FREQ_LABELS = [
+  '20Hz', '25Hz', '31Hz', '40Hz', '50Hz', '63Hz', '80Hz', '100', '125', '160',
+  '200', '250', '315', '400', '500', '630', '800', '1.0k', '1.2k', '1.6k',
+  '2.0k', '2.5k', '3.1k', '4.0k', '5.0k', '6.3k', '8.0k', '10k', '12k', '16k', '18k', '20k'
+];
+
+function hslToHex(h, s = 1.0, l = 0.5) {
+  h = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+
+  if (h < 60) { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else { r = c; g = 0; b = x; }
+
+  const toHex = (n) => {
+    const val = Math.max(0, Math.min(255, Math.round((n + m) * 255)));
+    return (val < 16 ? '0' : '') + val.toString(16);
+  };
+
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+const RGB_WHEEL = [];
+const RGB_PEAK_WHEEL = [];
+for (let h = 0; h < 360; h++) {
+  RGB_WHEEL.push(hslToHex(h, 1.0, 0.52));
+  RGB_PEAK_WHEEL.push(hslToHex(h, 1.0, 0.82));
+}
 
 function stripTags(str) {
   return String(str || '').replace(/\{[^}]+\}/g, '');
@@ -60,9 +94,10 @@ function formatHeader(state) {
       : `{#6f7e91-fg}[ ${label} ]{/#6f7e91-fg}`;
   }).join('   ');
 
-  const stereoBadge = state.stereoMode === 'STEREO'
+  const normStereo = String(state.stereoMode || '').toUpperCase().trim();
+  const stereoBadge = normStereo === 'STEREO'
     ? '{#33ff33-fg}[● STEREO (S)]{/#33ff33-fg}'
-    : state.stereoMode === 'MONO'
+    : normStereo === 'MONO'
     ? '{#ffd24d-fg}[◉ MONO (S)]{/#ffd24d-fg}'
     : '{#00e5ff-fg}[✦ 3D WIDE (S)]{/#00e5ff-fg}';
 
@@ -106,7 +141,7 @@ function formatLyricsDisplay(state, currentItem) {
 
   const header = [
     ` {#f5c542-fg}┌─────────────────────────────────────────────────────────────┐{/#f5c542-fg}`,
-    ` {#f5c542-fg}│{/#f5c542-fg} {#00e5ff-fg}[ 🎤 LIVE PHOSPHOR LYRICS DISPLAY ]{/#00e5ff-fg}  {#ffd24d-fg}${source}{/#ffd24d-fg}  {#6f7e91-fg}(Press 'L' to return){/#6f7e91-fg}`,
+    ` {#f5c542-fg}│{/#f5c542-fg} {#00e5ff-fg}[ 🎤 LIVE SYNCED LYRICS DISPLAY ]{/#00e5ff-fg}  {#ffd24d-fg}${source}{/#ffd24d-fg}  {#6f7e91-fg}(Press 'L' to return){/#6f7e91-fg}`,
     ` {#f5c542-fg}└─────────────────────────────────────────────────────────────┘{/#f5c542-fg}`,
     ` {bold}{#33ff33-fg}TRACK :{/#33ff33-fg}{/bold} {bold}${title}{/bold}  {#6f7e91-fg}│{/#6f7e91-fg}  {bold}{#ffd24d-fg}ARTIST:{/#ffd24d-fg}{/bold} {bold}${artist}{/bold}${syncBadge}`
   ];
@@ -140,6 +175,8 @@ function formatLyricsDisplay(state, currentItem) {
     const centerIdx = activeIdx + (state.lyricsScrollOffset || 0);
     const windowRadius = 3;
     const lines = [];
+    const currentTime = Math.max(0, (state.timePos || 0) + (state.lyricsSyncOffset || 0));
+    const tick = Math.floor((currentTime || 0) * 30);
 
     lines.push(...header);
     lines.push(``);
@@ -150,17 +187,19 @@ function formatLyricsDisplay(state, currentItem) {
         continue;
       }
       const item = lyrics.synced[i];
-      const m = Math.floor(item.time / 60);
-      const s = String(Math.floor(item.time % 60)).padStart(2, '0');
-      const timeTag = `${m}:${s}`;
-      const safeText = sanitize(item.text || '♪  ♪  ♪', 48);
+      const safeText = sanitize(item.text || '♪  ♪  ♪', 52);
 
       if (i === activeIdx) {
-        lines.push(` {bold}{#33ff33-fg} ▶ [${timeTag}]  ${safeText}{/#33ff33-fg}{/bold}`);
-      } else if (Math.abs(i - activeIdx) === 1) {
-        lines.push(`   {#f3ead8-fg}[${timeTag}]  ${safeText}{/#f3ead8-fg}`);
+        const nextItem = lyrics.synced[i + 1] || null;
+        const karaokeText = formatKaraokeText(item, currentTime, nextItem, state.duration, { tick });
+        lines.push(` {bold}{#33ff33-fg} ▶{/#33ff33-fg}{/bold}  ${karaokeText}`);
+      } else if (i < activeIdx) {
+        // Past lines: already un-matrixed!
+        lines.push(`    {#566573-fg}${safeText}{/#566573-fg}`);
       } else {
-        lines.push(`   {#6f7e91-fg}[${timeTag}]  ${safeText}{/#6f7e91-fg}`);
+        // Upcoming lines: fully scrambled in matrix code!
+        const scrambled = scrambleLine(safeText, tick + i * 17);
+        lines.push(`    {#475466-fg}${scrambled}{/#475466-fg}`);
       }
     }
 
@@ -253,18 +292,39 @@ function formatCombinedMonitor(spoolFrame, isPlaying, isPaused, currentItem, mod
   }
 
   if (showFullArtwork && artLines) {
-    return [
-      ` {#f5c542-fg}┌─────────────────────────────────────────────────────────────┐{/#f5c542-fg}`,
-      ` {#f5c542-fg}│{/#f5c542-fg} {#00e5ff-fg}[ 💽 HIGH-RES ALBUM COVER ARTWORK ]{/#00e5ff-fg}  {#6f7e91-fg}(Press 'W' to return){/#6f7e91-fg}`,
-      ` {#f5c542-fg}└─────────────────────────────────────────────────────────────┘{/#f5c542-fg}`,
-      artLines,
+    const artLineArray = artLines.split('\n');
+    const infoLines = [
+      ` {#f5c542-fg}┌──────────────────────────────────────────────┐{/#f5c542-fg}`,
+      ` {#f5c542-fg}│{/#f5c542-fg} {#00e5ff-fg}[ 💽 HIGH-RES ALBUM COVER ARTWORK ]{/#00e5ff-fg}  {#6f7e91-fg}(W: Back){/#6f7e91-fg}`,
+      ` {#f5c542-fg}└──────────────────────────────────────────────┘{/#f5c542-fg}`,
       ``,
-      ` {bold}{#33ff33-fg}TRACK :{/#33ff33-fg}{/bold} {bold}${title}{/bold}`,
-      ` {bold}{#ffd24d-fg}ARTIST:{/#ffd24d-fg}{/bold} {bold}${artist}{/bold}  {#00e5ff-fg}[${albumOrCountry}]{/#00e5ff-fg}`
-    ].join('\n');
+      ` {bold}{#33ff33-fg}TRACK :{/#33ff33-fg}{/bold} {bold}${sanitize(title, 32)}{/bold}`,
+      ` {bold}{#ffd24d-fg}ARTIST:{/#ffd24d-fg}{/bold} {bold}${sanitize(artist, 32)}{/bold}`,
+      ` {bold}{#00e5ff-fg}ALBUM :{/#00e5ff-fg}{/bold} {#f3ead8-fg}${sanitize(albumOrCountry, 32)}{/#f3ead8-fg}`,
+      ` {bold}{#f5c542-fg}CODEC :{/#f5c542-fg}{/bold} ${formatBadge}`,
+      ``,
+      ` {#6f7e91-fg}• Press 'W' to return to Cassette Deck{/#6f7e91-fg}`,
+      ` {#6f7e91-fg}• Press 'L' to view real-time Synced Lyrics{/#6f7e91-fg}`
+    ];
+
+    const combinedLines = [];
+    const maxLines = Math.max(artLineArray.length, infoLines.length);
+
+    for (let i = 0; i < maxLines; i++) {
+      const leftPart = artLineArray[i] || ' '.repeat(34);
+      const rightPart = infoLines[i] || '';
+      combinedLines.push(`${leftPart}   ${rightPart}`);
+    }
+
+    return combinedLines.join('\n');
   }
 
-  const recLed = isPlaying && !isPaused ? '{#ff3344-fg}● REC{/#ff3344-fg}' : '{#2a3545-fg}● REC{/#2a3545-fg}';
+  const isLiveStream = mode === 'RADIO STATIONS'
+    || currentItem?.type === 'radio'
+    || Boolean(currentItem?.isLive)
+    || (!currentItem?.duration && Boolean(currentItem?.url) && currentItem?.type !== 'local');
+
+  const recLed = isPlaying && !isPaused && isLiveStream ? '{#ff3344-fg}● REC{/#ff3344-fg}' : '{#2a3545-fg}● REC{/#2a3545-fg}';
   const playLed = isPlaying && !isPaused ? '{#33ff33-fg}▶ PLAY{/#33ff33-fg}' : '{#2a3545-fg}▶ PLAY{/#2a3545-fg}';
   const pauseLed = isPaused ? '{#ffb000-fg}❚❚ PAUSE{/#ffb000-fg}' : '{#2a3545-fg}❚❚ PAUSE{/#2a3545-fg}';
   const stopLed = !isPlaying && !isPaused ? '{#f5c542-fg}▲ STOP{/#f5c542-fg}' : '{#2a3545-fg}▲ STOP{/#2a3545-fg}';
@@ -393,24 +453,76 @@ function formatVuMeter(channelLabel, value, peak, width = 56) {
   return ` {bold}{#f5c542-fg}${channelLabel}{/#f5c542-fg}{/bold} [${barStr}] {#b8c4ce-fg}${db.padStart(5)}{/#b8c4ce-fg} ${peakIndicator}`;
 }
 
-function formatEqualizer(bands = [], peaks = [], height = 6) {
-  const bandWidth = 5;
-  const spacing = '  ';
+const LABELS_SLOT_4 = [
+  ' 20 ', ' 25 ', '31.5', ' 40 ', ' 50 ', ' 63 ', ' 80 ', '100 ', '125 ', '160 ',
+  '200 ', '250 ', '315 ', '400 ', '500 ', '630 ', '800 ', '1.0k', '1.2k', '1.6k',
+  '2.0k', '2.5k', '3.1k', '4.0k', '5.0k', '6.3k', '8.0k', ' 10k', '12.5', ' 16k', ' 18k', ' 20k'
+];
+
+const LABELS_SLOT_3 = [
+  ' 20', ' 25', ' 31', ' 40', ' 50', ' 63', ' 80', '100', '125', '160',
+  '200', '250', '315', '400', '500', '630', '800', ' 1k', '1.2', '1.6',
+  ' 2k', '2.5', '3.1', ' 4k', ' 5k', '6.3', ' 8k', '10k', '12k', '16k', '18k', '20k'
+];
+
+const LABELS_SLOT_2 = [
+  '20', '25', '31', '40', '50', '63', '80', '10', '12', '16',
+  '20', '25', '31', '40', '50', '63', '80', '1k', '1.', '1.',
+  '2k', '2.', '3.', '4k', '5k', '6.', '8k', '10', '12', '16', '18', '20'
+];
+
+function getFormattedBandLabel(b, slotWidth) {
+  if (slotWidth >= 5) {
+    const raw = EQ_FREQ_LABELS[b] || String(b + 1);
+    return raw.padStart(slotWidth);
+  }
+  if (slotWidth === 4) {
+    return LABELS_SLOT_4[b] || String(b + 1).padStart(4);
+  }
+  if (slotWidth === 3) {
+    return LABELS_SLOT_3[b] || String(b + 1).padStart(3);
+  }
+  return LABELS_SLOT_2[b] || String(b + 1).padStart(2);
+}
+
+function formatEqualizer(bands = [], peaks = [], height = 10, rgbPhase = 0, targetBandWidth = null, theme = 'RGB_CHROMA') {
+  const numBands = bands.length || 32;
+  const bandWidth = targetBandWidth || 2;
+  const spacing = ' ';
+  const slotWidth = bandWidth + spacing.length;
   const rows = [];
 
   for (let r = height; r >= 1; r--) {
     let rowStr = ' ';
-    for (let b = 0; b < 10; b++) {
+    for (let b = 0; b < numBands; b++) {
       const val = bands[b] || 0;
       const peak = peaks[b] || 0;
       const threshold = ((r - 1) / height) * 100;
       const nextThreshold = (r / height) * 100;
       const peakThreshold = (peak / 100) * height;
 
+      let color = '#00e5ff';
+      let peakColor = '#ff3344';
+
+      if (theme === 'RGB_CHROMA') {
+        const hueIdx = Math.floor(((rgbPhase + b * 11.25 + (height - r) * 6) % 360) + 360) % 360;
+        color = RGB_WHEEL[hueIdx];
+        peakColor = RGB_PEAK_WHEEL[hueIdx];
+      } else if (theme === 'AMBER_GOLD') {
+        color = r >= height ? '#ff3344' : (r >= height - 2 ? '#ff9900' : (r >= height - 5 ? '#ffd24d' : '#ffb000'));
+        peakColor = '#ffd24d';
+      } else if (theme === 'GREEN_PHOSPHOR') {
+        color = r >= height ? '#ff3344' : (r >= height - 2 ? '#ffee33' : (r >= height - 5 ? '#33ff33' : '#11cc11'));
+        peakColor = '#33ff33';
+      } else if (theme === 'CYAN_NEON') {
+        color = r >= height ? '#ff007f' : (r >= height - 3 ? '#ff33aa' : (r >= height - 6 ? '#00e5ff' : '#00aacc'));
+        peakColor = '#ff007f';
+      } else if (theme === 'MONOCHROME') {
+        color = r >= height ? '#ffffff' : (r >= height - 3 ? '#e2e8f0' : (r >= height - 6 ? '#b8c4ce' : '#6f7e91'));
+        peakColor = '#ffffff';
+      }
+
       let block = ' '.repeat(bandWidth);
-      let color = '#33ff33';
-      if (r >= height - 1) color = '#ff3344';
-      else if (r >= height - 2) color = '#ffee33';
 
       if (val >= nextThreshold) {
         block = '█'.repeat(bandWidth);
@@ -419,7 +531,8 @@ function formatEqualizer(bands = [], peaks = [], height = 6) {
         block = BLOCK_CHARS[Math.max(1, sub)].repeat(bandWidth);
       } else if (Math.ceil(peakThreshold) === r && peak > 5) {
         block = '━'.repeat(bandWidth);
-        color = '#ff3344';
+        rowStr += `{${peakColor}-fg}${block}{/${peakColor}-fg}${spacing}`;
+        continue;
       }
 
       rowStr += `{${color}-fg}${block}{/${color}-fg}${spacing}`;
@@ -427,14 +540,68 @@ function formatEqualizer(bands = [], peaks = [], height = 6) {
     rows.push(rowStr);
   }
 
-  const labelRow = ' ' + ['31Hz', '63Hz', '125Hz', '250Hz', '500Hz', ' 1kHz', ' 2kHz', ' 4kHz', ' 8kHz', '16kHz'].map((l) => `{#6f7e91-fg}${l.padStart(5)}{/#6f7e91-fg}`).join('  ');
+  const labelRow = ' ' + Array.from({ length: numBands }, (_, b) => {
+    let labelColor = '#6f7e91';
+    if (theme === 'RGB_CHROMA') {
+      const labelHue = Math.floor(((rgbPhase + b * 11.25) % 360) + 360) % 360;
+      labelColor = RGB_WHEEL[labelHue];
+    } else if (theme === 'AMBER_GOLD') {
+      labelColor = '#ffb000';
+    } else if (theme === 'GREEN_PHOSPHOR') {
+      labelColor = '#33ff33';
+    } else if (theme === 'CYAN_NEON') {
+      labelColor = '#00e5ff';
+    } else if (theme === 'MONOCHROME') {
+      labelColor = '#b8c4ce';
+    }
+
+    const formatted = getFormattedBandLabel(b, slotWidth);
+    return `{${labelColor}-fg}${formatted}{/${labelColor}-fg}`;
+  }).join('');
+
   rows.push(labelRow);
   return rows.join('\n');
 }
 
+function formatSettingsContent(state) {
+  const sections = state.settingsSections || [];
+  const selectedIdx = state.settingsSelectedIndex || 0;
+  const config = state.config || {};
+
+  const lines = [
+    ` {bold}{#ffd24d-fg}⚙ DECK HARDWARE, VISUALIZER & SYSTEM PREFERENCES{/#ffd24d-fg}{/bold}`,
+    ` {#6f7e91-fg}Settings are automatically saved to ~/.config/hiphop-tui/config.json{/#6f7e91-fg}`,
+    ``
+  ];
+
+  let currentCategory = '';
+  sections.forEach((item, idx) => {
+    if (item.section !== currentCategory) {
+      currentCategory = item.section;
+      lines.push(` {bold}{#00e5ff-fg}${currentCategory}{/#00e5ff-fg}{/bold}`);
+    }
+
+    const currentVal = item.get ? item.get(config) : config[item.id];
+    const optIdx = item.options.indexOf(currentVal);
+    const labelVal = optIdx >= 0 ? item.labels[optIdx] : String(currentVal);
+
+    if (idx === selectedIdx) {
+      lines.push(`  {bold}{#0a0d13-bg}{#ffb000-fg} ▶ ${item.label.padEnd(18)} : [ ◀ ${labelVal} ▶ ] {/#ffb000-fg}{/#0a0d13-bg}{/bold}`);
+    } else {
+      lines.push(`    {#b8c4ce-fg}${item.label.padEnd(18)}{/#b8c4ce-fg} : {#6f7e91-fg}[{/#6f7e91-fg} {#ffd24d-fg}${labelVal}{/#ffd24d-fg} {#6f7e91-fg}]{/#6f7e91-fg}`);
+    }
+  });
+
+  lines.push(``);
+  lines.push(` {#6f7e91-fg}⌨ [↑/↓/j/k] Select Setting  •  [←/→/Space/Enter] Change Value  •  [Esc/q/O] Close Panel{/#6f7e91-fg}`);
+
+  return lines.join('\n');
+}
+
 export function createLayout(store, actions, player) {
   const screen = blessed.screen({
-    smartCSR: true,
+    smartCSR: false,
+    fastCSR: true,
     title: 'NEON//WAVE CYBERPUNK AUDIO TERMINAL',
     fullUnicode: true
   });
@@ -456,7 +623,7 @@ export function createLayout(store, actions, player) {
     if (item.type === 'local' || (typeof targetPath === 'string' && targetPath.startsWith('/'))) {
       const art = await extractArtworkBuffer(targetPath);
       if (art && currentArtKey === targetPath) {
-        currentArtLines = renderHalfBlockArt(art.data, art.format, 28, 12);
+        currentArtLines = renderHalfBlockArt(art.data, art.format, 34, 15);
         screen.render();
       }
     } else {
@@ -521,6 +688,7 @@ export function createLayout(store, actions, player) {
     vi: false,
     mouse: true,
     tags: true,
+    wrap: false,
     border: { type: 'line' },
     scrollbar: { ch: '█', style: { fg: colors.amber, bg: colors.bgPanel } },
     style: {
@@ -539,7 +707,7 @@ export function createLayout(store, actions, player) {
     top: 3,
     left: rightPaneLeft,
     width: rightPaneWidth,
-    height: '50%',
+    height: 16,
     label: ' 📟 CASSETTE DECK & PHOSPHOR LCD MONITOR ',
     tags: true,
     wrap: false,
@@ -552,32 +720,13 @@ export function createLayout(store, actions, player) {
     }
   });
 
-  // Right Middle: Dual stereo VU needle meters and 10-band equalizer spectrum.
-  const vuEqualizerBox = blessed.box({
-    parent: screen,
-    top: '53%',
-    left: rightPaneLeft,
-    width: rightPaneWidth,
-    height: '34%',
-    label: ' 🎛 DUAL STEREO VU METERS & 10-BAND GRAPHIC EQUALIZER ',
-    tags: true,
-    wrap: false,
-    border: { type: 'line' },
-    padding: { left: 1, right: 1 },
-    style: {
-      fg: colors.cream,
-      bg: colors.bgPanel,
-      border: { fg: colors.borderDim }
-    }
-  });
-
-  // Right Bottom: Hardware keypad shortcuts.
+  // Right Bottom: Hardware keypad shortcuts (fixed height 6 at bottom: 0).
   const controlsBox = blessed.box({
     parent: screen,
-    top: '87%',
+    bottom: 0,
     left: rightPaneLeft,
     width: rightPaneWidth,
-    bottom: 0,
+    height: 6,
     label: ' 🎚 DECK HARDWARE CONTROLS & SHORTCUTS ',
     tags: true,
     wrap: false,
@@ -589,11 +738,30 @@ export function createLayout(store, actions, player) {
       border: { fg: colors.borderDim }
     },
     content: [
-      ` {bold}{#ffb000-fg}[ ↵ / → ]{/#ffb000-fg}{/bold} Dive In (Artist/Album/Play) {bold}{#ffb000-fg}[ S ]{/#ffb000-fg}{/bold} Stereo/Mono/Wide     {bold}{#ffb000-fg}[ TAB / M ]{/#ffb000-fg}{/bold} Mode Select        {bold}{#ffb000-fg}[ + / - ]{/#ffb000-fg}{/bold} Volume ±5%`,
-      ` {bold}{#ffb000-fg}[ ⎋ / ← ]{/#ffb000-fg}{/bold} Back Up (Parent Crate)     {bold}{#ffb000-fg}[ D ]{/#ffb000-fg}{/bold} Dolby NR (Off/B/C/S)  {bold}{#ffb000-fg}[ 1 - 4 ]{/#ffb000-fg}{/bold} Crates Categories  {bold}{#ffb000-fg}[ ␣ ]{/#ffb000-fg}{/bold} Pause / Resume`,
-      ` {bold}{#ffb000-fg}[  N/P  ]{/#ffb000-fg}{/bold} Next / Previous Track      {bold}{#ffb000-fg}[ T ]{/#ffb000-fg}{/bold} Tape Bias (I/II/IV)  {bold}{#ffb000-fg}[ W / L ]{/#ffb000-fg}{/bold} Cover Art / Lyrics  {bold}{#ffb000-fg}[   /   ]{/#ffb000-fg}{/bold} Search / Filter`,
-      ` {bold}{#ffb000-fg}[ Y / U ]{/#ffb000-fg}{/bold} Load YouTube / URL Stream  {bold}{#ffb000-fg}[ B ]{/#ffb000-fg}{/bold} Mega Bass Boost EQ   {bold}{#ffb000-fg}[   A   ]{/#ffb000-fg}{/bold} Queue Crate/Track     {bold}{#ffb000-fg}[   Q   ]{/#ffb000-fg}{/bold} Eject / Quit`
+      ` {bold}{#ffb000-fg}[ ↵ / Play ]{/#ffb000-fg}{/bold} Select/Play  {bold}{#ffb000-fg}[ S ]{/#ffb000-fg}{/bold} Stereo/Mono/Wide     {bold}{#ffb000-fg}[ TAB / M ]{/#ffb000-fg}{/bold} Mode Select        {bold}{#ffb000-fg}[ + / - ]{/#ffb000-fg}{/bold} Volume ±5%`,
+      ` {bold}{#ffb000-fg}[ ← / → ]{/#ffb000-fg}{/bold} Crates/Genre  {bold}{#ffb000-fg}[ D ]{/#ffb000-fg}{/bold} Dolby NR (Off/B/C/S)  {bold}{#ffb000-fg}[ 1 - 4 ]{/#ffb000-fg}{/bold} Mode Categories    {bold}{#ffb000-fg}[ ␣ ]{/#ffb000-fg}{/bold} Pause  {bold}{#ffb000-fg}[ . / X ]{/#ffb000-fg}{/bold} Stop`,
+      ` {bold}{#ffb000-fg}[  N/P  ]{/#ffb000-fg}{/bold} Next/Prev Track {bold}{#ffb000-fg}[ T ]{/#ffb000-fg}{/bold} Tape Bias (I/II/IV)  {bold}{#ffb000-fg}[ W / L ]{/#ffb000-fg}{/bold} Cover Art / Lyrics  {bold}{#ffb000-fg}[   /   ]{/#ffb000-fg}{/bold} Search / Filter`,
+      ` {bold}{#ffb000-fg}[ Y / U ]{/#ffb000-fg}{/bold} Load YouTube/URL {bold}{#ffb000-fg}[ B ]{/#ffb000-fg}{/bold} Mega Bass Boost EQ   {bold}{#ffb000-fg}[   O   ]{/#ffb000-fg}{/bold} Settings / Theme     {bold}{#ffb000-fg}[   Q   ]{/#ffb000-fg}{/bold} Eject / Quit`
     ].join('\n')
+  });
+
+  // Right Middle: Dual stereo VU needle meters and equalizer spectrum (dynamically fills middle).
+  const vuEqualizerBox = blessed.box({
+    parent: screen,
+    top: 19,
+    bottom: 6,
+    left: rightPaneLeft,
+    width: rightPaneWidth,
+    label: ' 🌈 DUAL STEREO VU METERS & 16-BAND RGB CHROMA EQUALIZER ',
+    tags: true,
+    wrap: false,
+    border: { type: 'line' },
+    padding: { left: 1, right: 1 },
+    style: {
+      fg: colors.cream,
+      bg: colors.bgPanel,
+      border: { fg: colors.borderDim }
+    }
   });
 
   // Stream / YouTube URL & Search Prompt Modal
@@ -605,7 +773,7 @@ export function createLayout(store, actions, player) {
     height: 9,
     hidden: true,
     border: { type: 'line' },
-    label: ' 📺 STREAM / YOUTUBE & YT MUSIC URL LOADER [Y] ',
+    label: ' 🌐 UNIVERSAL ONLINE STREAM & URL LOADER [Y / U] ',
     tags: true,
     style: {
       fg: colors.cream,
@@ -621,7 +789,26 @@ export function createLayout(store, actions, player) {
     right: 1,
     height: 2,
     tags: true,
-    content: ' Paste YouTube or YouTube Music song/playlist/album URL, or search query:\n {#6f7e91-fg}e.g. "https://music.youtube.com/playlist?list=..." or "music.youtube.com/watch?v=..."{/#6f7e91-fg}'
+    content: ' Paste YouTube, SoundCloud, Bandcamp, Mixcloud, or Direct Audio stream URL:\n {#6f7e91-fg}e.g. "soundcloud.com/...", "artist.bandcamp.com/...", "youtube.com/...", "sc:hiphop", or http://.../stream.mp3{/#6f7e91-fg}'
+  });
+
+  // Settings & Configuration Modal
+  const settingsModal = blessed.box({
+    parent: screen,
+    top: 'center',
+    left: 'center',
+    width: '82%',
+    height: 21,
+    hidden: true,
+    border: { type: 'line' },
+    label: ' ⚙ DECK HARDWARE & SYSTEM PREFERENCES [O / ESC] ',
+    tags: true,
+    padding: { left: 1, right: 1 },
+    style: {
+      fg: colors.cream,
+      bg: colors.bgDark,
+      border: { fg: colors.amber }
+    }
   });
 
   const urlInput = blessed.textbox({
@@ -694,18 +881,18 @@ export function createLayout(store, actions, player) {
       }
 
       const viewTabs = [
-        { key: 'ARTISTS', label: '1:ARTISTS' },
-        { key: 'ALBUMS', label: '2:ALBUMS' },
-        { key: 'PLAYLISTS', label: '3:PLAYLISTS' },
-        { key: 'ALL TRACKS', label: '4:TRACKS' }
+        { key: 'ARTISTS', label: 'ARTISTS' },
+        { key: 'ALBUMS', label: 'ALBUMS' },
+        { key: 'PLAYLISTS', label: 'PLAYLISTS' },
+        { key: 'ALL TRACKS', label: 'TRACKS' }
       ].map((tab) => {
         const isSel = nav.level === tab.key && !nav.selectedArtist && !nav.selectedAlbumKey && !nav.selectedPlaylist;
         return isSel
-          ? `{bold}{#ffb000-fg}▶[${tab.label}]{/#ffb000-fg}{/bold}`
-          : `{#6f7e91-fg}[${tab.label}]{/#6f7e91-fg}`;
-      }).join(' ');
+          ? `{bold}{#ffb000-fg}▶ [ ${tab.label} ]{/#ffb000-fg}{/bold}`
+          : `{#6f7e91-fg}[ ${tab.label} ]{/#6f7e91-fg}`;
+      }).join('  ');
 
-      subBar.setContent(` ${viewTabs}  {#6f7e91-fg}│{/#6f7e91-fg}  ${breadcrumb}`);
+      subBar.setContent(` ${viewTabs}  {#6f7e91-fg}│{/#6f7e91-fg}  ${breadcrumb}  {#6f7e91-fg}(← / → or v: crate){/#6f7e91-fg}`);
 
       // Set explorer list label
       if (nav.level === 'ARTISTS') {
@@ -733,7 +920,7 @@ export function createLayout(store, actions, player) {
         return g === state.genreFilter
           ? `{bold}{#ffb000-fg}▶ [ ${g} ]{/#ffb000-fg}{/bold}`
           : `{#6f7e91-fg}[ ${g} ]{/#6f7e91-fg}`;
-      }).join('  ');
+      }).join('  ') + '  {#6f7e91-fg}(← / → or g: filter){/#6f7e91-fg}';
       subBar.setContent(genreTabsContent);
       explorerList.setLabel(` 📻 RADIO STATIONS // ${state.genreFilter} (${state.filteredStations.length}) `);
       searchBox.setLabel(' 🔍 STATIONS [/] ');
@@ -775,47 +962,46 @@ export function createLayout(store, actions, player) {
 
         if (state.mode === 'LOCAL TRACKS') {
           if (item.type === 'artist') {
-            const name = sanitize(item.name, 16);
-            return ` {#ffd24d-fg}▶{/#ffd24d-fg} {bold}${name}{/bold} {#6f7e91-fg}(${item.albumCount} alb, ${item.trackCount} trk){/#6f7e91-fg}`;
+            const name = sanitize(item.name, 15);
+            return ` {#ffd24d-fg}▶{/#ffd24d-fg} {bold}${name}{/bold} {#6f7e91-fg}(${item.albumCount}a, ${item.trackCount}t){/#6f7e91-fg}`;
           }
 
           if (item.type === 'album') {
-            const title = sanitize(item.title, 16);
+            const title = sanitize(item.title, 14);
             const yr = item.year ? `(${item.year}) ` : '';
             const fmt = item.format ? `[${item.format}]` : '[FLAC]';
-            return ` {#00e5ff-fg}●{/#00e5ff-fg} {bold}${title}{/bold} {#ffd24d-fg}${yr}{/#ffd24d-fg}{#6f7e91-fg}${fmt} (${item.trackCount} trk){/#6f7e91-fg}`;
+            return ` {#00e5ff-fg}●{/#00e5ff-fg} {bold}${title}{/bold} {#ffd24d-fg}${yr}{/#ffd24d-fg}{#6f7e91-fg}${fmt}{/#6f7e91-fg}`;
           }
 
           if (item.type === 'playlist') {
-            const name = sanitize(item.name, 18);
-            return ` {#f5c542-fg}★{/#f5c542-fg} {bold}${name}{/bold} {#6f7e91-fg}(${item.trackCount} trk){/#6f7e91-fg}`;
+            const name = sanitize(item.name, 16);
+            return ` {#f5c542-fg}★{/#f5c542-fg} {bold}${name}{/bold} {#6f7e91-fg}(${item.trackCount}t){/#6f7e91-fg}`;
           }
 
           // Track item
           const num = String(item.trackNo || index + 1).padStart(2, '0');
-          const title = sanitize(item.title || item.name, 16);
-          const artist = sanitize(item.artist || 'Unknown', 10);
-          const format = item.format ? `[${item.format}]` : '[FLAC]';
+          const title = sanitize(item.title || item.name, 14);
+          const artist = sanitize(item.artist || 'Unknown', 9);
           let dur = '';
           if (item.duration) {
             const m = Math.floor(item.duration / 60);
             const s = String(Math.floor(item.duration % 60)).padStart(2, '0');
             dur = `${m}:${s}`;
           }
-          return `${favIcon} ${playIcon} {#ffd24d-fg}${num}.{/#ffd24d-fg} {bold}${title}{/bold} {#00e5ff-fg}${artist}{/#00e5ff-fg} {#6f7e91-fg}${format}{/#6f7e91-fg} {#33ff33-fg}${dur}{/#33ff33-fg}`;
+          return `${favIcon} ${playIcon} {#ffd24d-fg}${num}.{/#ffd24d-fg} {bold}${title}{/bold} {#00e5ff-fg}${artist}{/#00e5ff-fg} {#33ff33-fg}${dur}{/#33ff33-fg}`;
         }
 
         if (state.mode === 'RADIO STATIONS') {
-          const name = sanitize(item.name, 22);
-          const country = sanitize(item.country || 'WW', 6);
+          const country = sanitize(item.country || 'WW', 4);
           const bitrate = `${item.bitrate || 128}k`;
+          const name = sanitize(item.name, 15);
           return `${favIcon} ${playIcon} {bold}${name}{/bold} {#00e5ff-fg}[${country}]{/#00e5ff-fg} {#ffd24d-fg}${bitrate}{/#ffd24d-fg}`;
         }
 
         if (state.mode === 'YOUTUBE MUSIC') {
           const num = String(index + 1).padStart(2, '0');
-          const title = sanitize(item.title || item.name, 18);
-          const artist = sanitize(item.artist || 'YouTube', 10);
+          const title = sanitize(item.title || item.name, 14);
+          const artist = sanitize(item.artist || 'YouTube', 8);
           const badge = item.isTopic ? '{#00e5ff-fg}[TOPIC]{/#00e5ff-fg}' : '{#ff3344-fg}[YT]{/#ff3344-fg}';
           let dur = '';
           if (item.duration) {
@@ -823,16 +1009,16 @@ export function createLayout(store, actions, player) {
             const s = String(Math.floor(item.duration % 60)).padStart(2, '0');
             dur = `${m}:${s}`;
           }
-          return `${favIcon} ${playIcon} {#ffd24d-fg}${num}.{/#ffd24d-fg} {bold}${title}{/bold} {#00e5ff-fg}${artist}{/#00e5ff-fg} ${badge} {#33ff33-fg}${dur}{/#33ff33-fg}`;
+          return `${favIcon} ${playIcon} {#ffd24d-fg}${num}.{/#ffd24d-fg} {bold}${title}{/bold} {#00e5ff-fg}${artist}{/#00e5ff-fg} ${badge}`;
         }
 
         // QUEUE mode
         const num = String(index + 1).padStart(2, '0');
-        const title = sanitize(item.title || item.name, 24);
+        const title = sanitize(item.title || item.name, 16);
         const tag = item.type === 'local'
           ? '{#00e5ff-fg}[LOCAL]{/#00e5ff-fg}'
           : item.type === 'youtube'
-          ? '{#ff3344-fg}[YOUTUBE]{/#ff3344-fg}'
+          ? '{#ff3344-fg}[YT]{/#ff3344-fg}'
           : '{#f5c542-fg}[RADIO]{/#f5c542-fg}';
         return `${playIcon} {#ffd24d-fg}${num}.{/#ffd24d-fg} {bold}${title}{/bold} ${tag}`;
       });
@@ -840,6 +1026,14 @@ export function createLayout(store, actions, player) {
 
     explorerList.setItems(itemsToRender);
     explorerList.select(Math.max(0, state.selectedIndex));
+
+    if (state.settingsVisible) {
+      settingsModal.setContent(formatSettingsContent(state));
+      settingsModal.show();
+      settingsModal.setFront();
+    } else {
+      settingsModal.hide();
+    }
 
     if (!searchBox.focused) searchBox.setValue(state.query);
     screen.render();
@@ -931,15 +1125,156 @@ export function createLayout(store, actions, player) {
       return; // Do not process any single-key shortcuts while typing!
     }
 
+    // 2.5 SETTINGS_MODAL Context: When Settings menu is active, isolate navigation
+    if (store.state.settingsVisible) {
+      if (keyName === 'escape' || keyName === 'q' || ch === 'O' || ch === 'o') {
+        actions.toggleSettings(false);
+        render(store.state);
+        return;
+      }
+      if (keyName === 'up' || keyName === 'k') {
+        actions.moveSettingsSelection(-1);
+        render(store.state);
+        return;
+      }
+      if (keyName === 'down' || keyName === 'j') {
+        actions.moveSettingsSelection(1);
+        render(store.state);
+        return;
+      }
+      if (keyName === 'left' || keyName === 'h') {
+        actions.cycleSettingValue(-1);
+        render(store.state);
+        return;
+      }
+      if (keyName === 'right' || keyName === 'enter' || keyName === 'return') {
+        actions.cycleSettingValue(1);
+        render(store.state);
+        return;
+      }
+      if (keyName === 'space') {
+        actions.togglePause();
+        return;
+      }
+      return;
+    }
+
     // Global Quit when not typing
-    if (keyName === 'q' && !isCtrl && !isShift) {
+    if ((keyName === 'q' || ch === 'q' || ch === 'Q') && !isCtrl && !isShift) {
       actions.quit();
       return;
     }
 
-    // 3. LYRICS_VIEW Context
+    // Universal Playback & Deck Controls (Always work across Deck, Lyrics & Art views)
+    if (keyName === 'space') {
+      actions.togglePause();
+      return;
+    }
+    if (ch === '.' || (ch === 'x' && store.state.mode !== 'QUEUE') || (ch === 'X' && store.state.mode !== 'QUEUE')) {
+      actions.stop();
+      render(store.state);
+      return;
+    }
+    if (keyName === 'n' || ch === 'n' || ch === 'N') {
+      actions.next();
+      return;
+    }
+    if (keyName === 'p' || ch === 'p' || ch === 'P') {
+      actions.prev();
+      return;
+    }
+    if (ch === '+' || ch === '=') {
+      actions.volume(5);
+      return;
+    }
+    if (ch === '-' || ch === '_') {
+      actions.volume(-5);
+      return;
+    }
+
+    // Universal View Switchers (W: Cover Art, L: Lyrics, O: Settings)
+    if (ch === 'W' || ch === 'w') {
+      showFullArtwork = !showFullArtwork;
+      if (showFullArtwork) store.state.lyricsVisible = false;
+      store.update({ status: showFullArtwork ? 'Mode: [ FULL ALBUM ARTWORK VIEW ]' : 'Mode: [ CASSETTE DECK VIEW ]' });
+      render(store.state);
+      return;
+    }
+    if (ch === 'L' || ch === 'l') {
+      showFullArtwork = false;
+      actions.toggleLyrics();
+      render(store.state);
+      return;
+    }
+    if (ch === 'O' || ch === 'o') {
+      actions.toggleSettings();
+      render(store.state);
+      return;
+    }
+    if (ch === 'y' || ch === 'Y' || ch === 'u' || ch === 'U') {
+      openUrlModal();
+      return;
+    }
+
+    // Universal DSP & Deck Hardware Toggles
+    if (ch === 's' || ch === 'S') {
+      actions.cycleStereoMode(1);
+      render(store.state);
+      return;
+    }
+    if (ch === 'd' || ch === 'D') {
+      actions.cycleDolbyMode(1);
+      render(store.state);
+      return;
+    }
+    if (ch === 't' || ch === 'T') {
+      actions.cycleTapeType(1);
+      render(store.state);
+      return;
+    }
+    if (ch === 'b' || ch === 'B') {
+      actions.toggleBassBoost();
+      render(store.state);
+      return;
+    }
+    if (ch === 'z' || ch === 'Z') {
+      actions.toggleShuffle();
+      return;
+    }
+    if (ch === 'r' || ch === 'R') {
+      actions.toggleRepeat();
+      return;
+    }
+    if (ch === 'a' || ch === 'A') {
+      actions.addToQueue();
+      return;
+    }
+    if (ch === 'c' || ch === 'C') {
+      actions.clearQueue();
+      return;
+    }
+    if (ch === 'x' || ch === 'X' || keyName === 'delete') {
+      actions.removeFromQueue();
+      return;
+    }
+    if (ch === 'f' || ch === 'F') {
+      actions.favorite();
+      return;
+    }
+
+    // Seeking (Shift+Left / Shift+Right / H)
+    if (fullKey === 'S-left' || ch === 'H') {
+      actions.seek(-10);
+      return;
+    }
+    if (fullKey === 'S-right') {
+      actions.seek(10);
+      return;
+    }
+
+    // 3. LYRICS_VIEW Context (Scrolling and timing offset)
     if (store.state.lyricsVisible) {
-      if (ch === 'L' || ch === 'l' || keyName === 'escape' || keyName === 'backspace') {
+      if (keyName === 'escape' || keyName === 'backspace') {
         actions.toggleLyrics(false);
         render(store.state);
         return;
@@ -964,65 +1299,25 @@ export function createLayout(store, actions, player) {
         render(store.state);
         return;
       }
-      if (ch === '<' || ch === ',' || ch === '[') {
+      if (ch === '<' || ch === ',') {
         actions.adjustLyricsSyncOffset(-0.5);
         render(store.state);
         return;
       }
-      if (ch === '>' || ch === '.' || ch === ']') {
+      if (ch === '>' || ch === '.') {
         actions.adjustLyricsSyncOffset(0.5);
         render(store.state);
-        return;
-      }
-      if (keyName === 'space') {
-        actions.togglePause();
-        return;
-      }
-      if (keyName === 'n') {
-        actions.next();
-        return;
-      }
-      if (keyName === 'p') {
-        actions.prev();
-        return;
-      }
-      if (ch === '+' || ch === '=') {
-        actions.volume(5);
-        return;
-      }
-      if (ch === '-' || ch === '_') {
-        actions.volume(-5);
         return;
       }
       return;
     }
 
-    // 4. ARTWORK_VIEW Context
+    // 4. ARTWORK_VIEW Context (Back navigation)
     if (showFullArtwork) {
-      if (ch === 'W' || ch === 'w' || keyName === 'escape' || keyName === 'backspace') {
+      if (keyName === 'escape' || keyName === 'backspace') {
         showFullArtwork = false;
         store.update({ status: 'Deck View: [ CASSETTE DECK ]' });
         render(store.state);
-        return;
-      }
-      if (keyName === 'space') {
-        actions.togglePause();
-        return;
-      }
-      if (keyName === 'n') {
-        actions.next();
-        return;
-      }
-      if (keyName === 'p') {
-        actions.prev();
-        return;
-      }
-      if (ch === '+' || ch === '=') {
-        actions.volume(5);
-        return;
-      }
-      if (ch === '-' || ch === '_') {
-        actions.volume(-5);
         return;
       }
       return;
@@ -1052,8 +1347,8 @@ export function createLayout(store, actions, player) {
       return;
     }
 
-    // Drill In (Enter, Right Arrow, Lowercase 'l')
-    if (keyName === 'return' || keyName === 'enter' || keyName === 'right' || ch === 'l') {
+    // Enter / Return -> Play (or Drill Down in LOCAL TRACKS)
+    if (keyName === 'return' || keyName === 'enter') {
       if (store.state.mode === 'LOCAL TRACKS') {
         actions.drillDown();
       } else {
@@ -1063,8 +1358,42 @@ export function createLayout(store, actions, player) {
       return;
     }
 
-    // Drill Out / Back Up (Escape, Backspace, Left Arrow, Lowercase 'h')
-    if (keyName === 'escape' || keyName === 'backspace' || keyName === 'left' || ch === 'h') {
+    // Right Arrow / ']' -> Cycle Crates in LOCAL TRACKS, Cycle Genre in RADIO STATIONS
+    if (keyName === 'right' || ch === ']') {
+      if (store.state.mode === 'LOCAL TRACKS') {
+        const nav = store.state.nav;
+        const isRoot = !nav.selectedArtist && !nav.selectedAlbumKey && !nav.selectedPlaylist;
+        if (isRoot) {
+          actions.cycleNavLevel(1);
+        } else {
+          actions.drillDown();
+        }
+      } else if (store.state.mode === 'RADIO STATIONS') {
+        store.cycleGenre(1);
+      }
+      render(store.state);
+      return;
+    }
+
+    // Left Arrow / '[' -> Cycle Crates Backward in LOCAL TRACKS, Cycle Genre Backward in RADIO STATIONS
+    if (keyName === 'left' || ch === '[') {
+      if (store.state.mode === 'LOCAL TRACKS') {
+        const nav = store.state.nav;
+        const isRoot = !nav.selectedArtist && !nav.selectedAlbumKey && !nav.selectedPlaylist;
+        if (isRoot) {
+          actions.cycleNavLevel(-1);
+        } else {
+          actions.drillUp();
+        }
+      } else if (store.state.mode === 'RADIO STATIONS') {
+        store.cycleGenre(-1);
+      }
+      render(store.state);
+      return;
+    }
+
+    // Escape / Backspace -> Back Up in LOCAL TRACKS
+    if (keyName === 'escape' || keyName === 'backspace') {
       if (store.state.mode === 'LOCAL TRACKS') {
         const handled = actions.drillUp();
         if (handled) {
@@ -1075,30 +1404,9 @@ export function createLayout(store, actions, player) {
       return;
     }
 
-    // Toggle Lyrics (Shift+L / Uppercase 'L')
-    if (ch === 'L') {
-      showFullArtwork = false;
-      actions.toggleLyrics();
-      render(store.state);
-      return;
-    }
-
-    // Toggle Full Artwork ('W' / 'w')
-    if (ch === 'W' || ch === 'w') {
-      showFullArtwork = !showFullArtwork;
-      if (showFullArtwork) store.state.lyricsVisible = false;
-      store.update({ status: showFullArtwork ? 'Mode: [ FULL ALBUM ARTWORK VIEW ]' : 'Mode: [ CASSETTE DECK VIEW ]' });
-      render(store.state);
-      return;
-    }
-
-    // Search & URL Loader
+    // Search
     if (ch === '/') {
       search();
-      return;
-    }
-    if (ch === 'y' || ch === 'Y' || ch === 'u' || ch === 'U') {
-      openUrlModal();
       return;
     }
 
@@ -1115,32 +1423,35 @@ export function createLayout(store, actions, player) {
       return;
     }
     if (ch === '1') {
-      if (store.state.mode === 'LOCAL TRACKS') store.setNavLevel('ARTISTS');
-      else store.setMode('LOCAL TRACKS');
+      store.setMode('LOCAL TRACKS');
       render(store.state);
       return;
     }
     if (ch === '2') {
-      if (store.state.mode === 'LOCAL TRACKS') store.setNavLevel('ALBUMS');
-      else store.setMode('RADIO STATIONS');
+      store.setMode('RADIO STATIONS');
       render(store.state);
       return;
     }
     if (ch === '3') {
-      if (store.state.mode === 'LOCAL TRACKS') store.setNavLevel('PLAYLISTS');
-      else store.setMode('QUEUE');
+      store.setMode('QUEUE');
       render(store.state);
       return;
     }
     if (ch === '4') {
-      if (store.state.mode === 'LOCAL TRACKS') store.setNavLevel('ALL TRACKS');
-      else store.setMode('YOUTUBE MUSIC');
+      store.setMode('YOUTUBE MUSIC');
       render(store.state);
       return;
     }
-    if (ch === 'v' || ch === 'V') {
+    if (ch === 'v') {
       if (store.state.mode === 'LOCAL TRACKS') {
         actions.cycleNavLevel(1);
+        render(store.state);
+      }
+      return;
+    }
+    if (ch === 'V') {
+      if (store.state.mode === 'LOCAL TRACKS') {
+        actions.cycleNavLevel(-1);
         render(store.state);
       }
       return;
@@ -1157,102 +1468,17 @@ export function createLayout(store, actions, player) {
       render(store.state);
       return;
     }
-
-    // Playback Controls
-    if (keyName === 'space') {
-      actions.togglePause();
-      return;
-    }
-    if (keyName === 'n') {
-      actions.next();
-      return;
-    }
-    if (keyName === 'p' || ch === 'P') {
-      actions.prev();
-      return;
-    }
-
-    // Seeking (Shift+Left / Shift+Right / H)
-    if (fullKey === 'S-left' || ch === 'H') {
-      actions.seek(-10);
-      return;
-    }
-    if (fullKey === 'S-right') {
-      actions.seek(10);
-      return;
-    }
-
-    // Volume (+ / = / - / _)
-    if (ch === '+' || ch === '=') {
-      actions.volume(5);
-      return;
-    }
-    if (ch === '-' || ch === '_') {
-      actions.volume(-5);
-      return;
-    }
-
-    // DSP Hardware Toggles (s/S, d/D, t/T, b/B)
-    if (ch === 's' || ch === 'S') {
-      actions.cycleStereoMode(1);
-      render(store.state);
-      return;
-    }
-    if (ch === 'd' || ch === 'D') {
-      actions.cycleDolbyMode(1);
-      render(store.state);
-      return;
-    }
-    if (ch === 't' || ch === 'T') {
-      actions.cycleTapeType(1);
-      render(store.state);
-      return;
-    }
-    if (ch === 'b' || ch === 'B') {
-      actions.toggleBassBoost();
-      render(store.state);
-      return;
-    }
-
-    // Queue & Track Management (z, r, a/A, c/C, x/X/Delete, f, o)
-    if (ch === 'z') {
-      actions.toggleShuffle();
-      return;
-    }
-    if (ch === 'r') {
-      actions.toggleRepeat();
-      return;
-    }
-    if (ch === 'a' || ch === 'A') {
-      actions.addToQueue();
-      return;
-    }
-    if (ch === 'c' || ch === 'C') {
-      actions.clearQueue();
-      return;
-    }
-    if (ch === 'x' || ch === 'X' || keyName === 'delete') {
-      actions.removeFromQueue();
-      return;
-    }
-    if (ch === 'f' || ch === 'F') {
-      actions.favorite();
-      return;
-    }
-    if (ch === 'o' || ch === 'O') {
-      actions.scanMusicDir();
-      return;
-    }
   });
 
   store.subscribe(render);
   explorerList.focus();
   render(store.state);
 
-  // Audio Telemetry & Visualizer Master Frame Clock (Strict 30 FPS = ~33.3ms)
-  const FRAME_INTERVAL = 1000 / 30;
+  // Audio Telemetry & Visualizer Master Frame Clock (Silky 60 FPS = ~16.6ms)
+  const FRAME_INTERVAL = 1000 / 60;
   let lastFrameTime = performance.now();
   let marqueeTick = 0;
+  let rgbPhase = 0;
 
   const animTimer = setInterval(() => {
     const now = performance.now();
@@ -1260,19 +1486,22 @@ export function createLayout(store, actions, player) {
     if (elapsed < FRAME_INTERVAL - 2) return;
     lastFrameTime = now;
 
-    // Update marquee text scroll offset every ~100ms (every 3 frames)
-    if (++marqueeTick >= 3) {
+    // Update marquee text scroll offset every ~100ms (every 6 frames at 60 FPS)
+    if (++marqueeTick >= 6) {
       marqueeOffset++;
       marqueeTick = 0;
     }
+
+    // Advance Keyboard RGB Chroma Wave progression
+    rgbPhase = (rgbPhase + 1.5) % 360;
 
     const telemetry = player?.getTelemetry?.() || {
       vuLeft: 0,
       vuRight: 0,
       peakLeft: 0,
       peakRight: 0,
-      eqBands: Array(10).fill(0),
-      eqPeaks: Array(10).fill(0),
+      eqBands: Array(16).fill(0),
+      eqPeaks: Array(16).fill(0),
       spoolFrame: 0,
       timePos: 0,
       duration: 0,
@@ -1308,11 +1537,32 @@ export function createLayout(store, actions, player) {
       )
     );
 
-    // Render Wide VU Meters & 10-band Graphic Equalizer with Smooth Ballistics
+    // Render Wide VU Meters & 32-band RGB Chroma Graphic Equalizer with Smooth Ballistics
     const vuL = formatVuMeter('L CH', telemetry.vuLeft, telemetry.peakLeft, 56);
     const vuR = formatVuMeter('R CH', telemetry.vuRight, telemetry.peakRight, 56);
-    const eq = formatEqualizer(telemetry.eqBands, telemetry.eqPeaks, 6);
+    const boxWidth = vuEqualizerBox.width || screen.width || 100;
+    const boxHeight = vuEqualizerBox.height || 20;
 
+    const cfgTheme = store.state.config?.visualizer?.colorTheme || 'RGB_CHROMA';
+    const cfgBandWidth = store.state.config?.visualizer?.bandWidth;
+    let targetWidth;
+    if (cfgBandWidth && cfgBandWidth !== 'auto') {
+      targetWidth = Number(cfgBandWidth);
+    } else {
+      targetWidth = boxWidth >= 130 ? 3 : (boxWidth >= 96 ? 2 : 1);
+    }
+
+    const targetHeight = Math.max(9, Math.min(14, (boxHeight - 8)));
+    const eq = formatEqualizer(telemetry.eqBands, telemetry.eqPeaks, targetHeight, rgbPhase, targetWidth, cfgTheme);
+
+    const themeTitles = {
+      RGB_CHROMA: 'RGB CHROMA',
+      AMBER_GOLD: 'VINTAGE AMBER GOLD',
+      GREEN_PHOSPHOR: 'PHOSPHOR GREEN',
+      CYAN_NEON: 'NEON SYNTHWAVE',
+      MONOCHROME: 'MONOCHROME ICE'
+    };
+    const themeLabel = themeTitles[cfgTheme] || 'RGB CHROMA';
     const scaleLine = ` {#6f7e91-fg}SCALE  -30    -20    -15    -10     -7     -5     -3     -1      0     +1     +2     +3 dB{/#6f7e91-fg}`;
 
     vuEqualizerBox.setContent([
@@ -1320,12 +1570,17 @@ export function createLayout(store, actions, player) {
       vuL,
       vuR,
       ``,
-      ` {bold}{#f5c542-fg}10-BAND GRAPHIC EQUALIZER SPECTRUM{/#f5c542-fg}{/bold}`,
+      ` {bold}{#f5c542-fg}32-BAND ${themeLabel} EQUALIZER SPECTRUM [20Hz — 20kHz]{/#f5c542-fg}{/bold}`,
       eq
     ].join('\n'));
 
+    if (store.state.settingsVisible) {
+      settingsModal.setFront();
+    }
+
     screen.render();
-  }, 16); // 60Hz tick, locked & clamped to 30 FPS redraw
+  }, 33); // 30 FPS smooth redraw without stdout buffer starvation
+  animTimer.unref();
 
   screen.on('destroy', () => {
     clearInterval(animTimer);

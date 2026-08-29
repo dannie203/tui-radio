@@ -7,34 +7,118 @@ const CONFIG_DIR = join(homedir(), '.config', 'hiphop-tui');
 const COOKIES_FILE = join(CONFIG_DIR, 'cookies.txt');
 
 /**
- * Normalizes YouTube and YouTube Music URLs, handles protocol omissions,
- * and standardizes music.youtube.com domains for universal streaming compatibility.
+ * Normalizes any stream or platform URL (YouTube, SoundCloud, Bandcamp, Mixcloud, Direct Audio).
  *
  * @param {string} input
  * @returns {string}
  */
-export function normalizeYouTubeInput(input) {
+export function normalizeMediaInput(input) {
   let raw = (input || '').trim();
   if (!raw) return '';
 
-  // If user pasted "yt:VIDEO_ID"
+  // Prefixes
   if (raw.startsWith('yt:')) {
     const id = raw.slice(3).trim();
     if (id.startsWith('http')) raw = id;
     else return `https://www.youtube.com/watch?v=${id}`;
   }
+  if (raw.startsWith('sc:')) {
+    const id = raw.slice(3).trim();
+    if (id.startsWith('http')) raw = id;
+    else return `https://soundcloud.com/${id}`;
+  }
+  if (raw.startsWith('bc:')) {
+    const id = raw.slice(3).trim();
+    if (id.startsWith('http')) raw = id;
+    else if (id.includes('.bandcamp.com')) raw = `https://${id}`;
+    else if (id.includes('/')) {
+      const parts = id.split('/');
+      return `https://${parts[0]}.bandcamp.com/${parts.slice(1).join('/')}`;
+    } else {
+      return `https://${id}.bandcamp.com`;
+    }
+  }
 
   // Prepend https:// if domain is provided without protocol
-  if (/^(music\.)?youtube\.com\//i.test(raw) || /^youtu\.be\//i.test(raw) || /^www\.youtube\.com\//i.test(raw)) {
+  if (/^(music\.)?youtube\.com\//i.test(raw) || /^youtu\.be\//i.test(raw) || /^www\.youtube\.com\//i.test(raw) ||
+      /^(www\.)?soundcloud\.com\//i.test(raw) || /^(www\.)?mixcloud\.com\//i.test(raw) || /^[a-z0-9-]+\.bandcamp\.com\//i.test(raw) ||
+      /^bandcamp\.com\//i.test(raw)) {
     raw = `https://${raw}`;
   }
 
-  // Standardize music.youtube.com to youtube.com for bulletproof yt-dlp & mpv streaming
+  // Standardize music.youtube.com to youtube.com for bulletproof streaming
   if (/^https?:\/\/music\.youtube\.com\//i.test(raw)) {
     raw = raw.replace(/^https?:\/\/music\.youtube\.com\//i, 'https://www.youtube.com/');
   }
 
   return raw;
+}
+
+export const normalizeYouTubeInput = normalizeMediaInput;
+
+/**
+ * Detects whether a string is a direct audio stream URL (.mp3, .flac, .m3u8, .aac, .ogg, .opus, .wav).
+ */
+export function isDirectAudioStream(url) {
+  if (!url || typeof url !== 'string') return false;
+  return /^https?:\/\/.*\.(mp3|flac|m3u8|aac|ogg|opus|wav)(\?.*)?$/i.test(url.trim());
+}
+
+/**
+ * Detects the platform metadata and format badges from URL and extractor info.
+ */
+export function detectPlatform(url = '', entry = {}) {
+  const target = (url || entry.webpage_url || entry.url || '').toLowerCase();
+  const extractor = (entry.extractor || entry.extractor_key || '').toLowerCase();
+
+  if (extractor.includes('soundcloud') || target.includes('soundcloud.com')) {
+    return {
+      type: 'soundcloud',
+      prefix: 'sc',
+      format: 'MP3',
+      codec: 'MP3',
+      platform: 'SoundCloud',
+      bitrate: 192
+    };
+  }
+  if (extractor.includes('bandcamp') || target.includes('bandcamp.com')) {
+    return {
+      type: 'bandcamp',
+      prefix: 'bc',
+      format: 'FLAC',
+      codec: 'FLAC',
+      platform: 'Bandcamp',
+      bitrate: 320
+    };
+  }
+  if (extractor.includes('mixcloud') || target.includes('mixcloud.com')) {
+    return {
+      type: 'mixcloud',
+      prefix: 'mc',
+      format: 'AAC',
+      codec: 'AAC',
+      platform: 'Mixcloud',
+      bitrate: 128
+    };
+  }
+  if (isDirectAudioStream(target)) {
+    return {
+      type: 'stream',
+      prefix: 'web',
+      format: 'STREAM',
+      codec: 'DIRECT',
+      platform: 'Web Stream',
+      bitrate: 256
+    };
+  }
+  return {
+    type: 'youtube',
+    prefix: 'yt',
+    format: 'OPUS',
+    codec: 'OPUS',
+    platform: 'YouTube',
+    bitrate: 160
+  };
 }
 
 /**
@@ -57,19 +141,46 @@ export function extractVideoId(url) {
 export function formatYouTubeError(errMessage) {
   const msg = String(errMessage || '');
   if (msg.includes('The playlist does not exist') || msg.includes('HTTP Error 400') || msg.includes('This playlist is private')) {
-    return 'Playlist unavailable or private on YouTube';
+    return 'Playlist unavailable or private on streaming provider';
   }
-  if (msg.includes('Video unavailable') || msg.includes('Private video')) {
-    return 'Video is unavailable or private on YouTube';
+  if (msg.includes('Video unavailable') || msg.includes('Track unavailable') || msg.includes('Private video')) {
+    return 'Track is unavailable or private on streaming provider';
   }
   if (msg.includes('Sign in to confirm') || msg.includes('bot')) {
-    return 'YouTube requires authentication (export cookies.txt)';
+    return 'Streaming provider requires authentication (export cookies.txt)';
   }
   return msg.replace(/^ERROR:\s*(\[[^\]]+\]\s*)?/i, '').split('\n')[0].slice(0, 50);
 }
 
 function executeResolve(query) {
   return new Promise((resolve, reject) => {
+    // Check direct audio stream shortcut
+    if (isDirectAudioStream(query)) {
+      const filename = query.split('/').pop().split('?')[0] || 'Audio Stream';
+      const name = decodeURIComponent(filename.replace(/\.[a-z0-9]+$/i, ''));
+      return resolve({
+        isPlaylist: false,
+        title: name,
+        tracks: [{
+          id: `web:${query}`,
+          type: 'stream',
+          name,
+          title: name,
+          artist: 'Direct Stream',
+          album: 'Web Audio Broadcast',
+          trackNo: 1,
+          duration: 0,
+          url: query,
+          path: query,
+          format: 'STREAM',
+          codec: 'DIRECT',
+          bitrate: 256,
+          country: 'WEB',
+          tags: 'stream, audio, direct'
+        }]
+      });
+    }
+
     const isUrl = /^https?:\/\//i.test(query);
     const target = isUrl ? query : `ytsearch1:${query}`;
 
@@ -93,7 +204,7 @@ function executeResolve(query) {
 
     const timeout = setTimeout(() => {
       proc.kill('SIGKILL');
-      reject(new Error('Timed out resolving YouTube link (15s)'));
+      reject(new Error('Timed out resolving stream link (15s)'));
     }, 15000);
 
     proc.stdout.on('data', (d) => { stdout += d.toString(); });
@@ -129,34 +240,35 @@ function executeResolve(query) {
       }
 
       const tracks = rawEntries.map((entry, idx) => {
-        const id = entry.id || entry.url || `yt-${idx}`;
-        const videoUrl = entry.webpage_url || entry.url || (entry.id ? `https://www.youtube.com/watch?v=${entry.id}` : query);
-        const title = entry.title || 'YouTube Stream';
-        const artist = entry.channel || entry.uploader || 'YouTube';
+        const platform = detectPlatform(query, entry);
+        const id = entry.id || entry.url || `${platform.prefix}-${idx}`;
+        const streamUrl = entry.webpage_url || entry.url || (entry.id && platform.type === 'youtube' ? `https://www.youtube.com/watch?v=${entry.id}` : query);
+        const title = entry.title || `${platform.platform} Stream`;
+        const artist = entry.channel || entry.uploader || entry.artist || platform.platform;
         const duration = typeof entry.duration === 'number' ? entry.duration : 0;
 
         return {
-          id: `yt:${id}`,
-          type: 'youtube',
+          id: `${platform.prefix}:${id}`,
+          type: platform.type,
           name: title,
           title,
           artist,
-          album: playlistTitle || 'YouTube Live / Stream',
+          album: playlistTitle || `${platform.platform} Stream`,
           trackNo: idx + 1,
           duration,
-          url: videoUrl,
-          path: videoUrl,
-          format: 'OPUS',
-          codec: 'OPUS',
-          bitrate: 160,
+          url: streamUrl,
+          path: streamUrl,
+          format: platform.format,
+          codec: platform.codec,
+          bitrate: platform.bitrate,
           country: 'WEB',
-          tags: `youtube, web, stream, ${artist}`
+          tags: `${platform.type}, web, stream, ${artist}`
         };
       });
 
       resolve({
         isPlaylist: tracks.length > 1,
-        title: playlistTitle || (tracks.length === 1 ? tracks[0].title : 'YouTube Playlist'),
+        title: playlistTitle || (tracks.length === 1 ? tracks[0].title : 'Online Playlist'),
         tracks
       });
     });
@@ -169,11 +281,11 @@ function executeResolve(query) {
 }
 
 /**
- * Resolves a YouTube or YouTube Music URL, Playlist URL, or search query using yt-dlp.
+ * Resolves any media URL (YouTube, SoundCloud, Bandcamp, Mixcloud, Direct Audio Stream)
  * Returns normalized track object(s) ready for Queue and MPV playback.
  */
 export async function resolveMedia(input) {
-  const normalized = normalizeYouTubeInput(input);
+  const normalized = normalizeMediaInput(input);
   if (!normalized) throw new Error('Empty link or search query');
 
   try {
@@ -191,8 +303,7 @@ export async function resolveMedia(input) {
 }
 
 /**
- * Searches specifically for Music tracks on YouTube, filtering out non-music content,
- * long podcasts, and short memes.
+ * Searches for Music tracks across YouTube, SoundCloud, and streaming providers.
  *
  * @param {string} query
  * @param {number} [limit=15]
@@ -203,9 +314,23 @@ export function searchMusic(query, limit = 15) {
     const raw = (query || '').trim();
     if (!raw) return resolve([]);
 
-    // Check if searching for a full album/mixtape
-    const isLongForm = /\b(album|mixtape|full album|mix|compilation|live at)\b/i.test(raw);
-    const searchTarget = `ytsearch${limit * 2}:${raw}`;
+    // Check platform search prefixes
+    let searchTarget;
+    let platformType = 'youtube';
+
+    if (raw.startsWith('sc:') || raw.startsWith('soundcloud:')) {
+      const clean = raw.replace(/^(sc:|soundcloud:)/i, '').trim();
+      searchTarget = `scsearch${limit}:${clean}`;
+      platformType = 'soundcloud';
+    } else if (raw.startsWith('yt:') || raw.startsWith('youtube:')) {
+      const clean = raw.replace(/^(yt:|youtube:)/i, '').trim();
+      searchTarget = `ytsearch${limit * 2}:${clean}`;
+      platformType = 'youtube';
+    } else {
+      const isLongForm = /\b(album|mixtape|full album|mix|compilation|live at)\b/i.test(raw);
+      searchTarget = `ytsearch${limit * 2}:${raw}`;
+      platformType = 'youtube';
+    }
 
     const args = [
       '--dump-json',
@@ -227,7 +352,7 @@ export function searchMusic(query, limit = 15) {
 
     const timeout = setTimeout(() => {
       proc.kill('SIGKILL');
-      reject(new Error('Timed out searching YouTube Music (15s)'));
+      reject(new Error('Timed out searching online music streams (15s)'));
     }, 15000);
 
     proc.stdout.on('data', (d) => { stdout += d.toString(); });
@@ -241,6 +366,7 @@ export function searchMusic(query, limit = 15) {
 
       const lines = stdout.trim().split('\n').filter(Boolean);
       const candidates = [];
+      const isLongForm = /\b(album|mixtape|full album|mix|compilation|live at)\b/i.test(raw);
 
       for (const line of lines) {
         try {
@@ -248,32 +374,33 @@ export function searchMusic(query, limit = 15) {
           const dur = typeof entry.duration === 'number' ? entry.duration : 0;
 
           // Filter out short audio memes (< 30s) or long podcasts (> 12 mins) unless searching for albums
-          if (!isLongForm) {
+          if (!isLongForm && platformType === 'youtube') {
             if (dur > 0 && (dur < 30 || dur > 720)) continue;
           }
 
+          const platform = detectPlatform('', entry);
           const rawTitle = entry.title || 'Unknown Track';
-          const rawChannel = entry.channel || entry.uploader || 'YouTube';
+          const rawChannel = entry.channel || entry.uploader || entry.artist || platform.platform;
           const isTopic = rawChannel.includes('- Topic') || rawChannel.includes('VEVO') || entry.channel_is_verified;
 
           candidates.push({
-            id: `yt:${entry.id || entry.url}`,
-            type: 'youtube',
+            id: `${platform.prefix}:${entry.id || entry.url}`,
+            type: platform.type,
             name: rawTitle,
             title: rawTitle,
-            artist: rawChannel.replace(/\s*-\s*Topic$/i, '').replace(/VEVO$/i, '').trim() || 'YouTube',
+            artist: rawChannel.replace(/\s*-\s*Topic$/i, '').replace(/VEVO$/i, '').trim() || platform.platform,
             channel: rawChannel,
             isTopic: Boolean(isTopic),
-            album: isTopic ? 'Official Release' : 'YouTube Music',
+            album: isTopic ? 'Official Release' : `${platform.platform} Music`,
             trackNo: candidates.length + 1,
             duration: dur,
-            url: entry.webpage_url || entry.url || (entry.id ? `https://www.youtube.com/watch?v=${entry.id}` : ''),
-            path: entry.webpage_url || entry.url || (entry.id ? `https://www.youtube.com/watch?v=${entry.id}` : ''),
-            format: 'OPUS',
-            codec: 'OPUS',
-            bitrate: 160,
+            url: entry.webpage_url || entry.url || (entry.id && platform.type === 'youtube' ? `https://www.youtube.com/watch?v=${entry.id}` : ''),
+            path: entry.webpage_url || entry.url || (entry.id && platform.type === 'youtube' ? `https://www.youtube.com/watch?v=${entry.id}` : ''),
+            format: platform.format,
+            codec: platform.codec,
+            bitrate: platform.bitrate,
             country: 'WEB',
-            tags: `youtube, music, ${rawChannel}`
+            tags: `${platform.type}, music, ${rawChannel}`
           });
         } catch {
           // ignore corrupted JSON line
@@ -296,4 +423,3 @@ export function searchMusic(query, limit = 15) {
     });
   });
 }
-

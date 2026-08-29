@@ -2,6 +2,10 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   parseLrc,
+  parseEnhancedWords,
+  matrixScrambleWord,
+  scrambleLine,
+  formatKaraokeText,
   cleanTitleAndArtist,
   findActiveLyricIndex,
   fetchLyrics
@@ -238,6 +242,119 @@ describe('Lyrics API & LRC Parser', () => {
         }),
         { name: 'AbortError' }
       );
+    });
+  });
+
+  describe('parseEnhancedWords', () => {
+    test('parses inline word-level timestamps in enhanced LRC lines', () => {
+      const line = '<00:10.00>Never <00:10.50>gonna <00:11.00>give <00:11.50>you <00:12.00>up';
+      const words = parseEnhancedWords(line, 10.0);
+      assert.ok(words);
+      assert.equal(words.length, 5);
+      assert.equal(words[0].text, 'Never ');
+      assert.equal(words[0].time, 10.0);
+      assert.equal(words[1].text, 'gonna ');
+      assert.equal(words[1].time, 10.5);
+      assert.equal(words[4].text, 'up');
+      assert.equal(words[4].time, 12.0);
+    });
+
+    test('returns null when no word-level timestamps are found', () => {
+      assert.equal(parseEnhancedWords('Plain text line', 5.0), null);
+      assert.equal(parseEnhancedWords('', 5.0), null);
+      assert.equal(parseEnhancedWords(null, 5.0), null);
+    });
+  });
+
+  describe('matrixScrambleWord & scrambleLine', () => {
+    test('scrambles a single word into matrix glyphs while preserving length', () => {
+      const word = 'Matrix';
+      const scrambled = matrixScrambleWord(word, 5);
+      assert.equal(scrambled.length, word.length);
+      assert.notEqual(scrambled, word);
+    });
+
+    test('preserves punctuation inside or around words', () => {
+      const word = "don't!";
+      const scrambled = matrixScrambleWord(word, 2);
+      assert.equal(scrambled.length, word.length);
+      assert.equal(scrambled[3], "'");
+      assert.equal(scrambled[5], "!");
+    });
+
+    test('scrambles entire lines while preserving whitespace structure', () => {
+      const line = 'In the city, uh, you used to drive';
+      const scrambled = scrambleLine(line, 10);
+      assert.equal(scrambled.length, line.length);
+      assert.equal(scrambled[2], ' ');
+      assert.equal(scrambled[6], ' ');
+      assert.equal(scrambled[11], ',');
+      assert.notEqual(scrambled, line);
+    });
+  });
+
+  describe('formatKaraokeText (Word-by-Word Un-matrixing)', () => {
+    test('renders fully scrambled matrix text before start time', () => {
+      const item = { time: 10.0, text: 'Hello World' };
+      const nextItem = { time: 14.0, text: 'Next line' };
+      const res = formatKaraokeText(item, 8.0, nextItem);
+      assert.ok(res.startsWith('{#475466-fg}'));
+      assert.ok(!res.includes('Hello'));
+      assert.ok(!res.includes('World'));
+    });
+
+    test('renders completely un-matrixed highlighted text after duration finishes', () => {
+      const item = { time: 10.0, text: 'Hello World' };
+      const nextItem = { time: 14.0, text: 'Next line' };
+      const res = formatKaraokeText(item, 15.0, nextItem);
+      assert.equal(res, '{bold}{#33ff33-fg}Hello World{/#33ff33-fg}{/bold}');
+    });
+
+    test('un-matrixes word-by-word as song progresses', () => {
+      const item = { time: 10.0, text: 'One Two Three' }; // 3 words
+      const nextItem = { time: 16.0, text: 'Next' }; // duration 6s -> 2s per word
+
+      // At 10.5s: First word 'One' is in matrix glitch phase (<35% of 2s), 'Two' and 'Three' are matrix scrambled
+      const t1 = formatKaraokeText(item, 10.5, nextItem);
+      assert.ok(t1.includes('{#ffd24d-fg}')); // Active matrix glitch color
+      assert.ok(!t1.includes('Two')); // Upcoming words must be scrambled
+      assert.ok(!t1.includes('Three'));
+
+      // At 11.5s: First word 'One' is in un-matrix lock phase (white), 'Two' and 'Three' are still matrix scrambled
+      const t2 = formatKaraokeText(item, 11.5, nextItem);
+      assert.ok(t2.includes('{bold}{#ffffff-fg}One{/#ffffff-fg}{/bold}'));
+      assert.ok(!t2.includes('Two'));
+
+      // At 13.0s: First word 'One' is sung (green), second word 'Two' is active un-matrixing
+      const t3 = formatKaraokeText(item, 13.0, nextItem);
+      assert.ok(t3.includes('{bold}{#33ff33-fg}One{/#33ff33-fg}{/bold}'));
+      assert.ok(!t3.includes('Three')); // 'Three' is still matrix scrambled
+
+      // At 16.0s: All words are un-matrixed and fully sung (green)
+      const t4 = formatKaraokeText(item, 16.0, nextItem);
+      assert.equal(t4, '{bold}{#33ff33-fg}One Two Three{/#33ff33-fg}{/bold}');
+    });
+
+    test('handles enhanced word-level timestamps when present', () => {
+      const item = {
+        time: 10.0,
+        text: 'One Two',
+        words: [
+          { time: 10.0, text: 'One ' },
+          { time: 12.0, text: 'Two' }
+        ]
+      };
+      const nextItem = { time: 14.0, text: 'Three' };
+
+      // At 11.5s: 'One ' is un-matrixed (white), 'Two' is still matrix scrambled
+      const res = formatKaraokeText(item, 11.5, nextItem);
+      assert.ok(res.includes('{bold}{#ffffff-fg}One {/#ffffff-fg}{/bold}'));
+      assert.ok(!res.includes('Two'));
+    });
+
+    test('returns empty string for missing or empty item', () => {
+      assert.equal(formatKaraokeText(null, 10), '');
+      assert.equal(formatKaraokeText({ text: '' }, 10), '');
     });
   });
 });
