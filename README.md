@@ -1,19 +1,19 @@
-# 📼 BOOMBOX-TUI (v2.3.0)
+# 📼 BOOMBOX-TUI (v2.4.0)
 
 > **BOOMBOX RX-505** — A retro-cyberpunk cassette music player, Hi-Res local audio explorer, YouTube streamer, and worldwide radio deck for the Linux & Unix terminal.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D20-green.svg)](https://nodejs.org)
-[![Version](https://img.shields.io/badge/Version-2.3.0-amber.svg)](package.json)
+[![Version](https://img.shields.io/badge/Version-2.4.0-amber.svg)](package.json)
 
 ---
 
 ## ⚡ Features
 
-- 📼 **Retro Cassette Deck UI**: Dual rotating spools, tape-head bay, smoked cassette window, ANSI half-block album art decoding (JPEG/PNG).
-- 🎨 **7 Linux Themes**: Instant live switching between popular desktop palettes (Catppuccin Mocha, Tokyo Night, Gruvbox Retro, Nord Frost, Dracula, Cyberpunk Matrix, Vintage Amber Gold).
+- 📼 **Retro Cassette Deck UI**: Dual rotating spools with dynamic tape-pack winding, tape-head bay, smoked cassette window, ANSI half-block album art decoding.
+- 🎨 **Linux Desktop Theme Auto-Sync**: Automatic discovery and real-time palette synchronization with Omarchy (`colors.toml`), Pywal, and 7 Linux palettes (Catppuccin Mocha, Tokyo Night, Gruvbox, Nord, Dracula, Matrix Green, Amber Gold).
 - 🎚️ **32-Band ISO Equalizer & Sound Presets**: 1-touch profiles (Flat, Mega Bass +7dB, Vocal Clarity, Rock Punch, Lo-Fi Warmth, Cyber Synthwave, Club EDM).
-- 🔴 **Tape Recorder & Stream Ripper**: Record live YouTube, SoundCloud, Bandcamp, and radio streams directly to `~/Music/Boombox Recordings` with full tags and desktop notifications.
+- 🔴 **Tape Recorder & Stream Ripper**: Record live streams to `~/Music/Boombox Recordings` in Native Opus, MP3 320k, FLAC, or M4A with 1-click toggle & instant cancellation (`Shift+R` / `Ctrl+R`).
 - ★ **Mixtapes & Custom Playlists**: Create, manage, and save personal mixtapes across local and online tracks.
 - 🎵 **Hi-Res Local Audio Player**: High-speed scanner and tag parser for FLAC (16/24/32-bit up to 192kHz), MP3, OPUS, OGG, M4A, WAV with folder hierarchy and artist/album sorting.
 - 📻 **Worldwide Radio Explorer**: Integrated Radio Browser API with 30,000+ stations across genres (Lofi, Jazz, Synthwave, Hip-Hop, Classical, Rock, EDM, Ambient) and countries with smart anti-propaganda filtering.

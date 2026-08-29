@@ -3,6 +3,18 @@
 All notable changes to the **BOOMBOX-TUI** project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-08-30
+
+### 🚀 Added
+- **Linux / Omarchy Desktop Theme Auto-Sync (`SYSTEM_AUTO`)**: Automatic discovery and real-time palette synchronization with Omarchy desktop (`colors.toml`), Pywal, and system palettes.
+- **Reactive TUI Re-styling Engine**: Instant, zero-flicker re-styling across all TUI panels, cassettes, visualizers, breadcrumbs, modals, and karaoke lyrics.
+- **Configurable Recording Formats**: Choose recording export format (`OPUS` native 0-loss, `MP3` 320k, `FLAC` lossless, `M4A`) via settings `[O]`.
+- **Instant Cancel & Process Termination for Tape Recorder**: One-touch abort & temporary file cleanup (`Shift+R` / `Ctrl+R`) to instantly stop accidental recordings.
+- **Zero-Touch Local File Safeguard**: Strict read-only protection ensuring local Hi-Res FLAC/WAV audio is preserved without re-encoding.
+- **Realistic Tape Pack Progress Winding**: Dual spool tape pack dynamically expands and contracts to match playback percentage.
+
+---
+
 ## [2.3.0] - 2026-08-30
 
 ### 🚀 Added
