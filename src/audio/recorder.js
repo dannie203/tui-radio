@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, unlinkSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -25,6 +25,41 @@ function sendNotification(title, message) {
 export class StreamRecorder {
   constructor() {
     this.activeJobs = new Map();
+    this.onFinishCallback = null;
+  }
+
+  setOnFinish(cb) {
+    this.onFinishCallback = cb;
+  }
+
+  isRecording(url = null) {
+    if (url) return this.activeJobs.has(url);
+    return this.activeJobs.size > 0;
+  }
+
+  cancelRecording(url = null) {
+    if (url && this.activeJobs.has(url)) {
+      const job = this.activeJobs.get(url);
+      job.cancelled = true;
+      try { job.process?.kill('SIGKILL'); } catch {}
+      this.activeJobs.delete(url);
+      sendNotification('⏹️ Tape Recording Cancelled', 'Recording was stopped and discarded.');
+      if (this.activeJobs.size === 0) this.onFinishCallback?.(false);
+      return { success: true, cancelled: true, message: 'Recording cancelled' };
+    }
+
+    if (this.activeJobs.size > 0) {
+      for (const [, job] of this.activeJobs.entries()) {
+        job.cancelled = true;
+        try { job.process?.kill('SIGKILL'); } catch {}
+      }
+      this.activeJobs.clear();
+      sendNotification('⏹️ Tape Recording Cancelled', 'Recording was stopped and discarded.');
+      this.onFinishCallback?.(false);
+      return { success: true, cancelled: true, message: 'All active recordings cancelled' };
+    }
+
+    return { success: false, message: 'No active recording to cancel' };
   }
 
   async recordTrack(track) {
@@ -42,12 +77,12 @@ export class StreamRecorder {
     const cleanTitle = sanitizeFilename(title);
     const cleanArtist = sanitizeFilename(artist);
 
-    // If already recording this exact URL
+    // If already recording this exact URL, toggle / cancel it!
     if (this.activeJobs.has(streamUrl)) {
-      return { success: false, error: 'Track is already recording in background' };
+      return this.cancelRecording(streamUrl);
     }
 
-    sendNotification('🔴 Cassette Recording Started', `Recording: "${artist} - ${title}"`);
+    sendNotification('🔴 Cassette Recording Started', `Recording: "${artist} - ${title}" (Press 'R' again to cancel)`);
 
     // If it's a YouTube / SoundCloud / Bandcamp stream, use yt-dlp to download highest quality audio
     if (track.source === 'youtube' || track.source === 'soundcloud' || track.source === 'bandcamp' ||
@@ -55,7 +90,7 @@ export class StreamRecorder {
       return this._recordViaYtDlp(streamUrl, cleanArtist, cleanTitle);
     }
 
-    // Otherwise use ffmpeg to capture stream for 180s (3 mins) or direct stream copy
+    // Otherwise use ffmpeg to capture stream for 240s (4 mins) or direct stream copy
     return this._recordViaFfmpeg(streamUrl, cleanArtist, cleanTitle);
   }
 
@@ -72,10 +107,18 @@ export class StreamRecorder {
       url
     ], { stdio: 'ignore' });
 
-    this.activeJobs.set(url, child);
+    const job = { process: child, cancelled: false };
+    this.activeJobs.set(url, job);
 
     child.on('close', (code) => {
+      const wasCancelled = job.cancelled;
       this.activeJobs.delete(url);
+      if (this.activeJobs.size === 0) this.onFinishCallback?.(false);
+
+      if (wasCancelled) {
+        return;
+      }
+
       if (code === 0) {
         sendNotification('✅ Tape Recording Complete', `Saved to ~/Music/Boombox Recordings/${artist} - ${title}.opus`);
       } else {
@@ -98,10 +141,21 @@ export class StreamRecorder {
       outputFile
     ], { stdio: 'ignore' });
 
-    this.activeJobs.set(url, child);
+    const job = { process: child, cancelled: false, outputFile };
+    this.activeJobs.set(url, job);
 
     child.on('close', (code) => {
+      const wasCancelled = job.cancelled;
       this.activeJobs.delete(url);
+      if (this.activeJobs.size === 0) this.onFinishCallback?.(false);
+
+      if (wasCancelled) {
+        if (existsSync(outputFile)) {
+          try { unlinkSync(outputFile); } catch {}
+        }
+        return;
+      }
+
       if (code === 0) {
         sendNotification('✅ Tape Recording Complete', `Saved to ~/Music/Boombox Recordings/${artist} - ${title}.mp3`);
       } else {

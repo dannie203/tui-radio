@@ -102,12 +102,15 @@ export class Store {
       youtubeResults: [],
       youtubeQuery: '',
       youtubeLoading: false,
-      theme: this.config.visualizer?.theme || 'AMBER_GOLD',
+      theme: this.config.visualizer?.theme || 'SYSTEM_AUTO',
       eqPreset: this.config.dsp?.eqPreset || 'FLAT',
       mixtapes: [],
       recording: false
     };
     this.listeners = new Set();
+    streamRecorder.setOnFinish((isRec) => {
+      this.update({ recording: isRec });
+    });
   }
 
   subscribe(listener) {
@@ -403,13 +406,23 @@ export class Store {
   }
 
   async recordCurrentTrack() {
+    if (this.state.recording || streamRecorder.isRecording()) {
+      streamRecorder.cancelRecording();
+      this.update({ recording: false, status: '⏹️ Tape Recording Cancelled & Discarded' });
+      return { success: true, cancelled: true };
+    }
+
     const track = this.state.current;
     if (!track) {
       this.update({ status: '⚠️ No active track/stream playing to record' });
       return { success: false, error: 'No active track' };
     }
-    this.update({ recording: true, status: `🔴 Recording: "${track.title || track.name}"...` });
+
+    this.update({ recording: true, status: `🔴 Recording: "${track.title || track.name}" (Press 'R' to cancel)` });
     const res = await streamRecorder.recordTrack(track);
+    if (!res.success) {
+      this.update({ recording: false, status: `⚠️ Recording failed: ${res.error || res.message}` });
+    }
     return res;
   }
 
