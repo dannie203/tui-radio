@@ -168,8 +168,14 @@ async function main() {
     setStatus(`Radio offline: ${err.message}`);
   });
 
-  try { await player.start(); }
-  catch (error) { setStatus(error.message); }
+  try {
+    const startRes = await player.start();
+    if (startRes?.connectedToExisting) {
+      store.update({ playing: player.state === 'playing' || player.state === 'buffering', paused: player.state === 'paused' });
+    }
+  } catch (error) {
+    setStatus(error.message);
+  }
 
   // Restore previous session (last track, queue, mode, volume, DSP state)
   await store.loadSession();

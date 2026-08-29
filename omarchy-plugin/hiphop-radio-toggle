@@ -3,31 +3,38 @@
 # Query Hyprland for active window and Hip-Hop Radio window
 ACTIVE_ADDR=$(hyprctl activewindow -j 2>/dev/null | jq -r '.address // empty')
 
-WINDOW_ADDR=$(hyprctl clients -j 2>/dev/null | jq -r '
+WINDOW_INFO=$(hyprctl clients -j 2>/dev/null | jq -r '
   .[] | select(
     (.class | test("hiphop-radio"; "i")) or
     (.initialClass | test("hiphop-radio"; "i")) or
     (.title | test("NEON//WAVE|Hip-Hop Radio|BOOMBOX"; "i")) or
     (.initialTitle | test("hiphop-radio|Hip-Hop Radio|BOOMBOX"; "i"))
-  ) | .address
+  ) | {address: .address, workspace: .workspace.name}
 ' | head -n1)
 
+WINDOW_ADDR=$(echo "$WINDOW_INFO" | jq -r '.address // empty' 2>/dev/null)
+WINDOW_WS=$(echo "$WINDOW_INFO" | jq -r '.workspace // empty' 2>/dev/null)
+
 if [[ -n "$WINDOW_ADDR" && "$WINDOW_ADDR" != "null" ]]; then
-  if [[ "$ACTIVE_ADDR" == "$WINDOW_ADDR" ]]; then
-    # Currently focused on Hip-Hop Radio -> Toggle/Minimize down to background tray
-    hyprctl dispatch closewindow "address:$WINDOW_ADDR" >/dev/null 2>&1
+  if [[ "$WINDOW_WS" == special:* ]]; then
+    # Window is currently hidden in special scratchpad workspace -> toggle back to screen
+    hyprctl dispatch togglespecialworkspace "${WINDOW_WS#special:}" >/dev/null 2>&1
+    hyprctl dispatch focuswindow "address:$WINDOW_ADDR" >/dev/null 2>&1
+  elif [[ "$ACTIVE_ADDR" == "$WINDOW_ADDR" ]]; then
+    # Currently focused on screen -> minimize/hide to special scratchpad without terminating process
+    hyprctl dispatch movetoworkspacesilent special:hiphop-radio,address:$WINDOW_ADDR >/dev/null 2>&1
   else
-    # Window open in background -> bring to front and focus
+    # Window is open on another workspace/behind other windows -> bring to front
     hyprctl dispatch focuswindow "address:$WINDOW_ADDR" >/dev/null 2>&1
   fi
 else
-  # No window open (or running detached in background tray) -> spawn terminal
-  if command -v alacritty >/dev/null 2>&1; then
+  # No window running -> launch in terminal with class hiphop-radio
+  if command -v ghostty >/dev/null 2>&1; then
+    exec ghostty --class=hiphop-radio --title="Hip-Hop Radio" -e hiphop-radio
+  elif command -v alacritty >/dev/null 2>&1; then
     exec alacritty --class hiphop-radio,hiphop-radio -T "Hip-Hop Radio" -e hiphop-radio
   elif command -v foot >/dev/null 2>&1; then
     exec foot --app-id=hiphop-radio --title="Hip-Hop Radio" hiphop-radio
-  elif command -v ghostty >/dev/null 2>&1; then
-    exec ghostty --class=hiphop-radio --title="Hip-Hop Radio" -e hiphop-radio
   else
     exec hiphop-radio
   fi

@@ -106,59 +106,85 @@ export class MpvPlayer extends EventEmitter {
   async start() {
     if (!MpvPlayer.isInstalled()) throw new Error('mpv is not installed or not on PATH');
     await this.initWorker();
-    try {
-      execFileSync('pkill', ['-f', `input-ipc-server=${this.socketPath}`], { stdio: 'ignore' });
-    } catch {}
-    this.cleanupSocket();
     this.closed = false;
 
-    // High-Fidelity MPV configuration:
-    // - Native PipeWire audio sink with Pulse/ALSA fallback (--ao=pipewire,pulse,alsa)
-    // - Bit-perfect source rate passthrough for Hi-Res FLAC 24-bit/192kHz (--audio-samplerate=0)
-    // - Resilient 16MB network ring buffer & 4s read-ahead for internet streams (--cache=yes)
-    // - Best audio stream extractor for YouTube without downloading video (--ytdl-format=bestaudio/best)
-    const mpvArgs = [
-      '--no-video',
-      '--idle=yes',
-      '--really-quiet',
-      '--ao=pipewire,pulse,alsa',
-      '--audio-samplerate=0',
-      '--demuxer-max-bytes=16MiB',
-      '--demuxer-readahead-secs=4',
-      '--cache=yes',
-      '--ytdl-format=bestaudio/best',
-      `--input-ipc-server=${this.socketPath}`
-    ];
-
-    if (existsSync(COOKIES_FILE)) {
-      mpvArgs.push(`--ytdl-raw-options=cookies=${COOKIES_FILE}`);
+    // Check if an existing MPV daemon is already active on this IPC socket
+    let connectedToExisting = false;
+    if (existsSync(this.socketPath)) {
+      try {
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => {
+            this.socket?.destroy();
+            reject(new Error('timeout'));
+          }, 300);
+          this.socket = createConnection(this.socketPath);
+          this.socket.once('connect', () => {
+            clearTimeout(timer);
+            connectedToExisting = true;
+            this.attachSocket();
+            resolve();
+          });
+          this.socket.once('error', (err) => {
+            clearTimeout(timer);
+            this.socket?.destroy();
+            this.socket = null;
+            reject(err);
+          });
+        });
+      } catch {
+        this.cleanupSocket();
+      }
     }
 
-    this.process = spawn('mpv', mpvArgs, { stdio: ['ignore', 'ignore', 'pipe'] });
+    if (!connectedToExisting) {
+      try {
+        execFileSync('pkill', ['-f', `input-ipc-server=${this.socketPath}`], { stdio: 'ignore' });
+      } catch {}
+      this.cleanupSocket();
 
-    this.process.on('exit', (code) => {
-      this.setState('idle');
-      if (!this.closed) this.emit('error', new Error(`mpv exited (${code ?? 'unknown'})`));
-    });
+      const mpvArgs = [
+        '--no-video',
+        '--idle=yes',
+        '--really-quiet',
+        '--ao=pipewire,pulse,alsa',
+        '--audio-samplerate=0',
+        '--demuxer-max-bytes=16MiB',
+        '--demuxer-readahead-secs=4',
+        '--cache=yes',
+        '--ytdl-format=bestaudio/best',
+        `--input-ipc-server=${this.socketPath}`
+      ];
 
-    this.process.stderr.on('data', (chunk) => this.emit('log', chunk.toString().trim()));
+      if (existsSync(COOKIES_FILE)) {
+        mpvArgs.push(`--ytdl-raw-options=cookies=${COOKIES_FILE}`);
+      }
 
-    await new Promise((resolve, reject) => {
-      const deadline = setTimeout(() => reject(new Error('Timed out waiting for mpv IPC')), IPC_TIMEOUT);
-      const connect = () => {
-        this.socket = createConnection(this.socketPath);
-        this.socket.once('connect', () => {
-          clearTimeout(deadline);
-          this.attachSocket();
-          resolve();
-        });
-        this.socket.once('error', () => {
-          this.socket?.destroy();
-          if (this.process) setTimeout(connect, 40);
-        });
-      };
-      connect();
-    });
+      this.process = spawn('mpv', mpvArgs, { stdio: ['ignore', 'ignore', 'pipe'] });
+
+      this.process.on('exit', (code) => {
+        this.setState('idle');
+        if (!this.closed) this.emit('error', new Error(`mpv exited (${code ?? 'unknown'})`));
+      });
+
+      this.process.stderr.on('data', (chunk) => this.emit('log', chunk.toString().trim()));
+
+      await new Promise((resolve, reject) => {
+        const deadline = setTimeout(() => reject(new Error('Timed out waiting for mpv IPC')), IPC_TIMEOUT);
+        const connect = () => {
+          this.socket = createConnection(this.socketPath);
+          this.socket.once('connect', () => {
+            clearTimeout(deadline);
+            this.attachSocket();
+            resolve();
+          });
+          this.socket.once('error', () => {
+            this.socket?.destroy();
+            if (this.process) setTimeout(connect, 40);
+          });
+        };
+        connect();
+      });
+    }
 
     let obsId = 1;
     this.command('observe_property', [obsId++, 'icy-title']);
