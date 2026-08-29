@@ -1773,7 +1773,9 @@ export function createLayout(store, actions, player) {
     const targetHeight = Math.max(9, Math.min(14, (boxHeight - 8)));
     const eq = formatEqualizer(telemetry.eqBands, telemetry.eqPeaks, targetHeight, rgbPhase, targetWidth, cfgTheme);
 
-    const themeLabel = activeTheme?.name || 'RGB CHROMA';
+    const curTheme = getTheme(store.state.theme);
+    Object.assign(colors, curTheme);
+    const themeLabel = curTheme?.name || 'RGB CHROMA';
     const scaleLine = ` {${colors.muted}-fg}SCALE  -30    -20    -15    -10     -7     -5     -3     -1      0     +1     +2     +3 dB{/${colors.muted}-fg}`;
 
     const eqLines = [
