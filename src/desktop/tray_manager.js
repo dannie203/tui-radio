@@ -150,6 +150,18 @@ export class TrayManager {
       case 'cycle_stereo':
         this.actions.cycleStereoMode?.(1);
         break;
+      case 'set_stereo_3d':
+        this.actions.setStereoMode?.('3D WIDE');
+        break;
+      case 'set_stereo_stereo':
+        this.actions.setStereoMode?.('STEREO');
+        break;
+      case 'set_stereo_mono':
+        this.actions.setStereoMode?.('MONO');
+        break;
+      case 'cycle_dolby':
+        this.actions.cycleDolbyMode?.(1);
+        break;
       case 'toggle_bass':
         this.actions.toggleBassBoost?.();
         break;

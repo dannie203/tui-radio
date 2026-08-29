@@ -313,6 +313,19 @@ export class Store {
     return this.state.stereoMode;
   }
 
+  setStereoMode(mode) {
+    let norm = mode;
+    if (norm === 'STEREO-3D' || norm === '3D' || norm === 'WIDE') norm = '3D WIDE';
+    if (STEREO_MODES.includes(norm)) {
+      this.state.stereoMode = norm;
+      this.state.status = `Stereo Mode: [ ${this.state.stereoMode} ]`;
+      if (this.config.dsp) this.config.dsp.stereoMode = this.state.stereoMode;
+      this.emit();
+      return this.state.stereoMode;
+    }
+    return this.state.stereoMode;
+  }
+
   cycleDolbyMode(delta = 1) {
     const currentIndex = Math.max(0, DOLBY_MODES.indexOf(this.state.dolbyMode));
     const nextIndex = (currentIndex + delta + DOLBY_MODES.length) % DOLBY_MODES.length;

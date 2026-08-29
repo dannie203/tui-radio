@@ -314,6 +314,10 @@ async function main() {
       const mode = store.cycleStereoMode(delta);
       player.applyDsp({ stereoMode: mode });
     },
+    setStereoMode: (mode) => {
+      const res = store.setStereoMode(mode);
+      player.applyDsp({ stereoMode: res });
+    },
     cycleDolbyMode: (delta = 1) => {
       const mode = store.cycleDolbyMode(delta);
       player.applyDsp({ dolbyMode: mode });

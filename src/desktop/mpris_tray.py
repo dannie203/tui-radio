@@ -228,25 +228,81 @@ class DesktopService:
         title = str(self.state.get("title", "Ready"))
         artist = str(self.state.get("artist", "BOOMBOX RX-505"))
         playing = self.state.get("playing", False) and not self.state.get("paused", False)
-        stereo = str(self.state.get("stereoMode", "STEREO"))
+        stereo = str(self.state.get("stereoMode", "STEREO")).upper().strip()
         is_3d = stereo in ("3D WIDE", "3D", "WIDE", "STEREO-3D")
-        bass = "ON (+7dB)" if self.state.get("bassBoost", False) else "OFF"
+        is_stereo = stereo == "STEREO"
+        is_mono = stereo == "MONO"
+        bass = bool(self.state.get("bassBoost", False))
+        dolby = str(self.state.get("dolbyMode", "OFF")).upper()
+        has_dolby = dolby != "OFF"
         vol = int(self.state.get("volume", 80))
 
         return [
-            (1, {"label": GLib.Variant("s", f"📻 {title} — {artist}"), "enabled": GLib.Variant("b", False)}),
+            # 1. Header / App Title
+            (1, {"label": GLib.Variant("s", "📻 BOOMBOX RX-505 Retro Audio"), "enabled": GLib.Variant("b", False)}),
             (2, {"type": GLib.Variant("s", "separator")}),
-            (3, {"label": GLib.Variant("s", "⏸ Pause" if playing else "▶ Play"), "action": "play_pause"}),
-            (4, {"label": GLib.Variant("s", "⏭ Next Track"), "action": "next"}),
-            (5, {"label": GLib.Variant("s", "⏮ Previous Track"), "action": "prev"}),
+
+            # 2. Soundstage DSP Presets (Radios with checkmark ✓ like EasyEffects output presets)
+            (3, {
+                "label": GLib.Variant("s", "✦ 3D WIDE (Open-Air Matrix)"),
+                "toggle-type": GLib.Variant("s", "radio"),
+                "toggle-state": GLib.Variant("i", 1 if is_3d else 0),
+                "action": "set_stereo_3d"
+            }),
+            (4, {
+                "label": GLib.Variant("s", "● STEREO (Dry Studio)"),
+                "toggle-type": GLib.Variant("s", "radio"),
+                "toggle-state": GLib.Variant("i", 1 if is_stereo else 0),
+                "action": "set_stereo_stereo"
+            }),
+            (5, {
+                "label": GLib.Variant("s", "◉ MONO (Vintage Broadcast)"),
+                "toggle-type": GLib.Variant("s", "radio"),
+                "toggle-state": GLib.Variant("i", 1 if is_mono else 0),
+                "action": "set_stereo_mono"
+            }),
             (6, {"type": GLib.Variant("s", "separator")}),
-            (7, {"label": GLib.Variant("s", f"✦ 3D WIDE Soundstage: [ {'ON' if is_3d else 'OFF'} ]"), "action": "cycle_stereo"}),
-            (8, {"label": GLib.Variant("s", f"🔊 Mega Bass: [ {bass} ]"), "action": "toggle_bass"}),
-            (9, {"label": GLib.Variant("s", f"🔊 Volume: {vol}% (+5%)"), "action": "volume_up"}),
-            (10, {"label": GLib.Variant("s", f"🔉 Volume: {vol}% (-5%)"), "action": "volume_down"}),
-            (11, {"type": GLib.Variant("s", "separator")}),
-            (12, {"label": GLib.Variant("s", "📟 Open / Focus Boombox TUI"), "action": "open_tui"}),
-            (13, {"label": GLib.Variant("s", "❌ Quit Radio"), "action": "quit"})
+
+            # 3. Hardware FX Enhancements (Checkable toggles with checkmark ✓ like EasyEffects Active)
+            (7, {
+                "label": GLib.Variant("s", "🔊 Mega Bass Boost (+7dB)"),
+                "toggle-type": GLib.Variant("s", "checkmark"),
+                "toggle-state": GLib.Variant("i", 1 if bass else 0),
+                "action": "toggle_bass"
+            }),
+            (8, {
+                "label": GLib.Variant("s", f"🎚 Dolby NR Tape Bias [{dolby}]"),
+                "toggle-type": GLib.Variant("s", "checkmark"),
+                "toggle-state": GLib.Variant("i", 1 if has_dolby else 0),
+                "action": "cycle_dolby"
+            }),
+            (9, {"type": GLib.Variant("s", "separator")}),
+
+            # 4. Now Playing Status & Device Info (like EasyEffects Device section)
+            (10, {"label": GLib.Variant("s", f"🎵 {title}"), "enabled": GLib.Variant("b", False)}),
+            (11, {"label": GLib.Variant("s", f"🎙️ {artist}"), "enabled": GLib.Variant("b", False)}),
+            (12, {"type": GLib.Variant("s", "separator")}),
+
+            # 5. Playback & Volume Actions
+            (13, {
+                "label": GLib.Variant("s", "✓ Active Playback" if playing else "⏸ Paused (Click to Play)"),
+                "toggle-type": GLib.Variant("s", "checkmark"),
+                "toggle-state": GLib.Variant("i", 1 if playing else 0),
+                "action": "play_pause"
+            }),
+            (14, {"label": GLib.Variant("s", "⏭ Next Track"), "action": "next"}),
+            (15, {"label": GLib.Variant("s", "⏮ Previous Track"), "action": "prev"}),
+            (16, {"label": GLib.Variant("s", f"🔊 Volume: {vol}% (+5%)"), "action": "volume_up"}),
+            (17, {"label": GLib.Variant("s", f"🔉 Volume: {vol}% (-5%)"), "action": "volume_down"}),
+            (18, {"type": GLib.Variant("s", "separator")}),
+
+            # 6. Shortcuts & Manual (like EasyEffects Shortcuts & Manual)
+            (19, {"label": GLib.Variant("s", "📟 Open / Focus Boombox TUI"), "action": "open_tui"}),
+            (20, {"label": GLib.Variant("s", "⌨️ Keypad Shortcuts"), "action": "open_tui"}),
+            (21, {"type": GLib.Variant("s", "separator")}),
+
+            # 7. Quit
+            (22, {"label": GLib.Variant("s", "✕ Quit"), "action": "quit"})
         ]
 
     # --- MPRIS2 Callbacks ---
