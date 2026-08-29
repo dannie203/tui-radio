@@ -1,6 +1,6 @@
 # Maintainer: Aki <contact@omarchy.org>
 pkgname=boombox-tui
-pkgver=2.4.0
+pkgver=2.4.1
 pkgrel=1
 pkgdesc="A retro cyberpunk cassette boombox music player and radio explorer for local Hi-Res audio, YouTube streams, and global radio stations."
 arch=('any')

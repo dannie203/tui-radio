@@ -3,6 +3,15 @@
 All notable changes to the **BOOMBOX-TUI** project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] - 2026-08-30
+
+### 🩹 Fixed
+- **UI Animation Loop Theme Scope**: Fixed a `TypeError: Cannot read properties of undefined (reading 'muted')` inside the 30 FPS animation timer by correctly updating the live theme object in scope.
+- **Tray Stream EPIPE Guard**: Added standard error handlers to Python D-Bus child process IPC streams (`stdin`, `stdout`, `stderr`) to prevent crashes when the shell/tray process disconnects.
+- **Process Robustness**: Added global `unhandledRejection` handler to ensure background network hiccups never terminate playback.
+
+---
+
 ## [2.4.0] - 2026-08-30
 
 ### 🚀 Added
