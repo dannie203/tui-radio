@@ -126,17 +126,36 @@ impl StreamRecorder {
         }
 
         let url = item.url.clone();
+        let mut clean_url = item.url.trim().trim_start_matches("ytdl://").to_string();
+        if clean_url.starts_with("watch?v=") {
+            clean_url = format!("https://www.youtube.com/{}", clean_url);
+        } else if clean_url.starts_with("music.youtube.com")
+            || clean_url.starts_with("youtube.com")
+            || clean_url.starts_with("youtu.be")
+            || clean_url.starts_with("soundcloud.com")
+            || clean_url.starts_with("bandcamp.com")
+            || clean_url.starts_with("bandlab.com")
+        {
+            clean_url = format!("https://{}", clean_url);
+        }
         let title = item.title.clone();
         let artist = item.artist.clone();
 
         {
             let mut jobs = self.jobs.lock().unwrap();
-            if jobs.contains_key(&url) {
-                if let Some(a) = jobs.get_mut(&url) {
+            let key = if jobs.contains_key(&url) {
+                Some(url.clone())
+            } else if jobs.contains_key(&clean_url) {
+                Some(clean_url.clone())
+            } else {
+                None
+            };
+            if let Some(k) = key {
+                if let Some(a) = jobs.get_mut(&k) {
                     a.cancelled = true;
                     let _ = a.child.kill().await;
                 }
-                jobs.remove(&url);
+                jobs.remove(&k);
                 send_notification("⏹️ Tape Recording Cancelled", "Recording was stopped and discarded.");
                 if jobs.is_empty() {
                     self.is_recording.store(false, Ordering::Relaxed);
@@ -154,11 +173,14 @@ impl StreamRecorder {
         let clean_title = sanitize_filename(&title);
 
         let is_yt_source = !item.is_radio
-            && (url.contains("youtube.com")
-                || url.contains("youtu.be")
-                || url.contains("soundcloud.com")
-                || url.contains("bandcamp.com")
-                || url.contains("spotify:"));
+            && (clean_url.contains("youtube.com")
+                || clean_url.contains("youtu.be")
+                || clean_url.contains("soundcloud.com")
+                || clean_url.contains("bandcamp.com")
+                || clean_url.contains("bandlab.com")
+                || clean_url.contains("spotify:")
+                || clean_url.starts_with("ytsearch:")
+                || item.is_youtube);
 
         let dir = recordings_dir();
         if let Err(e) = std::fs::create_dir_all(&dir) {
@@ -178,7 +200,7 @@ impl StreamRecorder {
                 "--embed-metadata",
                 "-o",
                 &output_template.to_string_lossy().to_string(),
-                &url,
+                &clean_url,
             ]);
             c
         } else {
@@ -186,7 +208,7 @@ impl StreamRecorder {
             let mut c = Command::new("ffmpeg");
             c.arg("-y")
                 .arg("-i")
-                .arg(&url)
+                .arg(&clean_url)
                 .arg("-t")
                 .arg("240");
             match format {

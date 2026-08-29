@@ -199,7 +199,7 @@ pub async fn resolve_stream_queue(input: &str) -> (String, Vec<MediaItem>) {
             title: title.clone(),
             artist: artist.clone(),
             album: Some(album_title.clone()),
-            url: format!("ytdl://{}", url),
+            url: url.clone(),
             duration: entry.duration.unwrap_or(0.0),
             format: Some("OPUS".to_string()),
             bitrate: Some(192),
@@ -255,7 +255,7 @@ pub async fn resolve_stream_item(input: &str) -> MediaItem {
                 if let Ok(data) = resp.json::<SpotifyOEmbed>().await {
                     let raw_title = data.title.unwrap_or_else(|| "Spotify Track".to_string());
                     let artist = data.author_name.unwrap_or_else(|| "Spotify".to_string());
-                    let search_query = format!("ytdl://ytsearch:{} {}", artist, raw_title);
+                    let search_query = format!("ytsearch:{} {}", artist, raw_title);
 
                     return MediaItem {
                         id: format!("spotify_{}", clean_url),
@@ -283,7 +283,7 @@ pub async fn resolve_stream_item(input: &str) -> MediaItem {
             title: "Spotify Stream".to_string(),
             artist: "Spotify Audio".to_string(),
             album: Some("Spotify".to_string()),
-            url: format!("ytdl://{}", trimmed),
+            url: trimmed.to_string(),
             duration: 0.0,
             format: Some("SPOTIFY".to_string()),
             bitrate: Some(320),
@@ -314,10 +314,10 @@ pub async fn resolve_stream_item(input: &str) -> MediaItem {
     };
 
     let stream_url = if is_supported {
-        if trimmed.starts_with("http") || trimmed.starts_with("yt:") || trimmed.starts_with("sc:") || trimmed.starts_with("sp:") || trimmed.starts_with("dc:") {
+        if trimmed.starts_with("http") || trimmed.starts_with("yt:") || trimmed.starts_with("sc:") || trimmed.starts_with("sp:") || trimmed.starts_with("dc:") || trimmed.starts_with("ytsearch:") {
             trimmed.to_string()
         } else {
-            format!("ytdl://{}", trimmed)
+            trimmed.to_string()
         }
     } else {
         trimmed.to_string()
