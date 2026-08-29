@@ -240,7 +240,7 @@ class DesktopService:
         return [
             # 1. Header / App Title
             (1, {"label": GLib.Variant("s", "📻 BOOMBOX RX-505 Retro Audio"), "enabled": GLib.Variant("b", False)}),
-            (2, {"type": GLib.Variant("s", "separator")}),
+            (2, {"type": GLib.Variant("s", "separator"), "enabled": GLib.Variant("b", True)}),
 
             # 2. Soundstage DSP Presets (Radios with checkmark ✓ like EasyEffects output presets)
             (3, {
@@ -261,7 +261,7 @@ class DesktopService:
                 "toggle-state": GLib.Variant("i", 1 if is_mono else 0),
                 "action": "set_stereo_mono"
             }),
-            (6, {"type": GLib.Variant("s", "separator")}),
+            (6, {"type": GLib.Variant("s", "separator"), "enabled": GLib.Variant("b", True)}),
 
             # 3. Hardware FX Enhancements (Checkable toggles with checkmark ✓ like EasyEffects Active)
             (7, {
@@ -276,12 +276,12 @@ class DesktopService:
                 "toggle-state": GLib.Variant("i", 1 if has_dolby else 0),
                 "action": "cycle_dolby"
             }),
-            (9, {"type": GLib.Variant("s", "separator")}),
+            (9, {"type": GLib.Variant("s", "separator"), "enabled": GLib.Variant("b", True)}),
 
             # 4. Now Playing Status & Device Info (like EasyEffects Device section)
             (10, {"label": GLib.Variant("s", f"🎵 {title}"), "enabled": GLib.Variant("b", False)}),
             (11, {"label": GLib.Variant("s", f"🎙️ {artist}"), "enabled": GLib.Variant("b", False)}),
-            (12, {"type": GLib.Variant("s", "separator")}),
+            (12, {"type": GLib.Variant("s", "separator"), "enabled": GLib.Variant("b", True)}),
 
             # 5. Playback & Volume Actions
             (13, {
@@ -294,12 +294,12 @@ class DesktopService:
             (15, {"label": GLib.Variant("s", "⏮ Previous Track"), "action": "prev"}),
             (16, {"label": GLib.Variant("s", f"🔊 Volume: {vol}% (+5%)"), "action": "volume_up"}),
             (17, {"label": GLib.Variant("s", f"🔉 Volume: {vol}% (-5%)"), "action": "volume_down"}),
-            (18, {"type": GLib.Variant("s", "separator")}),
+            (18, {"type": GLib.Variant("s", "separator"), "enabled": GLib.Variant("b", True)}),
 
             # 6. Shortcuts & Manual (like EasyEffects Shortcuts & Manual)
             (19, {"label": GLib.Variant("s", "📟 Open / Focus Boombox TUI"), "action": "open_tui"}),
             (20, {"label": GLib.Variant("s", "⌨️ Keypad Shortcuts"), "action": "open_tui"}),
-            (21, {"type": GLib.Variant("s", "separator")}),
+            (21, {"type": GLib.Variant("s", "separator"), "enabled": GLib.Variant("b", True)}),
 
             # 7. Quit
             (22, {"label": GLib.Variant("s", "✕ Quit"), "action": "quit"})
@@ -428,7 +428,7 @@ class DesktopService:
                             if not prop_names or k in prop_names:
                                 prop_dict[k] = v
                     child_node = GLib.Variant("(ia{sv}av)", (item_id, prop_dict, []))
-                    child_variants.append(GLib.Variant("v", child_node))
+                    child_variants.append(child_node)
                 
                 root_props = {"children-display": GLib.Variant("s", "submenu")}
                 root_layout = (0, root_props, child_variants)
