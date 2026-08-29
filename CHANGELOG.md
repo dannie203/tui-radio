@@ -3,6 +3,15 @@
 All notable changes to the **BOOMBOX-TUI** project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-08-30
+
+### 🚀 Added
+- **Worldwide International Radio Gathering**: Upgraded Radio Browser API integration to query diverse multi-genre categories across the globe (Lofi, Synthwave, Jazz, Hip-Hop, Rock, Electronic, Classical, Pop, Vietnam, Japan, Global Top Voted).
+- **International Genre & Country Filters**: Expanded Radio deck filters to include `LO-FI`, `SYNTHWAVE`, `JAZZ`, `HIP-HOP`, `ROCK`, `ELECTRONIC`, `CLASSICAL`, `POP`, `VIETNAM`, `JAPAN`, `GLOBAL TOP`.
+- **Multi-Server Resilient Fetching**: Added auto-balancing across `all.api.radio-browser.info`, `de1`, `nl1`, and `at1` mirrors.
+
+---
+
 ## [2.1.0] - 2026-08-29
 
 ### 🚀 Added

@@ -1,9 +1,15 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
-const API_URL = 'https://de1.api.radio-browser.info/json/stations/bytag/hiphop';
+const API_SERVERS = [
+  'https://all.api.radio-browser.info',
+  'https://de1.api.radio-browser.info',
+  'https://nl1.api.radio-browser.info',
+  'https://at1.api.radio-browser.info'
+];
+
 const FALLBACK_URL = fileURLToPath(new URL('../../data/fallback.json', import.meta.url));
-const REQUEST_HEADERS = { 'User-Agent': 'hiphop-radio-tui/1.0' };
+const REQUEST_HEADERS = { 'User-Agent': 'boombox-tui/2.1' };
 
 function normalizeStation(station) {
   let codec = String(station.codec || '').trim().toUpperCase();
@@ -22,11 +28,14 @@ function normalizeStation(station) {
     type: 'radio',
     name: String(station.name || 'Unnamed station').trim(),
     country: String(station.country || station.countrycode || 'Unknown').trim(),
-    tags: String(station.tags || 'hip-hop').trim(),
+    countryCode: String(station.countrycode || '').trim().toUpperCase(),
+    tags: String(station.tags || 'international,radio').trim(),
     bitrate: Number(station.bitrate) || 0,
     codec,
     url: station.url_resolved || station.url,
-    homepage: station.homepage || ''
+    homepage: station.homepage || '',
+    favicon: station.favicon || '',
+    votes: Number(station.votes) || 0
   };
 }
 
@@ -70,17 +79,76 @@ async function loadFallback() {
   return deduplicateStations(normalized);
 }
 
-export async function fetchStations({ signal, fetchImpl = globalThis.fetch } = {}) {
-  try {
-    const response = await fetchImpl(API_URL, { signal, headers: REQUEST_HEADERS });
-    if (!response.ok) throw new Error(`Radio-Browser returned ${response.status}`);
-    const rawStations = (await response.json())
-      .map(normalizeStation)
-      .filter((station) => station.url && station.name);
+/**
+ * Fetch international worldwide radio stations from Radio-Browser API mirrors
+ */
+export async function fetchStations({ signal, fetchImpl = globalThis.fetch, query, tag, country, limit = 600 } = {}) {
+  const server = API_SERVERS[0];
 
-    const stations = deduplicateStations(rawStations);
-    if (stations.length > 0) return { stations, source: 'Radio-Browser' };
-    throw new Error('Radio-Browser returned no stations');
+  // Specific single query/tag/country endpoint if specified
+  if (query) {
+    const endpoint = `${server}/json/stations/byname/${encodeURIComponent(query)}?limit=${limit}`;
+    try {
+      const res = await fetchImpl(endpoint, { signal, headers: REQUEST_HEADERS });
+      if (res.ok) {
+        const raw = (await res.json()).map(normalizeStation).filter((s) => s.url && s.name);
+        return { stations: deduplicateStations(raw), source: 'Radio-Browser' };
+      }
+    } catch {}
+  }
+
+  if (tag) {
+    const endpoint = `${server}/json/stations/bytag/${encodeURIComponent(tag)}?limit=${limit}`;
+    try {
+      const res = await fetchImpl(endpoint, { signal, headers: REQUEST_HEADERS });
+      if (res.ok) {
+        const raw = (await res.json()).map(normalizeStation).filter((s) => s.url && s.name);
+        return { stations: deduplicateStations(raw), source: 'Radio-Browser' };
+      }
+    } catch {}
+  }
+
+  // Worldwide multi-genre collection endpoints
+  const endpoints = [
+    `${server}/json/stations/topvote/150`,
+    `${server}/json/stations/topclick/150`,
+    `${server}/json/stations/bytag/lofi?limit=60`,
+    `${server}/json/stations/bytag/synthwave?limit=60`,
+    `${server}/json/stations/bytag/jazz?limit=60`,
+    `${server}/json/stations/bytag/hiphop?limit=60`,
+    `${server}/json/stations/bytag/rock?limit=60`,
+    `${server}/json/stations/bytag/electronic?limit=60`,
+    `${server}/json/stations/bytag/classical?limit=60`,
+    `${server}/json/stations/bytag/pop?limit=60`,
+    `${server}/json/stations/bycountry/Vietnam?limit=40`,
+    `${server}/json/stations/bycountry/Japan?limit=40`
+  ];
+
+  try {
+    const results = await Promise.allSettled(
+      endpoints.map((url) =>
+        fetchImpl(url, { signal, headers: REQUEST_HEADERS })
+          .then((res) => (res.ok ? res.json() : []))
+          .catch(() => [])
+      )
+    );
+
+    const allRaw = [];
+    for (const r of results) {
+      if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+        allRaw.push(...r.value);
+      }
+    }
+
+    if (allRaw.length > 0) {
+      const normalized = allRaw.map(normalizeStation).filter((s) => s.url && s.name);
+      const stations = deduplicateStations(normalized);
+      if (stations.length > 0) {
+        return { stations, source: 'Radio-Browser (Worldwide)' };
+      }
+    }
+
+    throw new Error('No international stations returned from Radio-Browser');
   } catch (error) {
     return { stations: await loadFallback(), source: 'local fallback', error };
   }

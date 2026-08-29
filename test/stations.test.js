@@ -48,4 +48,22 @@ describe('Radio Stations API & Deduplication', () => {
     assert.equal(res.source, 'local fallback');
     assert.ok(res.stations.length > 0);
   });
+
+  test('successfully fetches and normalizes international stations from Radio Browser', async () => {
+    const mockFetch = async (url) => {
+      return {
+        ok: true,
+        json: async () => [
+          { stationuuid: 'vn-1', name: 'VOV3 Music', country: 'Vietnam', countrycode: 'VN', tags: 'pop,vietnamese', url: 'https://stream.vov.vn/live' },
+          { stationuuid: 'jp-1', name: 'Anime Nami', country: 'Japan', countrycode: 'JP', tags: 'anime,jpop', url: 'https://stream.animenami.jp/live' }
+        ]
+      };
+    };
+
+    const res = await fetchStations({ fetchImpl: mockFetch, tag: 'anime' });
+    assert.equal(res.source, 'Radio-Browser');
+    assert.equal(res.stations.length, 2);
+    assert.equal(res.stations[0].country, 'Japan');
+    assert.equal(res.stations[1].country, 'Vietnam');
+  });
 });

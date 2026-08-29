@@ -19,11 +19,17 @@ export const NAV_ROOT_LEVELS = ['ARTISTS', 'ALBUMS', 'PLAYLISTS', 'ALL TRACKS'];
 export const GENRE_FILTERS = [
   'ALL',
   'FAVORITES',
-  'BOOM-BAP',
-  '90s RAP',
   'LO-FI',
-  'UNDERGROUND',
-  'CLASSIC'
+  'SYNTHWAVE',
+  'JAZZ',
+  'HIP-HOP',
+  'ROCK',
+  'ELECTRONIC',
+  'CLASSICAL',
+  'POP',
+  'VIETNAM',
+  'JAPAN',
+  'GLOBAL TOP'
 ];
 
 export const STEREO_MODES = ['STEREO', 'MONO', '3D WIDE'];
@@ -559,31 +565,58 @@ export class Store {
     if (genre === 'FAVORITES') {
       const favIds = new Set(this.state.favorites.map((f) => f.id));
       stations = stations.filter((station) => favIds.has(station.id));
-    } else if (genre === 'BOOM-BAP') {
-      stations = stations.filter((station) => {
-        const text = `${station.name} ${station.tags}`.toLowerCase();
-        return text.includes('boom') || text.includes('bap') || text.includes('golden') || text.includes('underground');
-      });
     } else if (genre === 'LO-FI') {
       stations = stations.filter((station) => {
         const text = `${station.name} ${station.tags}`.toLowerCase();
         return text.includes('lofi') || text.includes('lo-fi') || text.includes('chill') || text.includes('beats');
       });
-    } else if (genre === '90s RAP') {
+    } else if (genre === 'SYNTHWAVE') {
       stations = stations.filter((station) => {
         const text = `${station.name} ${station.tags}`.toLowerCase();
-        return text.includes('90s') || text.includes('west coast') || text.includes('east coast') || text.includes('rap');
+        return text.includes('synth') || text.includes('retro') || text.includes('wave') || text.includes('cyber');
       });
-    } else if (genre === 'UNDERGROUND') {
+    } else if (genre === 'JAZZ') {
       stations = stations.filter((station) => {
         const text = `${station.name} ${station.tags}`.toLowerCase();
-        return text.includes('underground') || text.includes('indie') || text.includes('drill') || text.includes('grime');
+        return text.includes('jazz') || text.includes('blues') || text.includes('smooth') || text.includes('bossa');
       });
-    } else if (genre === 'CLASSIC') {
+    } else if (genre === 'HIP-HOP') {
       stations = stations.filter((station) => {
         const text = `${station.name} ${station.tags}`.toLowerCase();
-        return text.includes('classic') || text.includes('old school') || text.includes('80s') || text.includes('golden');
+        return text.includes('hip') || text.includes('hop') || text.includes('rap') || text.includes('trap') || text.includes('boom');
       });
+    } else if (genre === 'ROCK') {
+      stations = stations.filter((station) => {
+        const text = `${station.name} ${station.tags}`.toLowerCase();
+        return text.includes('rock') || text.includes('metal') || text.includes('punk') || text.includes('alternative') || text.includes('indie');
+      });
+    } else if (genre === 'ELECTRONIC') {
+      stations = stations.filter((station) => {
+        const text = `${station.name} ${station.tags}`.toLowerCase();
+        return text.includes('electro') || text.includes('edm') || text.includes('house') || text.includes('techno') || text.includes('trance') || text.includes('dance');
+      });
+    } else if (genre === 'CLASSICAL') {
+      stations = stations.filter((station) => {
+        const text = `${station.name} ${station.tags}`.toLowerCase();
+        return text.includes('classic') || text.includes('orchestra') || text.includes('symphon') || text.includes('piano') || text.includes('ambient');
+      });
+    } else if (genre === 'POP') {
+      stations = stations.filter((station) => {
+        const text = `${station.name} ${station.tags}`.toLowerCase();
+        return text.includes('pop') || text.includes('top40') || text.includes('hits') || text.includes('chart');
+      });
+    } else if (genre === 'VIETNAM') {
+      stations = stations.filter((station) => {
+        const text = `${station.name} ${station.country} ${station.countryCode} ${station.tags}`.toLowerCase();
+        return text.includes('vietnam') || text.includes('viet nam') || station.countryCode === 'VN' || text.includes('vov') || text.includes('voh');
+      });
+    } else if (genre === 'JAPAN') {
+      stations = stations.filter((station) => {
+        const text = `${station.name} ${station.country} ${station.countryCode} ${station.tags}`.toLowerCase();
+        return text.includes('japan') || station.countryCode === 'JP' || text.includes('anime') || text.includes('jpop') || text.includes('j-pop') || text.includes('tokyo');
+      });
+    } else if (genre === 'GLOBAL TOP') {
+      stations = stations.filter((station) => (station.votes || 0) > 50 || station.bitrate >= 192);
     }
 
     if (q) {
