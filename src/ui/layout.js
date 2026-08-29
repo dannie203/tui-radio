@@ -99,8 +99,8 @@ export function renderCarouselTabs(items, selectedItem, maxAvailableWidth = 50) 
     const isSelected = idx === selectedIdx;
     const plainText = isSelected ? `▶ [ ${item} ]` : `[ ${item} ]`;
     const formattedText = isSelected
-      ? `{bold}{#ffb000-fg}▶ [ ${item} ]{/#ffb000-fg}{/bold}`
-      : `{#6f7e91-fg}[ ${item} ]{/#6f7e91-fg}`;
+      ? `{bold}{${colors.amber}-fg}▶ [ ${item} ]{/${colors.amber}-fg}{/bold}`
+      : `{${colors.muted}-fg}[ ${item} ]{/${colors.muted}-fg}`;
     return {
       name: item,
       plainLen: plainText.length,
@@ -112,8 +112,8 @@ export function renderCarouselTabs(items, selectedItem, maxAvailableWidth = 50) 
   const spacing = 2; // "  "
   const leftArrowPlain = '◀ ';
   const rightArrowPlain = ' ▶';
-  const leftArrowFormatted = '{bold}{#00e5ff-fg}◀{/#00e5ff-fg}{/bold} ';
-  const rightArrowFormatted = ' {bold}{#00e5ff-fg}▶{/#00e5ff-fg}{/bold}';
+  const leftArrowFormatted = `{bold}{${colors.cyanDolby}-fg}◀{/${colors.cyanDolby}-fg}{/bold} `;
+  const rightArrowFormatted = ` {bold}{${colors.cyanDolby}-fg}▶{/${colors.cyanDolby}-fg}{/bold}`;
 
   const budget = Math.max(20, maxAvailableWidth);
 
@@ -232,21 +232,21 @@ function formatLyricsDisplay(state, currentItem) {
   const status = state.lyricsStatus;
   const source = lyrics?.source ? `[${lyrics.source.toUpperCase()}]` : '';
   const syncOffset = state.lyricsSyncOffset || 0;
-  const syncBadge = syncOffset !== 0 ? ` {#ffd24d-fg}(Offset: ${syncOffset > 0 ? '+' : ''}${syncOffset}s){/#ffd24d-fg}` : '';
+  const syncBadge = syncOffset !== 0 ? ` {${colors.amberBright}-fg}(Offset: ${syncOffset > 0 ? '+' : ''}${syncOffset}s){/${colors.amberBright}-fg}` : '';
 
   const header = [
-    ` {#f5c542-fg}┌─────────────────────────────────────────────────────────────┐{/#f5c542-fg}`,
-    ` {#f5c542-fg}│{/#f5c542-fg} {#00e5ff-fg}[ 🎤 LIVE SYNCED LYRICS DISPLAY ]{/#00e5ff-fg}  {#ffd24d-fg}${source}{/#ffd24d-fg}  {#6f7e91-fg}(Press 'L' to return){/#6f7e91-fg}`,
-    ` {#f5c542-fg}└─────────────────────────────────────────────────────────────┘{/#f5c542-fg}`,
-    ` {bold}{#33ff33-fg}TRACK :{/#33ff33-fg}{/bold} {bold}${title}{/bold}  {#6f7e91-fg}│{/#6f7e91-fg}  {bold}{#ffd24d-fg}ARTIST:{/#ffd24d-fg}{/bold} {bold}${artist}{/bold}${syncBadge}`
+    ` {${colors.borderDim}-fg}┌─────────────────────────────────────────────────────────────┐{/${colors.borderDim}-fg}`,
+    ` {${colors.borderDim}-fg}│{/${colors.borderDim}-fg} {${colors.cyanDolby}-fg}[ 🎤 LIVE SYNCED LYRICS DISPLAY ]{/${colors.cyanDolby}-fg}  {${colors.amberBright}-fg}${source}{/${colors.amberBright}-fg}  {${colors.muted}-fg}(Press 'L' to return){/${colors.muted}-fg}`,
+    ` {${colors.borderDim}-fg}└─────────────────────────────────────────────────────────────┘{/${colors.borderDim}-fg}`,
+    ` {bold}{${colors.greenPhosphor}-fg}TRACK :{/${colors.greenPhosphor}-fg}{/bold} {bold}${title}{/bold}  {${colors.muted}-fg}│{/${colors.muted}-fg}  {bold}{${colors.amberBright}-fg}ARTIST:{/${colors.amberBright}-fg}{/bold} {bold}${artist}{/bold}${syncBadge}`
   ];
 
   if (status === 'loading') {
     return [
       ...header,
       ``,
-      `   {#ffd24d-fg}⏳ Searching lyrics database for "${title}"...{/#ffd24d-fg}`,
-      `   {#6f7e91-fg}Querying LRCLIB open-source synced lyrics provider...{/#6f7e91-fg}`,
+      `   {${colors.gold}-fg}⏳ Searching lyrics database for "${title}"...{/${colors.gold}-fg}`,
+      `   {${colors.muted}-fg}Querying LRCLIB open-source synced lyrics provider...{/${colors.muted}-fg}`,
       ``,
       ``,
       ``
@@ -257,9 +257,9 @@ function formatLyricsDisplay(state, currentItem) {
     return [
       ...header,
       ``,
-      `   {#6f7e91-fg}∅ No lyrics available for this track / broadcast.{/#6f7e91-fg}`,
-      `   {#566573-fg}• Local tracks: Place a matching .lrc file in the same folder.{/#566573-fg}`,
-      `   {#566573-fg}• YouTube / Radio: Auto-queried via LRCLIB if artist & title match.{/#566573-fg}`,
+      `   {${colors.muted}-fg}∅ No lyrics available for this track / broadcast.{/${colors.muted}-fg}`,
+      `   {${colors.muted}-fg}• Local tracks: Place a matching .lrc file in the same folder.{/${colors.muted}-fg}`,
+      `   {${colors.muted}-fg}• YouTube / Radio: Auto-queried via LRCLIB if artist & title match.{/${colors.muted}-fg}`,
       ``,
       ``
     ].join('\n');
@@ -287,14 +287,14 @@ function formatLyricsDisplay(state, currentItem) {
       if (i === activeIdx) {
         const nextItem = lyrics.synced[i + 1] || null;
         const karaokeText = formatKaraokeText(item, currentTime, nextItem, state.duration, { tick });
-        lines.push(` {bold}{#33ff33-fg} ▶{/#33ff33-fg}{/bold}  ${karaokeText}`);
+        lines.push(` {bold}{${colors.greenPhosphor}-fg} ▶{/${colors.greenPhosphor}-fg}{/bold}  ${karaokeText}`);
       } else if (i < activeIdx) {
         // Past lines: already un-matrixed!
-        lines.push(`    {#566573-fg}${safeText}{/#566573-fg}`);
+        lines.push(`    {${colors.muted}-fg}${safeText}{/${colors.muted}-fg}`);
       } else {
         // Upcoming lines: fully scrambled in matrix code!
         const scrambled = scrambleLine(safeText, tick + i * 17);
-        lines.push(`    {#475466-fg}${scrambled}{/#475466-fg}`);
+        lines.push(`    {${colors.borderDim}-fg}${scrambled}{/${colors.borderDim}-fg}`);
       }
     }
 
@@ -309,7 +309,7 @@ function formatLyricsDisplay(state, currentItem) {
     const lines = [...header, ``];
 
     for (const l of slice) {
-      lines.push(`   {#f3ead8-fg}${sanitize(l, 56)}{/#f3ead8-fg}`);
+      lines.push(`   {${colors.cream}-fg}${sanitize(l, 56)}{/${colors.cream}-fg}`);
     }
 
     return lines.join('\n');
@@ -389,17 +389,17 @@ function formatCombinedMonitor(spoolFrame, isPlaying, isPaused, currentItem, mod
   if (showFullArtwork && artLines) {
     const artLineArray = artLines.split('\n');
     const infoLines = [
-      ` {#f5c542-fg}┌──────────────────────────────────────────────┐{/#f5c542-fg}`,
-      ` {#f5c542-fg}│{/#f5c542-fg} {#00e5ff-fg}[ 💽 HIGH-RES ALBUM COVER ARTWORK ]{/#00e5ff-fg}  {#6f7e91-fg}(W: Back){/#6f7e91-fg}`,
-      ` {#f5c542-fg}└──────────────────────────────────────────────┘{/#f5c542-fg}`,
+      ` {${colors.borderDim}-fg}┌──────────────────────────────────────────────┐{/${colors.borderDim}-fg}`,
+      ` {${colors.borderDim}-fg}│{/${colors.borderDim}-fg} {${colors.cyanDolby}-fg}[ 💽 HIGH-RES ALBUM COVER ARTWORK ]{/${colors.cyanDolby}-fg}  {${colors.muted}-fg}(W: Back){/${colors.muted}-fg}`,
+      ` {${colors.borderDim}-fg}└──────────────────────────────────────────────┘{/${colors.borderDim}-fg}`,
       ``,
-      ` {bold}{#33ff33-fg}TRACK :{/#33ff33-fg}{/bold} {bold}${sanitize(title, 32)}{/bold}`,
-      ` {bold}{#ffd24d-fg}ARTIST:{/#ffd24d-fg}{/bold} {bold}${sanitize(artist, 32)}{/bold}`,
-      ` {bold}{#00e5ff-fg}ALBUM :{/#00e5ff-fg}{/bold} {#f3ead8-fg}${sanitize(albumOrCountry, 32)}{/#f3ead8-fg}`,
-      ` {bold}{#f5c542-fg}CODEC :{/#f5c542-fg}{/bold} ${formatBadge}`,
+      ` {bold}{${colors.greenPhosphor}-fg}TRACK :{/${colors.greenPhosphor}-fg}{/bold} {bold}${sanitize(title, 32)}{/bold}`,
+      ` {bold}{${colors.amberBright}-fg}ARTIST:{/${colors.amberBright}-fg}{/bold} {bold}${sanitize(artist, 32)}{/bold}`,
+      ` {bold}{${colors.cyanDolby}-fg}ALBUM :{/${colors.cyanDolby}-fg}{/bold} {${colors.cream}-fg}${sanitize(albumOrCountry, 32)}{/${colors.cream}-fg}`,
+      ` {bold}{${colors.gold}-fg}CODEC :{/${colors.gold}-fg}{/bold} ${formatBadge}`,
       ``,
-      ` {#6f7e91-fg}• Press 'W' to return to Cassette Deck{/#6f7e91-fg}`,
-      ` {#6f7e91-fg}• Press 'L' to view real-time Synced Lyrics{/#6f7e91-fg}`
+      ` {${colors.muted}-fg}• Press 'W' to return to Cassette Deck{/${colors.muted}-fg}`,
+      ` {${colors.muted}-fg}• Press 'L' to view real-time Synced Lyrics{/${colors.muted}-fg}`
     ];
 
     const combinedLines = [];
@@ -419,16 +419,17 @@ function formatCombinedMonitor(spoolFrame, isPlaying, isPaused, currentItem, mod
     || Boolean(currentItem?.isLive)
     || (!currentItem?.duration && Boolean(currentItem?.url) && currentItem?.type !== 'local');
 
-  const recLed = isPlaying && !isPaused && isLiveStream ? '{#ff3344-fg}● REC{/#ff3344-fg}' : '{#2a3545-fg}● REC{/#2a3545-fg}';
-  const playLed = isPlaying && !isPaused ? '{#33ff33-fg}▶ PLAY{/#33ff33-fg}' : '{#2a3545-fg}▶ PLAY{/#2a3545-fg}';
-  const pauseLed = isPaused ? '{#ffb000-fg}❚❚ PAUSE{/#ffb000-fg}' : '{#2a3545-fg}❚❚ PAUSE{/#2a3545-fg}';
-  const stopLed = !isPlaying && !isPaused ? '{#f5c542-fg}▲ STOP{/#f5c542-fg}' : '{#2a3545-fg}▲ STOP{/#2a3545-fg}';
+  const isRecording = Boolean(state?.recording);
+  const recLed = isRecording ? `{${colors.redLed}-fg}● REC{/${colors.redLed}-fg}` : `{${colors.borderDim}-fg}● REC{/${colors.borderDim}-fg}`;
+  const playLed = isPlaying && !isPaused ? `{${colors.greenPhosphor}-fg}▶ PLAY{/${colors.greenPhosphor}-fg}` : `{${colors.borderDim}-fg}▶ PLAY{/${colors.borderDim}-fg}`;
+  const pauseLed = isPaused ? `{${colors.amber}-fg}❚❚ PAUSE{/${colors.amber}-fg}` : `{${colors.borderDim}-fg}❚❚ PAUSE{/${colors.borderDim}-fg}`;
+  const stopLed = !isPlaying && !isPaused ? `{${colors.gold}-fg}▲ STOP{/${colors.gold}-fg}` : `{${colors.borderDim}-fg}▲ STOP{/${colors.borderDim}-fg}`;
 
   const playbackBadge = isPaused
-    ? '{#ffb000-fg}[ PAUSED ]{/#ffb000-fg}'
+    ? `{${colors.amber}-fg}[ PAUSED ]{/${colors.amber}-fg}`
     : isPlaying
-    ? '{#33ff33-fg}[ PLAYING ]{/#33ff33-fg}'
-    : '{#6f7e91-fg}[ STANDBY ]{/#6f7e91-fg}';
+    ? `{${colors.greenPhosphor}-fg}[ PLAYING ]{/${colors.greenPhosphor}-fg}`
+    : `{${colors.muted}-fg}[ STANDBY ]{/${colors.muted}-fg}`;
 
   let rawTitle = currentItem?.artist
     ? `${currentItem.artist} - ${currentItem.title || currentItem.name}`
@@ -438,7 +439,7 @@ function formatCombinedMonitor(spoolFrame, isPlaying, isPaused, currentItem, mod
   const tapeLabelType = (state?.tapeType || 'CrO2').padEnd(12).slice(0, 12);
 
   const volumeFilled = Math.round((state.volume / 100) * 12);
-  const volumeBar = `[{#ffb000-fg}${'■'.repeat(volumeFilled)}{/#ffb000-fg}{#114a1a-fg}${'□'.repeat(12 - volumeFilled)}{/#114a1a-fg}] ${state.volume}%`;
+  const volumeBar = `[{${colors.amber}-fg}${'■'.repeat(volumeFilled)}{/${colors.amber}-fg}{${colors.borderDim}-fg}${'□'.repeat(12 - volumeFilled)}{/${colors.borderDim}-fg}] ${state.volume}%`;
 
   const progWidth = 24;
   const hasDuration = Boolean(telemetry?.hasDuration || (state.duration > 0) || (currentItem?.duration > 0));
@@ -448,7 +449,7 @@ function formatCombinedMonitor(spoolFrame, isPlaying, isPaused, currentItem, mod
   if (hasDuration) {
     const percent = Math.max(0, Math.min(100, state.percentPos || 0));
     const progFilled = Math.max(0, Math.min(progWidth, Math.round((percent / 100) * progWidth)));
-    progressBar = `[{#33ff33-fg}${'■'.repeat(progFilled)}{/#33ff33-fg}{#114a1a-fg}${'□'.repeat(progWidth - progFilled)}{/#114a1a-fg}]`;
+    progressBar = `[{${colors.greenPhosphor}-fg}${'■'.repeat(progFilled)}{/${colors.greenPhosphor}-fg}{${colors.borderDim}-fg}${'□'.repeat(progWidth - progFilled)}{/${colors.borderDim}-fg}]`;
     progDetails = `${state.tapeCounter} (${percent}%)`;
   } else if (isPlaying && !isPaused) {
     // Dynamic animated phosphor scanner for live radio broadcasts and continuous streams
@@ -461,55 +462,63 @@ function formatCombinedMonitor(spoolFrame, isPlaying, isPaused, currentItem, mod
     let barStr = '';
     for (let i = 0; i < progWidth; i++) {
       if (i >= beamPos && i < beamPos + beamWidth) {
-        barStr += '{#33ff33-fg}■{/#33ff33-fg}';
+        barStr += `{${colors.greenPhosphor}-fg}■{/${colors.greenPhosphor}-fg}`;
       } else {
-        barStr += '{#114a1a-fg}□{/#114a1a-fg}';
+        barStr += `{${colors.borderDim}-fg}□{/${colors.borderDim}-fg}`;
       }
     }
     progressBar = `[${barStr}]`;
-    progDetails = `${state.tapeCounter} {#33ff33-fg}● LIVE STREAM{/#33ff33-fg}`;
+    progDetails = `${state.tapeCounter} {${colors.greenPhosphor}-fg}● LIVE STREAM{/${colors.greenPhosphor}-fg}`;
   } else if (isPaused) {
-    progressBar = `[{#ffd24d-fg}  ❚❚  STREAM PAUSED  ❚❚  {/#ffd24d-fg}]`;
-    progDetails = `${state.tapeCounter} {#ffd24d-fg}(PAUSED){/#ffd24d-fg}`;
+    progressBar = `[{${colors.gold}-fg}  ❚❚  STREAM PAUSED  ❚❚  {/${colors.gold}-fg}]`;
+    progDetails = `${state.tapeCounter} {${colors.gold}-fg}(PAUSED){/${colors.gold}-fg}`;
   } else {
-    progressBar = `[{#114a1a-fg}${'□'.repeat(progWidth)}{/#114a1a-fg}]`;
-    progDetails = `${state.tapeCounter || '00:00'} {#6f7e91-fg}(STANDBY){/#6f7e91-fg}`;
+    progressBar = `[{${colors.borderDim}-fg}${'□'.repeat(progWidth)}{/${colors.borderDim}-fg}]`;
+    progDetails = `${state.tapeCounter || '00:00'} {${colors.muted}-fg}(STANDBY){/${colors.muted}-fg}`;
   }
 
   const cleanMarquee = sanitize(marqueeText, 44);
   const cleanStatus = sanitize(state.status, 44);
-  const bassTxt = state.bassBoost ? '{#ff3344-fg}MEGA BASS +7dB{/#ff3344-fg}' : '{#6f7e91-fg}FLAT{/#6f7e91-fg}';
+  const bassTxt = state.bassBoost ? `{${colors.redLed}-fg}MEGA BASS +7dB{/${colors.redLed}-fg}` : `{${colors.muted}-fg}FLAT{/${colors.muted}-fg}`;
 
   const leftSpool = isPlaying && !isPaused ? WIDE_SPOOL_LEFT[spoolFrame % 4] : '(  |  )';
   const rightSpool = isPlaying && !isPaused ? WIDE_SPOOL_RIGHT[spoolFrame % 4] : '(  |  )';
   const tapeLabel = sanitize(rawTitle, 16).toUpperCase().padStart(16, ' ').slice(-16);
 
-  const lyricsBadge = state.lyricsStatus === 'found'
-    ? ' {#33ff33-fg}[LYRICS: L]{/#33ff33-fg}'
-    : state.lyricsStatus === 'loading'
-    ? ' {#ffd24d-fg}[LYRICS: ⏳]{/#ffd24d-fg}'
-    : '';
-  const artBadge = artLines ? ' {#f5c542-fg}[COVER ART: W]{/#f5c542-fg}' : '';
+  const percent = Math.max(0, Math.min(100, state.percentPos || 0));
+  const leftTapePack = hasDuration
+    ? '═'.repeat(Math.max(2, Math.round((1 - percent / 100) * 8)))
+    : '══════';
+  const rightTapePack = hasDuration
+    ? '═'.repeat(Math.max(2, Math.round((percent / 100) * 8)))
+    : '══════';
 
-  const deckLine1 = ` {#f5c542-fg}[A] RETRO STEREO DECK{/#f5c542-fg}        {#00e5ff-fg}${dolbyLabel}{/#00e5ff-fg}        {#ffd24d-fg}${tapeLabelType}{/#ffd24d-fg}`;
-  const deckLine2 = `   {#ffb000-fg}${leftSpool}{/#ffb000-fg} ══════ [ {#f3ead8-fg}${tapeLabel}{/#f3ead8-fg} ] ══════ {#ffb000-fg}${rightSpool}{/#ffb000-fg}`;
+  const lyricsBadge = state.lyricsStatus === 'found'
+    ? ` {${colors.greenPhosphor}-fg}[LYRICS: L]{/${colors.greenPhosphor}-fg}`
+    : state.lyricsStatus === 'loading'
+    ? ` {${colors.gold}-fg}[LYRICS: ⏳]{/${colors.gold}-fg}`
+    : '';
+  const artBadge = artLines ? ` {${colors.amberBright}-fg}[COVER ART: W]{/${colors.amberBright}-fg}` : '';
+
+  const deckLine1 = ` {${colors.gold}-fg}[A] RETRO STEREO DECK{/${colors.gold}-fg}        {${colors.cyanDolby}-fg}${dolbyLabel}{/${colors.cyanDolby}-fg}        {${colors.amberBright}-fg}${tapeLabelType}{/${colors.amberBright}-fg}`;
+  const deckLine2 = `   {${colors.amber}-fg}${leftSpool}{/${colors.amber}-fg} ${leftTapePack} [ {${colors.cream}-fg}${tapeLabel}{/${colors.cream}-fg} ] ${rightTapePack} {${colors.amber}-fg}${rightSpool}{/${colors.amber}-fg}`;
   const deckLine3 = `       ${recLed}        ${playLed}        ${pauseLed}        ${stopLed}`;
 
   return [
-    ` {#6f7e91-fg}┌─────────────────────────────────────────────────────────────┐{/#6f7e91-fg}`,
-    ` {#6f7e91-fg}│{/#6f7e91-fg}${padLine(deckLine1, 61)}{#6f7e91-fg}│{/#6f7e91-fg}`,
-    ` {#6f7e91-fg}│{/#6f7e91-fg}${padLine(deckLine2, 61)}{#6f7e91-fg}│{/#6f7e91-fg}`,
-    ` {#6f7e91-fg}│{/#6f7e91-fg}${padLine(deckLine3, 61)}{#6f7e91-fg}│{/#6f7e91-fg}`,
-    ` {#6f7e91-fg}└─────────────────────────────────────────────────────────────┘{/#6f7e91-fg}`,
+    ` {${colors.borderDim}-fg}┌─────────────────────────────────────────────────────────────┐{/${colors.borderDim}-fg}`,
+    ` {${colors.borderDim}-fg}│{/${colors.borderDim}-fg}${padLine(deckLine1, 61)}{${colors.borderDim}-fg}│{/${colors.borderDim}-fg}`,
+    ` {${colors.borderDim}-fg}│{/${colors.borderDim}-fg}${padLine(deckLine2, 61)}{${colors.borderDim}-fg}│{/${colors.borderDim}-fg}`,
+    ` {${colors.borderDim}-fg}│{/${colors.borderDim}-fg}${padLine(deckLine3, 61)}{${colors.borderDim}-fg}│{/${colors.borderDim}-fg}`,
+    ` {${colors.borderDim}-fg}└─────────────────────────────────────────────────────────────┘{/${colors.borderDim}-fg}`,
     ``,
-    ` {#33ff33-fg}COUNTER : [{#ffd24d-fg}${state.tapeCounter}{/#ffd24d-fg}]               SOUNDSTAGE: {#33ff33-fg}${state.stereoMode}{/#33ff33-fg}${lyricsBadge}${artBadge}`,
-    ` {#6f7e91-fg}TITLE   :{/#6f7e91-fg} {bold}{#33ff33-fg}${title}{/#33ff33-fg}{/bold}`,
-    ` {#6f7e91-fg}ARTIST  :{/#6f7e91-fg} {bold}{#f5c542-fg}${artist}{/#f5c542-fg}{/bold} {#00e5ff-fg}[${albumOrCountry}]{/#00e5ff-fg}`,
-    ` {#6f7e91-fg}STREAM  :{/#6f7e91-fg} {#ffd24d-fg}${cleanMarquee}{/#ffd24d-fg}`,
-    ` {#6f7e91-fg}PROG    :{/#6f7e91-fg} ${progressBar} ${progDetails}`,
-    ` {#6f7e91-fg}DSP     :{/#6f7e91-fg} {#33ff33-fg}${state.stereoMode}{/#33ff33-fg} │ {#00e5ff-fg}${state.dolbyMode}{/#00e5ff-fg} │ {#ffd24d-fg}${state.tapeType}{/#ffd24d-fg} │ ${bassTxt}`,
-    ` {#6f7e91-fg}STATUS  :{/#6f7e91-fg} ${playbackBadge}  {#6f7e91-fg}CODEC:{/#6f7e91-fg} {#33ff33-fg}${formatBadge}{/#33ff33-fg}  {#6f7e91-fg}VOL:{/#6f7e91-fg} ${volumeBar}`,
-    ` {#6f7e91-fg}SYSTEM  :{/#6f7e91-fg} {#ffb000-fg}${cleanStatus}{/#ffb000-fg}`
+    ` {${colors.greenPhosphor}-fg}COUNTER : [{${colors.amberBright}-fg}${state.tapeCounter}{/${colors.amberBright}-fg}]               SOUNDSTAGE: {${colors.greenPhosphor}-fg}${state.stereoMode}{/${colors.greenPhosphor}-fg}${lyricsBadge}${artBadge}`,
+    ` {${colors.muted}-fg}TITLE   :{/${colors.muted}-fg} {bold}{${colors.greenPhosphor}-fg}${title}{/${colors.greenPhosphor}-fg}{/bold}`,
+    ` {${colors.muted}-fg}ARTIST  :{/${colors.muted}-fg} {bold}{${colors.gold}-fg}${artist}{/${colors.gold}-fg}{/bold} {${colors.cyanDolby}-fg}[${albumOrCountry}]{/${colors.cyanDolby}-fg}`,
+    ` {${colors.muted}-fg}STREAM  :{/${colors.muted}-fg} {${colors.amberBright}-fg}${cleanMarquee}{/${colors.amberBright}-fg}`,
+    ` {${colors.muted}-fg}PROG    :{/${colors.muted}-fg} ${progressBar} ${progDetails}`,
+    ` {${colors.muted}-fg}DSP     :{/${colors.muted}-fg} {${colors.greenPhosphor}-fg}${state.stereoMode}{/${colors.greenPhosphor}-fg} │ {${colors.cyanDolby}-fg}${state.dolbyMode}{/${colors.cyanDolby}-fg} │ {${colors.amberBright}-fg}${state.tapeType}{/${colors.amberBright}-fg} │ ${bassTxt}`,
+    ` {${colors.muted}-fg}STATUS  :{/${colors.muted}-fg} ${playbackBadge}  {${colors.muted}-fg}CODEC:{/${colors.muted}-fg} {${colors.greenPhosphor}-fg}${formatBadge}{/${colors.greenPhosphor}-fg}  {${colors.muted}-fg}VOL:{/${colors.muted}-fg} ${volumeBar}`,
+    ` {${colors.muted}-fg}SYSTEM  :{/${colors.muted}-fg} {${colors.amber}-fg}${cleanStatus}{/${colors.amber}-fg}`
   ].join('\n');
 }
 
@@ -521,15 +530,15 @@ function formatVuMeter(channelLabel, value, peak, width = 56) {
   for (let i = 0; i < width; i++) {
     const pct = (i / width) * 100;
     if (i < filled) {
-      if (pct >= 88) barStr += '{#ff3344-fg}■{/#ff3344-fg}';
-      else if (pct >= 70) barStr += '{#ffee33-fg}■{/#ffee33-fg}';
-      else barStr += '{#33ff33-fg}■{/#33ff33-fg}';
+      if (pct >= 88) barStr += `{${colors.redLed}-fg}■{/${colors.redLed}-fg}`;
+      else if (pct >= 70) barStr += `{${colors.yellowLed}-fg}■{/${colors.yellowLed}-fg}`;
+      else barStr += `{${colors.greenPhosphor}-fg}■{/${colors.greenPhosphor}-fg}`;
     } else if (i === peakPos && peak > 5) {
-      if (pct >= 88) barStr += '{#ff3344-fg}▮{/#ff3344-fg}';
-      else if (pct >= 70) barStr += '{#ffee33-fg}▮{/#ffee33-fg}';
-      else barStr += '{#33ff33-fg}▮{/#33ff33-fg}';
+      if (pct >= 88) barStr += `{${colors.redLed}-fg}▮{/${colors.redLed}-fg}`;
+      else if (pct >= 70) barStr += `{${colors.yellowLed}-fg}▮{/${colors.yellowLed}-fg}`;
+      else barStr += `{${colors.greenPhosphor}-fg}▮{/${colors.greenPhosphor}-fg}`;
     } else {
-      barStr += '{#17202c-fg}■{/#17202c-fg}';
+      barStr += `{${colors.borderDim}-fg}■{/${colors.borderDim}-fg}`;
     }
   }
 
@@ -542,10 +551,10 @@ function formatVuMeter(channelLabel, value, peak, width = 56) {
     : `+${Math.round((value - 88) / 4)}dB`;
 
   const peakIndicator = peak >= 90
-    ? '{#ff3344-fg}[PEAK]{/#ff3344-fg}'
-    : '{#2d3748-fg}[PEAK]{/#2d3748-fg}';
+    ? `{${colors.redLed}-fg}[PEAK]{/${colors.redLed}-fg}`
+    : `{${colors.borderDim}-fg}[PEAK]{/${colors.borderDim}-fg}`;
 
-  return ` {bold}{#f5c542-fg}${channelLabel}{/#f5c542-fg}{/bold} [${barStr}] {#b8c4ce-fg}${db.padStart(5)}{/#b8c4ce-fg} ${peakIndicator}`;
+  return ` {bold}{${colors.gold}-fg}${channelLabel}{/${colors.gold}-fg}{/bold} [${barStr}] {${colors.chrome}-fg}${db.padStart(5)}{/${colors.chrome}-fg} ${peakIndicator}`;
 }
 
 const LABELS_SLOT_4 = [
@@ -662,8 +671,8 @@ function formatSettingsContent(state) {
   const config = state.config || {};
 
   const lines = [
-    ` {bold}{#ffd24d-fg}⚙ DECK HARDWARE, VISUALIZER & SYSTEM PREFERENCES{/#ffd24d-fg}{/bold}`,
-    ` {#6f7e91-fg}Settings are automatically saved to ~/.config/hiphop-tui/config.json{/#6f7e91-fg}`,
+    ` {bold}{${colors.gold}-fg}⚙ DECK HARDWARE, VISUALIZER & SYSTEM PREFERENCES{/${colors.gold}-fg}{/bold}`,
+    ` {${colors.muted}-fg}Settings are automatically saved to ~/.config/boombox-tui/config.json{/${colors.muted}-fg}`,
     ``
   ];
 
@@ -671,7 +680,7 @@ function formatSettingsContent(state) {
   sections.forEach((item, idx) => {
     if (item.section !== currentCategory) {
       currentCategory = item.section;
-      lines.push(` {bold}{#00e5ff-fg}${currentCategory}{/#00e5ff-fg}{/bold}`);
+      lines.push(` {bold}{${colors.cyanDolby}-fg}${currentCategory}{/${colors.cyanDolby}-fg}{/bold}`);
     }
 
     const currentVal = item.get ? item.get(config) : config[item.id];
@@ -679,14 +688,14 @@ function formatSettingsContent(state) {
     const labelVal = optIdx >= 0 ? item.labels[optIdx] : String(currentVal);
 
     if (idx === selectedIdx) {
-      lines.push(`  {bold}{#0a0d13-bg}{#ffb000-fg} ▶ ${item.label.padEnd(18)} : [ ◀ ${labelVal} ▶ ] {/#ffb000-fg}{/#0a0d13-bg}{/bold}`);
+      lines.push(`  {bold}{${colors.bgDark}-bg}{${colors.amber}-fg} ▶ ${item.label.padEnd(18)} : [ ◀ ${labelVal} ▶ ] {/${colors.amber}-fg}{/${colors.bgDark}-bg}{/bold}`);
     } else {
-      lines.push(`    {#b8c4ce-fg}${item.label.padEnd(18)}{/#b8c4ce-fg} : {#6f7e91-fg}[{/#6f7e91-fg} {#ffd24d-fg}${labelVal}{/#ffd24d-fg} {#6f7e91-fg}]{/#6f7e91-fg}`);
+      lines.push(`    {${colors.chrome}-fg}${item.label.padEnd(18)}{/${colors.chrome}-fg} : {${colors.muted}-fg}[{/${colors.muted}-fg} {${colors.amberBright}-fg}${labelVal}{/${colors.amberBright}-fg} {${colors.muted}-fg}]{/${colors.muted}-fg}`);
     }
   });
 
   lines.push(``);
-  lines.push(` {#6f7e91-fg}⌨ [↑/↓/j/k] Select Setting  •  [←/→/Space/Enter] Change Value  •  [Esc/q/O] Close Panel{/#6f7e91-fg}`);
+  lines.push(` {${colors.muted}-fg}⌨ [↑/↓/j/k] Select Setting  •  [←/→/Space/Enter] Change Value  •  [Esc/q/O] Close Panel{/${colors.muted}-fg}`);
 
   return lines.join('\n');
 }
@@ -894,7 +903,7 @@ export function createLayout(store, actions, player) {
     right: 1,
     height: 2,
     tags: true,
-    content: ' Paste YouTube, SoundCloud, Bandcamp, Mixcloud, or Direct Audio stream URL:\n {#6f7e91-fg}e.g. "soundcloud.com/...", "artist.bandcamp.com/...", "youtube.com/...", "sc:hiphop", or http://.../stream.mp3{/#6f7e91-fg}'
+    content: ` Paste YouTube, SoundCloud, Bandcamp, Mixcloud, or Direct Audio stream URL:\n {${colors.muted}-fg}e.g. "soundcloud.com/...", "artist.bandcamp.com/...", "youtube.com/...", "sc:hiphop", or http://.../stream.mp3{/${colors.muted}-fg}`
   });
 
   // Settings & Configuration Modal
@@ -1048,13 +1057,13 @@ export function createLayout(store, actions, player) {
     // 2. Render Sub-Bar based on active Mode
     if (state.mode === 'LOCAL TRACKS') {
       const nav = state.nav || { level: 'ARTISTS' };
-      let breadcrumb = '{#ffb000-fg}CRATES{/#ffb000-fg}';
-      if (nav.selectedArtist) breadcrumb += ` › {#00e5ff-fg}${sanitize(nav.selectedArtist, 14)}{/#00e5ff-fg}`;
+      let breadcrumb = `{${colors.amber}-fg}CRATES{/${colors.amber}-fg}`;
+      if (nav.selectedArtist) breadcrumb += ` › {${colors.cyanDolby}-fg}${sanitize(nav.selectedArtist, 14)}{/${colors.cyanDolby}-fg}`;
       if (nav.selectedAlbumKey) {
         const alb = state.library?.albums?.[nav.selectedAlbumKey];
-        breadcrumb += ` › {#ffd24d-fg}${sanitize(alb?.title || 'Album', 14)}{/#ffd24d-fg}`;
+        breadcrumb += ` › {${colors.amberBright}-fg}${sanitize(alb?.title || 'Album', 14)}{/${colors.amberBright}-fg}`;
       } else if (nav.selectedPlaylist) {
-        breadcrumb += ` › {#f5c542-fg}★ ${sanitize(nav.selectedPlaylist, 14)}{/#f5c542-fg}`;
+        breadcrumb += ` › {${colors.gold}-fg}★ ${sanitize(nav.selectedPlaylist, 14)}{/${colors.gold}-fg}`;
       }
 
       const viewTabs = [
@@ -1065,11 +1074,11 @@ export function createLayout(store, actions, player) {
       ].map((tab) => {
         const isSel = nav.level === tab.key && !nav.selectedArtist && !nav.selectedAlbumKey && !nav.selectedPlaylist;
         return isSel
-          ? `{bold}{#ffb000-fg}▶ [ ${tab.label} ]{/#ffb000-fg}{/bold}`
-          : `{#6f7e91-fg}[ ${tab.label} ]{/#6f7e91-fg}`;
+          ? `{bold}{${colors.amber}-fg}▶ [ ${tab.label} ]{/${colors.amber}-fg}{/bold}`
+          : `{${colors.muted}-fg}[ ${tab.label} ]{/${colors.muted}-fg}`;
       }).join('  ');
 
-      subBar.setContent(` ${viewTabs}  {#6f7e91-fg}│{/#6f7e91-fg}  ${breadcrumb}  {#6f7e91-fg}(← / → or v: crate){/#6f7e91-fg}`);
+      subBar.setContent(` ${viewTabs}  {${colors.muted}-fg}│{/${colors.muted}-fg}  ${breadcrumb}  {${colors.muted}-fg}(← / → or v: crate){/${colors.muted}-fg}`);
 
       // Set explorer list label
       if (nav.level === 'ARTISTS') {
@@ -1100,11 +1109,11 @@ export function createLayout(store, actions, player) {
       searchBox.setLabel(' 🔍 STATIONS [/] ');
     } else if (state.mode === 'YOUTUBE MUSIC') {
       const q = state.youtubeQuery ? `"${sanitize(state.youtubeQuery, 20)}"` : 'None';
-      subBar.setContent(` {#ffb000-fg}YOUTUBE MUSIC:{/#ffb000-fg} {#ffd24d-fg}${q}{/#ffd24d-fg} {#6f7e91-fg}(${state.youtubeResults.length} tracks)  [Press '/' to search, '↵' to play, 'A' to queue]{/#6f7e91-fg}`);
+      subBar.setContent(` {${colors.amber}-fg}YOUTUBE MUSIC:{/${colors.amber}-fg} {${colors.amberBright}-fg}${q}{/${colors.amberBright}-fg} {${colors.muted}-fg}(${state.youtubeResults.length} tracks)  [Press '/' to search, '↵' to play, 'A' to queue]{/${colors.muted}-fg}`);
       explorerList.setLabel(` 📺 YOUTUBE MUSIC // ${state.youtubeQuery ? sanitize(state.youtubeQuery, 14) : 'SEARCH'} (${state.youtubeResults.length}) `);
       searchBox.setLabel(' 🔍 YT MUSIC [/] ');
     } else if (state.mode === 'QUEUE') {
-      subBar.setContent(` {#f5c542-fg}PLAYBACK QUEUE:{/#f5c542-fg} {#b8c4ce-fg}${state.queue.length} tracks{/#b8c4ce-fg}  {#6f7e91-fg}(C: clear, X: remove){/#6f7e91-fg}`);
+      subBar.setContent(` {${colors.gold}-fg}PLAYBACK QUEUE:{/${colors.gold}-fg} {${colors.chrome}-fg}${state.queue.length} tracks{/${colors.chrome}-fg}  {${colors.muted}-fg}(C: clear, X: remove){/${colors.muted}-fg}`);
       explorerList.setLabel(` 📋 PLAYLIST QUEUE (${state.queue.length}) `);
       searchBox.setLabel(' 🔍 QUEUE [/] ');
     }
@@ -1117,39 +1126,39 @@ export function createLayout(store, actions, player) {
       if (state.mode === 'YOUTUBE MUSIC') {
         itemsToRender = [
           state.youtubeLoading
-            ? ` {#ffd24d-fg}⏳ Searching YouTube Music for "${sanitize(state.youtubeQuery, 22)}"...{/#ffd24d-fg}`
-            : ` {#6f7e91-fg}🔍 Press '/' to search songs, artists or albums on YouTube Music{/#6f7e91-fg}`
+            ? ` {${colors.gold}-fg}⏳ Searching YouTube Music for "${sanitize(state.youtubeQuery, 22)}"...{/${colors.gold}-fg}`
+            : ` {${colors.muted}-fg}🔍 Press '/' to search songs, artists or albums on YouTube Music{/${colors.muted}-fg}`
         ];
       } else if (state.mode === 'QUEUE') {
-        itemsToRender = [` {#6f7e91-fg}(Playback queue is empty - press 'A' to add tracks){/#6f7e91-fg}`];
+        itemsToRender = [` {${colors.muted}-fg}(Playback queue is empty - press 'A' to add tracks){/${colors.muted}-fg}`];
       } else if (state.mode === 'RADIO STATIONS') {
-        itemsToRender = [` {#6f7e91-fg}(No radio stations found for "${sanitize(state.query, 16)}"){/#6f7e91-fg}`];
+        itemsToRender = [` {${colors.muted}-fg}(No radio stations found for "${sanitize(state.query, 16)}"){/${colors.muted}-fg}`];
       } else {
-        itemsToRender = [` {#6f7e91-fg}(No tracks found in crate){/#6f7e91-fg}`];
+        itemsToRender = [` {${colors.muted}-fg}(No tracks found in crate){/${colors.muted}-fg}`];
       }
     } else {
       itemsToRender = activeList.map((item, index) => {
         const isFav = state.favorites.some((fav) => fav.id === item.id);
         const isCurrent = state.current?.id === item.id;
-        const favIcon = isFav ? '{#f5c542-fg}★{/#f5c542-fg}' : '{#3b4859-fg}•{/#3b4859-fg}';
-        const playIcon = isCurrent ? '{#33ff33-fg}▶{/#33ff33-fg}' : ' ';
+        const favIcon = isFav ? `{${colors.gold}-fg}★{/${colors.gold}-fg}` : `{${colors.borderDim}-fg}•{/${colors.borderDim}-fg}`;
+        const playIcon = isCurrent ? `{${colors.greenPhosphor}-fg}▶{/${colors.greenPhosphor}-fg}` : ' ';
 
         if (state.mode === 'LOCAL TRACKS') {
           if (item.type === 'artist') {
             const name = sanitize(item.name, 15);
-            return ` {#ffd24d-fg}▶{/#ffd24d-fg} {bold}${name}{/bold} {#6f7e91-fg}(${item.albumCount}a, ${item.trackCount}t){/#6f7e91-fg}`;
+            return ` {${colors.amberBright}-fg}▶{/${colors.amberBright}-fg} {bold}${name}{/bold} {${colors.muted}-fg}(${item.albumCount}a, ${item.trackCount}t){/${colors.muted}-fg}`;
           }
 
           if (item.type === 'album') {
             const title = sanitize(item.title, 14);
             const yr = item.year ? `(${item.year}) ` : '';
             const fmt = item.format ? `[${item.format}]` : '[FLAC]';
-            return ` {#00e5ff-fg}●{/#00e5ff-fg} {bold}${title}{/bold} {#ffd24d-fg}${yr}{/#ffd24d-fg}{#6f7e91-fg}${fmt}{/#6f7e91-fg}`;
+            return ` {${colors.cyanDolby}-fg}●{/${colors.cyanDolby}-fg} {bold}${title}{/bold} {${colors.amberBright}-fg}${yr}{/${colors.amberBright}-fg}{${colors.muted}-fg}${fmt}{/${colors.muted}-fg}`;
           }
 
           if (item.type === 'playlist') {
             const name = sanitize(item.name, 16);
-            return ` {#f5c542-fg}★{/#f5c542-fg} {bold}${name}{/bold} {#6f7e91-fg}(${item.trackCount}t){/#6f7e91-fg}`;
+            return ` {${colors.gold}-fg}★{/${colors.gold}-fg} {bold}${name}{/bold} {${colors.muted}-fg}(${item.trackCount}t){/${colors.muted}-fg}`;
           }
 
           // Track item
@@ -1162,39 +1171,39 @@ export function createLayout(store, actions, player) {
             const s = String(Math.floor(item.duration % 60)).padStart(2, '0');
             dur = `${m}:${s}`;
           }
-          return `${favIcon} ${playIcon} {#ffd24d-fg}${num}.{/#ffd24d-fg} {bold}${title}{/bold} {#00e5ff-fg}${artist}{/#00e5ff-fg} {#33ff33-fg}${dur}{/#33ff33-fg}`;
+          return `${favIcon} ${playIcon} {${colors.amberBright}-fg}${num}.{/${colors.amberBright}-fg} {bold}${title}{/bold} {${colors.cyanDolby}-fg}${artist}{/${colors.cyanDolby}-fg} {${colors.greenPhosphor}-fg}${dur}{/${colors.greenPhosphor}-fg}`;
         }
 
         if (state.mode === 'RADIO STATIONS') {
           const country = sanitize(item.country || 'WW', 4);
           const bitrate = `${item.bitrate || 128}k`;
           const name = sanitize(item.name, 15);
-          return `${favIcon} ${playIcon} {bold}${name}{/bold} {#00e5ff-fg}[${country}]{/#00e5ff-fg} {#ffd24d-fg}${bitrate}{/#ffd24d-fg}`;
+          return `${favIcon} ${playIcon} {bold}${name}{/bold} {${colors.cyanDolby}-fg}[${country}]{/${colors.cyanDolby}-fg} {${colors.amberBright}-fg}${bitrate}{/${colors.amberBright}-fg}`;
         }
 
         if (state.mode === 'YOUTUBE MUSIC') {
           const num = String(index + 1).padStart(2, '0');
           const title = sanitize(item.title || item.name, 14);
           const artist = sanitize(item.artist || 'YouTube', 8);
-          const badge = item.isTopic ? '{#00e5ff-fg}[TOPIC]{/#00e5ff-fg}' : '{#ff3344-fg}[YT]{/#ff3344-fg}';
+          const badge = item.isTopic ? `{${colors.cyanDolby}-fg}[TOPIC]{/${colors.cyanDolby}-fg}` : `{${colors.redLed}-fg}[YT]{/${colors.redLed}-fg}`;
           let dur = '';
           if (item.duration) {
             const m = Math.floor(item.duration / 60);
             const s = String(Math.floor(item.duration % 60)).padStart(2, '0');
             dur = `${m}:${s}`;
           }
-          return `${favIcon} ${playIcon} {#ffd24d-fg}${num}.{/#ffd24d-fg} {bold}${title}{/bold} {#00e5ff-fg}${artist}{/#00e5ff-fg} ${badge}`;
+          return `${favIcon} ${playIcon} {${colors.amberBright}-fg}${num}.{/${colors.amberBright}-fg} {bold}${title}{/bold} {${colors.cyanDolby}-fg}${artist}{/${colors.cyanDolby}-fg} ${badge}`;
         }
 
         // QUEUE mode
         const num = String(index + 1).padStart(2, '0');
         const title = sanitize(item.title || item.name, 16);
         const tag = item.type === 'local'
-          ? '{#00e5ff-fg}[LOCAL]{/#00e5ff-fg}'
+          ? `{${colors.cyanDolby}-fg}[LOCAL]{/${colors.cyanDolby}-fg}`
           : item.type === 'youtube'
-          ? '{#ff3344-fg}[YT]{/#ff3344-fg}'
-          : '{#f5c542-fg}[RADIO]{/#f5c542-fg}';
-        return `${playIcon} {#ffd24d-fg}${num}.{/#ffd24d-fg} {bold}${title}{/bold} ${tag}`;
+          ? `{${colors.redLed}-fg}[YT]{/${colors.redLed}-fg}`
+          : `{${colors.gold}-fg}[RADIO]{/${colors.gold}-fg}`;
+        return `${playIcon} {${colors.amberBright}-fg}${num}.{/${colors.amberBright}-fg} {bold}${title}{/bold} ${tag}`;
       });
     }
 
@@ -1764,22 +1773,15 @@ export function createLayout(store, actions, player) {
     const targetHeight = Math.max(9, Math.min(14, (boxHeight - 8)));
     const eq = formatEqualizer(telemetry.eqBands, telemetry.eqPeaks, targetHeight, rgbPhase, targetWidth, cfgTheme);
 
-    const themeTitles = {
-      RGB_CHROMA: 'RGB CHROMA',
-      AMBER_GOLD: 'VINTAGE AMBER GOLD',
-      GREEN_PHOSPHOR: 'PHOSPHOR GREEN',
-      CYAN_NEON: 'NEON SYNTHWAVE',
-      MONOCHROME: 'MONOCHROME ICE'
-    };
-    const themeLabel = themeTitles[cfgTheme] || 'RGB CHROMA';
-    const scaleLine = ` {#6f7e91-fg}SCALE  -30    -20    -15    -10     -7     -5     -3     -1      0     +1     +2     +3 dB{/#6f7e91-fg}`;
+    const themeLabel = activeTheme?.name || 'RGB CHROMA';
+    const scaleLine = ` {${colors.muted}-fg}SCALE  -30    -20    -15    -10     -7     -5     -3     -1      0     +1     +2     +3 dB{/${colors.muted}-fg}`;
 
     const eqLines = [
       scaleLine,
       vuL,
       vuR,
       ``,
-      ` {bold}{#f5c542-fg}32-BAND ${themeLabel} EQUALIZER SPECTRUM [20Hz — 20kHz]{/#f5c542-fg}{/bold}`,
+      ` {bold}{${colors.amberBright}-fg}32-BAND ${themeLabel.toUpperCase()} EQUALIZER SPECTRUM [20Hz — 20kHz]{/${colors.amberBright}-fg}{/bold}`,
       eq
     ].join('\n');
     vuEqualizerBox.setContent(eqLines);
