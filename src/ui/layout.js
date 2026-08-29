@@ -773,7 +773,7 @@ export function createLayout(store, actions, player) {
     height: 9,
     hidden: true,
     border: { type: 'line' },
-    label: ' 📺 STREAM / YOUTUBE & YT MUSIC URL LOADER [Y] ',
+    label: ' 🌐 UNIVERSAL ONLINE STREAM & URL LOADER [Y / U] ',
     tags: true,
     style: {
       fg: colors.cream,
@@ -789,7 +789,7 @@ export function createLayout(store, actions, player) {
     right: 1,
     height: 2,
     tags: true,
-    content: ' Paste YouTube or YouTube Music song/playlist/album URL, or search query:\n {#6f7e91-fg}e.g. "https://music.youtube.com/playlist?list=..." or "music.youtube.com/watch?v=..."{/#6f7e91-fg}'
+    content: ' Paste YouTube, SoundCloud, Bandcamp, Mixcloud, or Direct Audio stream URL:\n {#6f7e91-fg}e.g. "soundcloud.com/...", "artist.bandcamp.com/...", "youtube.com/...", "sc:hiphop", or http://.../stream.mp3{/#6f7e91-fg}'
   });
 
   // Settings & Configuration Modal
