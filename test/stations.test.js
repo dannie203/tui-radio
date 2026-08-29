@@ -66,4 +66,25 @@ describe('Radio Stations API & Deduplication', () => {
     assert.equal(res.stations[0].country, 'Japan');
     assert.equal(res.stations[1].country, 'Vietnam');
   });
+
+  test('strictly blocks and filters out political propaganda and reactionary radio stations', async () => {
+    const mockFetch = async () => {
+      return {
+        ok: true,
+        json: async () => [
+          { stationuuid: 'clean-1', name: 'VOV Giao Thong', country: 'Vietnam', countrycode: 'VN', tags: 'traffic,news', url: 'https://stream.vovgt.vn/live' },
+          { stationuuid: 'bad-1', name: 'Radio Free Asia RFA Tieng Viet', country: 'United States', tags: 'rfa,news,vietnam', url: 'https://rfa.org/live' },
+          { stationuuid: 'bad-2', name: 'Radio Bolsa Little Saigon', country: 'United States', tags: 'bolsa,talk', url: 'https://bolsa.com/stream' },
+          { stationuuid: 'bad-3', name: 'BBC Tiếng Việt Live Stream', country: 'United Kingdom', tags: 'bbc,vietnamese', url: 'https://bbc.co.uk/vietnamese' },
+          { stationuuid: 'bad-4', name: 'VOA Tieng Viet Radio', country: 'United States', tags: 'voa,vietnam', url: 'https://voa.gov/live' },
+          { stationuuid: 'bad-5', name: 'SBTN Cali Today Network', country: 'United States', tags: 'sbtn,calitoday', url: 'https://sbtn.tv/live' }
+        ]
+      };
+    };
+
+    const res = await fetchStations({ fetchImpl: mockFetch, tag: 'all' });
+    assert.equal(res.stations.length, 1);
+    assert.equal(res.stations[0].name, 'VOV Giao Thong');
+    assert.ok(res.stations.every((s) => !/rfa|bolsa|bbc|voa|sbtn/i.test(s.name)));
+  });
 });

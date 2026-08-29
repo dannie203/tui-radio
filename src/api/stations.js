@@ -9,9 +9,39 @@ const API_SERVERS = [
 ];
 
 const FALLBACK_URL = fileURLToPath(new URL('../../data/fallback.json', import.meta.url));
-const REQUEST_HEADERS = { 'User-Agent': 'boombox-tui/2.1' };
+const REQUEST_HEADERS = { 'User-Agent': 'boombox-tui/2.2' };
+
+const BLOCKED_PATTERNS = [
+  /\brfa\b/i,
+  /radio\s*free\s*asia/i,
+  /\bbolsa\b/i,
+  /\brfi\b/i,
+  /\bvoa\b/i,
+  /\bbbc\b.*(?:viet|tieng|vietnam|asia)/i,
+  /viet\s*tan/i,
+  /viettan/i,
+  /dan\s*lam\s*bao/i,
+  /sbtn/i,
+  /calitoday/i,
+  /channel\s*today/i,
+  /saigon\s*nho/i,
+  /nguoi\s*viet\s*daily/i,
+  /tieng\s*nuoc\s*toi/i,
+  /que\s*huong\s*radio/i,
+  /radio\s*chan\s*troi\s*moi/i,
+  /vietnam\s*exile/i,
+  /chinh\s*phu\s*quoc\s*gia\s*viet\s*nam\s*lam\s*thoi/i
+];
+
+export function isBlockedStation(station) {
+  if (!station) return true;
+  const target = `${station.name || ''} ${station.tags || ''} ${station.homepage || ''} ${station.url || ''}`.toLowerCase();
+  return BLOCKED_PATTERNS.some((pattern) => pattern.test(target));
+}
 
 function normalizeStation(station) {
+  if (!station || isBlockedStation(station)) return null;
+
   let codec = String(station.codec || '').trim().toUpperCase();
   if (!codec) {
     const url = (station.url_resolved || station.url || '').toLowerCase();
@@ -75,7 +105,7 @@ export function deduplicateStations(stations) {
 
 async function loadFallback() {
   const data = JSON.parse(await readFile(FALLBACK_URL, 'utf8'));
-  const normalized = data.map(normalizeStation).filter((station) => station.url);
+  const normalized = data.map(normalizeStation).filter(Boolean).filter((station) => station.url);
   return deduplicateStations(normalized);
 }
 
@@ -91,7 +121,7 @@ export async function fetchStations({ signal, fetchImpl = globalThis.fetch, quer
     try {
       const res = await fetchImpl(endpoint, { signal, headers: REQUEST_HEADERS });
       if (res.ok) {
-        const raw = (await res.json()).map(normalizeStation).filter((s) => s.url && s.name);
+        const raw = (await res.json()).map(normalizeStation).filter(Boolean).filter((s) => s.url && s.name);
         return { stations: deduplicateStations(raw), source: 'Radio-Browser' };
       }
     } catch {}
@@ -102,7 +132,7 @@ export async function fetchStations({ signal, fetchImpl = globalThis.fetch, quer
     try {
       const res = await fetchImpl(endpoint, { signal, headers: REQUEST_HEADERS });
       if (res.ok) {
-        const raw = (await res.json()).map(normalizeStation).filter((s) => s.url && s.name);
+        const raw = (await res.json()).map(normalizeStation).filter(Boolean).filter((s) => s.url && s.name);
         return { stations: deduplicateStations(raw), source: 'Radio-Browser' };
       }
     } catch {}
@@ -141,7 +171,7 @@ export async function fetchStations({ signal, fetchImpl = globalThis.fetch, quer
     }
 
     if (allRaw.length > 0) {
-      const normalized = allRaw.map(normalizeStation).filter((s) => s.url && s.name);
+      const normalized = allRaw.map(normalizeStation).filter(Boolean).filter((s) => s.url && s.name);
       const stations = deduplicateStations(normalized);
       if (stations.length > 0) {
         return { stations, source: 'Radio-Browser (Worldwide)' };
