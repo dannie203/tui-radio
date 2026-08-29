@@ -1,10 +1,10 @@
-# 📼 BOOMBOX-TUI (v2.0.0)
+# 📼 BOOMBOX-TUI (v2.1.0)
 
 > **BOOMBOX RX-505** — A retro-cyberpunk cassette music player, Hi-Res local audio explorer, YouTube streamer, and worldwide radio deck for the Linux & Unix terminal.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D20-green.svg)](https://nodejs.org)
-[![Version](https://img.shields.io/badge/Version-2.0.0-amber.svg)](package.json)
+[![Version](https://img.shields.io/badge/Version-2.1.0-amber.svg)](package.json)
 
 ---
 
@@ -94,6 +94,7 @@ boombox --tray
 | `A` | Append selected track to Playback Queue |
 | `R` | Toggle Repeat mode |
 | `Z` | Toggle Shuffle mode |
+| `Ctrl+D` / `H` | Detach / Minimize player to System Tray (Background mode) |
 | `Esc` / `q` | Close overlay / Quit player |
 
 ---

@@ -433,6 +433,28 @@ async function main() {
       }
       return res;
     },
+    minimize: () => {
+      try {
+        const boomboxLocal = join(process.env.HOME || '', '.local', 'bin', 'boombox-toggle');
+        const radioLocal = join(process.env.HOME || '', '.local', 'bin', 'hiphop-radio-toggle');
+        if (existsSync(boomboxLocal)) {
+          spawn(boomboxLocal, ['--toggle'], { stdio: 'ignore' });
+        } else if (existsSync(radioLocal)) {
+          spawn(radioLocal, ['--toggle'], { stdio: 'ignore' });
+        } else {
+          spawn('boombox-toggle', ['--toggle'], { stdio: 'ignore' });
+        }
+      } catch {}
+
+      tray?.sendDesktopNotification(
+        'Minimized to System Tray',
+        store.state.current?.title || 'BOOMBOX RX-505',
+        'Music continues in background (Controlled via Tray & Media Keys)'
+      );
+    },
+    detach: () => {
+      detachToBackground();
+    },
     quit: () => shutdown(0)
   };
 

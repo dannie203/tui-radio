@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "aki.boombox",
   "name": "BOOMBOX RX-505",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "author": "Aki",
   "description": "Launch the BOOMBOX RX-505 retro audio player and radio terminal app",
   "kinds": [

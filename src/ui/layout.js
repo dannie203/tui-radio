@@ -780,7 +780,7 @@ export function createLayout(store, actions, player) {
       ` {bold}{#ffb000-fg}[ ↵ / Play ]{/#ffb000-fg}{/bold} Select/Play  {bold}{#ffb000-fg}[ S ]{/#ffb000-fg}{/bold} Stereo/Mono/Wide     {bold}{#ffb000-fg}[ TAB / M ]{/#ffb000-fg}{/bold} Mode Select        {bold}{#ffb000-fg}[ + / - ]{/#ffb000-fg}{/bold} Volume ±5%`,
       ` {bold}{#ffb000-fg}[ ← / → ]{/#ffb000-fg}{/bold} Crates/Genre  {bold}{#ffb000-fg}[ D ]{/#ffb000-fg}{/bold} Dolby NR (Off/B/C/S)  {bold}{#ffb000-fg}[ 1 - 4 ]{/#ffb000-fg}{/bold} Mode Categories    {bold}{#ffb000-fg}[ ␣ ]{/#ffb000-fg}{/bold} Pause  {bold}{#ffb000-fg}[ . / X ]{/#ffb000-fg}{/bold} Stop`,
       ` {bold}{#ffb000-fg}[  N/P  ]{/#ffb000-fg}{/bold} Next/Prev Track {bold}{#ffb000-fg}[ T ]{/#ffb000-fg}{/bold} Tape Bias (I/II/IV)  {bold}{#ffb000-fg}[ W / L ]{/#ffb000-fg}{/bold} Cover Art / Lyrics  {bold}{#ffb000-fg}[   /   ]{/#ffb000-fg}{/bold} Search / Filter`,
-      ` {bold}{#ffb000-fg}[ Y / U ]{/#ffb000-fg}{/bold} Load YouTube/URL {bold}{#ffb000-fg}[ B ]{/#ffb000-fg}{/bold} Mega Bass Boost EQ   {bold}{#ffb000-fg}[   O   ]{/#ffb000-fg}{/bold} Settings / Theme     {bold}{#ffb000-fg}[   Q   ]{/#ffb000-fg}{/bold} Eject / Quit`
+      ` {bold}{#ffb000-fg}[ Y / U ]{/#ffb000-fg}{/bold} Load YouTube/URL {bold}{#ffb000-fg}[ B ]{/#ffb000-fg}{/bold} Mega Bass Boost EQ   {bold}{#ffb000-fg}[   O   ]{/#ffb000-fg}{/bold} Settings / Theme     {bold}{#ffb000-fg}[ ^D / H ]{/#ffb000-fg}{/bold} Detach / Hide      {bold}{#ffb000-fg}[   Q   ]{/#ffb000-fg}{/bold} Eject / Quit`
     ].join('\n')
   });
 
@@ -1201,6 +1201,12 @@ export function createLayout(store, actions, player) {
         actions.togglePause();
         return;
       }
+      return;
+    }
+
+    // Detach / Minimize to Tray (Ctrl+D, Ctrl+H, or H when not typing)
+    if (fullKey === 'C-d' || fullKey === 'C-h' || ((keyName === 'h' || ch === 'h' || ch === 'H') && !isCtrl && !isShift)) {
+      actions.minimize();
       return;
     }
 

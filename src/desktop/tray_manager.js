@@ -176,6 +176,12 @@ export class TrayManager {
         } catch {}
         break;
       }
+      case 'minimize':
+        this.actions.minimize?.();
+        break;
+      case 'detach':
+        this.actions.detach?.();
+        break;
       case 'quit':
         this.actions.quit?.();
         break;

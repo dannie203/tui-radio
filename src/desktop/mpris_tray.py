@@ -299,7 +299,7 @@ class DesktopService:
 
             # 6. Shortcuts & Manual (like EasyEffects Shortcuts & Manual)
             (19, {"label": GLib.Variant("s", "📟 Open / Focus Boombox TUI"), "action": "open_tui"}),
-            (20, {"label": GLib.Variant("s", "⌨️ Keypad Shortcuts"), "action": "open_tui"}),
+            (20, {"label": GLib.Variant("s", "📦 Hide / Minimize to Tray"), "action": "minimize"}),
             (21, {"type": GLib.Variant("s", "separator"), "enabled": GLib.Variant("b", True)}),
 
             # 7. Quit

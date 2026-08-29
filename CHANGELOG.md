@@ -3,6 +3,14 @@
 All notable changes to the **BOOMBOX-TUI** project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-08-29
+
+### 🚀 Added
+- **In-App Detach & Minimize to Tray**: Added `Ctrl+D`, `Ctrl+H`, and `H` keyboard shortcuts to seamlessly detach / minimize the player to the system tray while music keeps playing in the background.
+- **Tray AppMenu Minimize Action**: Added `📦 Hide / Minimize to Tray` option to the D-Bus StatusNotifierItem AppMenu.
+- **Desktop Minimize Notification**: Dispatched desktop notification when the player is minimized to background.
+- **Help Bar Update**: Added `[^D / H] Detach / Hide` to the bottom TUI control hints.
+
 ---
 
 ## [2.0.0] - 2026-08-29
