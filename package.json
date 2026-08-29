@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "A retro boombox music player and radio explorer for local tracks, mixtapes, and live streams.",
   "type": "module",
+  "license": "GPL-3.0-or-later",
+  "author": "Nguyễn Trần Duy Hưng",
   "bin": {
     "hiphop-radio": "bin/index.js"
   },

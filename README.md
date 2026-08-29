@@ -1,11 +1,11 @@
 # 📼 BOOMBOX RX-505 // Retro Cyberpunk TUI Audio Deck
 
 [![Node.js](https://img.shields.io/badge/Node.js-v20+-green.svg?style=flat-square&logo=node.js)](https://nodejs.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=flat-square)](LICENSE)
 [![Audio Engine](https://img.shields.io/badge/Audio-MPV%20IPC%20%7C%20PipeWire-purple.svg?style=flat-square&logo=linux)](https://mpv.io/)
 [![Interface](https://img.shields.io/badge/Interface-Blessed%20TUI-cyan.svg?style=flat-square)](https://github.com/chjj/blessed)
 [![Desktop Integration](https://img.shields.io/badge/Desktop-MPRIS2%20%7C%20SNI%20Tray-orange.svg?style=flat-square&logo=archlinux)](https://specifications.freedesktop.org/mpris-spec/latest/)
-[![Tests](https://img.shields.io/badge/Tests-66%2F66%20Passed-brightgreen.svg?style=flat-square)](https://nodejs.org/api/test.html)
+[![Tests](https://img.shields.io/badge/Tests-72%2F72%20Passed-brightgreen.svg?style=flat-square)](https://nodejs.org/api/test.html)
 
 A high-fidelity, retro cassette-styled Terminal User Interface (TUI) music player, audio visualizer, and radio explorer. Built with **Node.js**, **Blessed**, **MPV IPC**, and a hardware-modeled **32-Band ISO Graphic Equalizer DSP Engine**.
 
@@ -195,14 +195,24 @@ npm test
 ```
 
 ```text
-ℹ tests 66
-ℹ suites 21
-ℹ pass 66
+ℹ tests 72
+ℹ suites 24
+ℹ pass 72
 ℹ fail 0
 ```
 
 ---
 
-## 📄 License
+## 📄 License & Legal Notice
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)** - see the [LICENSE](LICENSE) file for details.
+
+### ⚖️ Copyleft Protection
+- You are free to run, study, share, and modify this software.
+- Any modified or derived versions **must remain open-source under the GNU GPL v3.0** and retain original author attribution.
+- Packaging this software as closed-source proprietary software for commercial sale is strictly prohibited by the GPL-3.0 license.
+
+### 🛡️ Disclaimer & Fair Use
+- **BOOMBOX RX-505** is an open-source client-side audio player and terminal user interface. It **does not host, store, or distribute** any copyrighted audio or media files on its own servers.
+- Online streams, radio broadcasts, and synced lyrics are resolved dynamically from public third-party services (Radio-Browser, LRCLIB, YouTube, SoundCloud, Bandcamp) as requested by the end user.
+- All trademarks, logos, and artist materials belong to their respective copyright holders.
