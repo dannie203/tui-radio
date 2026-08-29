@@ -77,6 +77,16 @@ export class StreamRecorder {
     const cleanTitle = sanitizeFilename(title);
     const cleanArtist = sanitizeFilename(artist);
 
+    // 1. Guard against local storage files: NEVER convert or duplicate local files!
+    if (track.type === 'local' || (typeof streamUrl === 'string' && streamUrl.startsWith('/') && existsSync(streamUrl))) {
+      sendNotification('ℹ️ Local File Already Present', `"${title}" is already in your library. Original Hi-Res audio is 100% preserved.`);
+      return {
+        success: false,
+        isLocal: true,
+        message: `Track is already a local file: ${title} (Original audio is 100% untouched)`
+      };
+    }
+
     // If already recording this exact URL, toggle / cancel it!
     if (this.activeJobs.has(streamUrl)) {
       return this.cancelRecording(streamUrl);

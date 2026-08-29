@@ -61,4 +61,19 @@ describe('Tape Recorder & Stream Ripper Engine', () => {
     assert.equal(store.state.recording, false);
     assert.ok(store.state.status.includes('Cancelled'));
   });
+
+  test('refuses to convert or overwrite local library audio files', async () => {
+    const store = new Store();
+    store.state.current = {
+      title: 'Hi-Res Symphonic Master',
+      artist: 'Hans Zimmer',
+      type: 'local',
+      path: '/home/aki/Music/master.flac'
+    };
+
+    const res = await store.recordCurrentTrack();
+    assert.equal(res.isLocal, true);
+    assert.equal(store.state.recording, false);
+    assert.ok(store.state.status.includes('untouched') || store.state.status.includes('preserved'));
+  });
 });

@@ -418,6 +418,11 @@ export class Store {
       return { success: false, error: 'No active track' };
     }
 
+    if (track.type === 'local' || (typeof (track.path || track.url) === 'string' && (track.path || track.url).startsWith('/'))) {
+      this.update({ status: 'ℹ️ Local file already in library (Original Hi-Res audio is 100% untouched)' });
+      return { success: false, isLocal: true };
+    }
+
     this.update({ recording: true, status: `🔴 Recording: "${track.title || track.name}" (Press 'R' to cancel)` });
     const res = await streamRecorder.recordTrack(track);
     if (!res.success) {
