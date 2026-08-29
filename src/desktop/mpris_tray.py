@@ -424,9 +424,10 @@ class DesktopService:
                 for k, v in props.items():
                     if k != "action":
                         prop_dict[k] = v
-                child_variants.append(GLib.Variant("(ia{sv}av)", (item_id, prop_dict, [])))
+                child_node = GLib.Variant("(ia{sv}av)", (item_id, prop_dict, []))
+                child_variants.append(GLib.Variant("v", child_node))
             
-            root_layout = GLib.Variant("(ia{sv}av)", (0, {"children-display": GLib.Variant("s", "submenu")}, child_variants))
+            root_layout = (0, {"children-display": GLib.Variant("s", "submenu")}, child_variants)
             invocation.return_value(GLib.Variant("(u(ia{sv}av))", (self.menu_revision, root_layout)))
         elif method == "GetGroupProperties":
             ids, prop_names = params
@@ -514,7 +515,7 @@ class DesktopService:
                 "/StatusNotifierWatcher",
                 "org.kde.StatusNotifierWatcher",
                 "RegisterStatusNotifierItem",
-                GLib.Variant("(s)", ("/StatusNotifierItem",)),
+                GLib.Variant("(s)", ("org.mpris.MediaPlayer2.hiphop_radio",)),
                 None,
                 Gio.DBusCallFlags.NONE,
                 1000,
