@@ -34,10 +34,34 @@ async function shutdown(exitCode = 0) {
   finally { process.exit(exitCode); }
 }
 
-process.on('exit', () => { player.close(); });
-process.on('SIGINT', () => { shutdown(0); });
+function detachToBackground() {
+  if (layout) {
+    if (layout.animTimer) clearInterval(layout.animTimer);
+    try {
+      layout.screen?.program?.input?.pause();
+      layout.screen?.destroy();
+    } catch {}
+    layout = null;
+  }
+  process.stdout.on('error', () => {});
+  process.stderr.on('error', () => {});
+  try { process.stdin.pause(); } catch {}
+
+  store.saveSession();
+  tray?.sendDesktopNotification(
+    'Minimized to System Tray',
+    store.state.current?.title || 'BOOMBOX RX-505',
+    'Music continues in background (Controlled via Tray & Media Keys)'
+  );
+}
+
+process.on('exit', () => { if (shuttingDown) player.close(); });
+process.on('SIGINT', () => { shutdown(0); }); // Ctrl+C explicitly shuts down
 process.on('SIGTERM', () => { shutdown(0); });
-process.on('SIGHUP', () => { shutdown(0); });
+process.on('SIGHUP', () => {
+  // Super+W / Window Close sends SIGHUP: detach and continue playing in background!
+  detachToBackground();
+});
 process.on('uncaughtException', (error) => {
   console.error(error);
   shutdown(1);
