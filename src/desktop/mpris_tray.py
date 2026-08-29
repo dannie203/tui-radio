@@ -225,12 +225,13 @@ class DesktopService:
                 pass
 
     def get_menu_items(self):
-        title = self.state.get("title", "Ready")
-        artist = self.state.get("artist", "BOOMBOX RX-505")
+        title = str(self.state.get("title", "Ready"))
+        artist = str(self.state.get("artist", "BOOMBOX RX-505"))
         playing = self.state.get("playing", False) and not self.state.get("paused", False)
-        stereo = self.state.get("stereoMode", "STEREO")
+        stereo = str(self.state.get("stereoMode", "STEREO"))
+        is_3d = stereo in ("3D WIDE", "3D", "WIDE", "STEREO-3D")
         bass = "ON (+7dB)" if self.state.get("bassBoost", False) else "OFF"
-        vol = self.state.get("volume", 80)
+        vol = int(self.state.get("volume", 80))
 
         return [
             (1, {"label": GLib.Variant("s", f"📻 {title} — {artist}"), "enabled": GLib.Variant("b", False)}),
@@ -239,12 +240,13 @@ class DesktopService:
             (4, {"label": GLib.Variant("s", "⏭ Next Track"), "action": "next"}),
             (5, {"label": GLib.Variant("s", "⏮ Previous Track"), "action": "prev"}),
             (6, {"type": GLib.Variant("s", "separator")}),
-            (7, {"label": GLib.Variant("s", f"✦ Soundstage: [ {stereo} ]"), "action": "cycle_stereo"}),
+            (7, {"label": GLib.Variant("s", f"✦ 3D WIDE Soundstage: [ {'ON' if is_3d else 'OFF'} ]"), "action": "cycle_stereo"}),
             (8, {"label": GLib.Variant("s", f"🔊 Mega Bass: [ {bass} ]"), "action": "toggle_bass"}),
-            (9, {"label": GLib.Variant("s", f"🎚 Volume: {vol}% (+5% / -5%)"), "action": "volume_up"}),
-            (10, {"type": GLib.Variant("s", "separator")}),
-            (11, {"label": GLib.Variant("s", "📟 Open / Focus Boombox TUI"), "action": "open_tui"}),
-            (12, {"label": GLib.Variant("s", "❌ Quit Radio"), "action": "quit"})
+            (9, {"label": GLib.Variant("s", f"🔊 Volume: {vol}% (+5%)"), "action": "volume_up"}),
+            (10, {"label": GLib.Variant("s", f"🔉 Volume: {vol}% (-5%)"), "action": "volume_down"}),
+            (11, {"type": GLib.Variant("s", "separator")}),
+            (12, {"label": GLib.Variant("s", "📟 Open / Focus Boombox TUI"), "action": "open_tui"}),
+            (13, {"label": GLib.Variant("s", "❌ Quit Radio"), "action": "quit"})
         ]
 
     # --- MPRIS2 Callbacks ---
@@ -370,12 +372,39 @@ class DesktopService:
             
             root_layout = GLib.Variant("(ia{sv}av)", (0, {"children-display": GLib.Variant("s", "submenu")}, child_variants))
             invocation.return_value(GLib.Variant("(u(ia{sv}av))", (self.menu_revision, root_layout)))
+        elif method == "GetGroupProperties":
+            ids, prop_names = params
+            menu_items = dict((item[0], item[1]) for item in self.get_menu_items())
+            result = []
+            for item_id in ids:
+                if item_id in menu_items:
+                    prop_dict = {}
+                    for k, v in menu_items[item_id].items():
+                        if k != "action":
+                            if not prop_names or k in prop_names:
+                                prop_dict[k] = v
+                    result.append((item_id, prop_dict))
+            invocation.return_value(GLib.Variant("(a(ia{sv}))", (result,)))
+        elif method == "GetProperty":
+            item_id, name = params
+            menu_items = dict((item[0], item[1]) for item in self.get_menu_items())
+            if item_id in menu_items and name in menu_items[item_id]:
+                invocation.return_value(GLib.Variant("(v)", (menu_items[item_id][name],)))
+            else:
+                invocation.return_value(GLib.Variant("(v)", (GLib.Variant("s", ""),)))
         elif method == "Event":
             item_id, event_id, data, ts = params
             menu_items = dict((item[0], item[1]) for item in self.get_menu_items())
             if item_id in menu_items and "action" in menu_items[item_id]:
                 self.send_action(menu_items[item_id]["action"])
             invocation.return_value(None)
+        elif method == "EventGroup":
+            events = params[0]
+            menu_items = dict((item[0], item[1]) for item in self.get_menu_items())
+            for item_id, event_id, data, ts in events:
+                if item_id in menu_items and "action" in menu_items[item_id]:
+                    self.send_action(menu_items[item_id]["action"])
+            invocation.return_value(GLib.Variant("(ai)", ([],)))
         elif method == "AboutToShow":
             invocation.return_value(GLib.Variant("(b)", (False,)))
         else:
