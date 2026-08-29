@@ -9,6 +9,7 @@ import {
   DEFAULT_CONFIG,
   SETTINGS_SECTIONS
 } from './config.js';
+import { loadSession, saveSession } from './session.js';
 
 const FAVORITES_FILE = join(CONFIG_DIR, 'favorites.json');
 
@@ -899,6 +900,48 @@ export class Store {
 
   async saveCurrentConfig() {
     await saveConfig(this.config);
+  }
+
+  async loadSession() {
+    try {
+      const session = await loadSession();
+      if (!session) return;
+      if (session.mode && MODES.includes(session.mode)) this.state.mode = session.mode;
+      if (session.nav) {
+        this.state.nav.level = session.nav.level || this.state.nav.level;
+        this.state.nav.selectedArtist = session.nav.selectedArtist || null;
+        this.state.nav.selectedAlbumKey = session.nav.selectedAlbumKey || null;
+        this.state.nav.selectedPlaylist = session.nav.selectedPlaylist || null;
+      }
+      if (session.queue && Array.isArray(session.queue)) {
+        this.state.queue = session.queue;
+        this.state.queueIndex = session.queueIndex ?? -1;
+      }
+      if (session.volume !== undefined) this.state.volume = session.volume;
+      if (session.shuffle !== undefined) this.state.shuffle = session.shuffle;
+      if (session.repeat) this.state.repeat = session.repeat;
+      if (session.genreFilter && GENRE_FILTERS.includes(session.genreFilter)) this.state.genreFilter = session.genreFilter;
+      if (session.stereoMode) this.state.stereoMode = session.stereoMode;
+      if (session.dolbyMode) this.state.dolbyMode = session.dolbyMode;
+      if (session.tapeType) this.state.tapeType = session.tapeType;
+      if (session.bassBoost !== undefined) this.state.bassBoost = session.bassBoost;
+      if (session.selectedIndex !== undefined) this.state.selectedIndex = session.selectedIndex;
+      if (session.lyricsSyncOffset !== undefined) this.state.lyricsSyncOffset = session.lyricsSyncOffset;
+      if (session.current) {
+        this.state.current = session.current;
+        this.state.timePos = session.timePos || 0;
+        this.state.duration = session.current.duration || 0;
+        const mins = Math.floor(this.state.timePos / 60);
+        const secs = Math.floor(this.state.timePos % 60);
+        this.state.tapeCounter = `${mins}:${String(secs).padStart(2, '0')}`;
+        this.state.status = `Session Restored: [ ${session.current.title || session.current.name} ]`;
+      }
+      this.applyFilter();
+    } catch {}
+  }
+
+  async saveSession() {
+    await saveSession(this.state);
   }
 }
 

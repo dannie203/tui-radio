@@ -26,6 +26,7 @@ async function shutdown(exitCode = 0) {
   shuttingDown = true;
   currentLyricsController?.abort();
   currentLyricsController = null;
+  try { await store.saveSession(); } catch {}
   tray?.destroy();
   if (layout?.animTimer) clearInterval(layout.animTimer);
   layout?.screen?.destroy();
@@ -89,6 +90,9 @@ async function main() {
 
   try { await player.start(); }
   catch (error) { setStatus(error.message); }
+
+  // Restore previous session (last track, queue, mode, volume, DSP state)
+  await store.loadSession();
 
   function triggerLyricsFetch(item, { isRadio = false } = {}) {
     if (!item) return;
@@ -346,10 +350,16 @@ async function main() {
   if (!isDaemonMode) {
     layout = createLayout(store, actions, player);
   } else {
-    // If started in background tray mode, start playback immediately if playlist/stations available
-    const first = store.state.localTracks?.[0] || store.state.stations?.[0];
-    if (first) actions.play(first);
+    // If started in background tray mode, resume last session track or play first track
+    const target = store.state.current || store.state.localTracks?.[0] || store.state.stations?.[0];
+    if (target) actions.play(target);
   }
+
+  // Periodic session background saver
+  const sessionSaveTimer = setInterval(() => {
+    store.saveSession();
+  }, 15000);
+  sessionSaveTimer.unref();
 
   player.on('state', (state) => {
     store.update({ playing: state === 'playing' || state === 'buffering', paused: state === 'paused' });
