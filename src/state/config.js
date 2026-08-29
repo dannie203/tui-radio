@@ -37,6 +37,13 @@ export const BAND_WIDTH_OPTIONS = [
   { id: 1, name: 'Compact (1 Char)' }
 ];
 
+export const RECORDING_FORMATS = [
+  { id: 'opus', name: 'OPUS (YouTube Native - Zero Loss)' },
+  { id: 'mp3', name: 'MP3 (Universal 320kbps)' },
+  { id: 'flac', name: 'FLAC (Lossless Container)' },
+  { id: 'm4a', name: 'AAC / M4A (Apple Compatible)' }
+];
+
 export const DEFAULT_CONFIG = {
   visualizer: {
     theme: 'SYSTEM_AUTO',
@@ -52,6 +59,9 @@ export const DEFAULT_CONFIG = {
     bassBoost: false,
     vocalMode: 'OFF',
     volume: 80
+  },
+  recording: {
+    format: 'opus'
   },
   lyrics: {
     autoFetch: true,
@@ -144,6 +154,15 @@ export const SETTINGS_SECTIONS = [
     labels: ['Disabled', '🔊 +7dB @ 60Hz ON'],
     get: (cfg) => Boolean(cfg?.dsp?.bassBoost),
     set: (cfg, val) => { if (!cfg.dsp) cfg.dsp = {}; cfg.dsp.bassBoost = val; }
+  },
+  {
+    id: 'recording.format',
+    section: '🔴 TAPE RECORDER SETTINGS',
+    label: 'Audio Format',
+    options: RECORDING_FORMATS.map((f) => f.id),
+    labels: RECORDING_FORMATS.map((f) => f.name),
+    get: (cfg) => cfg?.recording?.format || 'opus',
+    set: (cfg, val) => { if (!cfg.recording) cfg.recording = {}; cfg.recording.format = val; }
   },
   {
     id: 'lyrics.autoFetch',

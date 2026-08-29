@@ -62,7 +62,7 @@ export class StreamRecorder {
     return { success: false, message: 'No active recording to cancel' };
   }
 
-  async recordTrack(track) {
+  async recordTrack(track, format = 'opus') {
     if (!track || (!track.url && !track.streamUrl && !track.path)) {
       return { success: false, error: 'No valid track stream URL to record' };
     }
@@ -92,24 +92,25 @@ export class StreamRecorder {
       return this.cancelRecording(streamUrl);
     }
 
-    sendNotification('🔴 Cassette Recording Started', `Recording: "${artist} - ${title}" (Press 'R' again to cancel)`);
+    sendNotification('🔴 Cassette Recording Started', `Recording: "${artist} - ${title}" [${format.toUpperCase()}] (Press 'R' again to cancel)`);
 
-    // If it's a YouTube / SoundCloud / Bandcamp stream, use yt-dlp to download highest quality audio
+    // If it's a YouTube / SoundCloud / Bandcamp stream, use yt-dlp to download audio in requested format
     if (track.source === 'youtube' || track.source === 'soundcloud' || track.source === 'bandcamp' ||
         streamUrl.includes('youtube.com') || streamUrl.includes('youtu.be') || streamUrl.includes('soundcloud.com') || streamUrl.includes('bandcamp.com')) {
-      return this._recordViaYtDlp(streamUrl, cleanArtist, cleanTitle);
+      return this._recordViaYtDlp(streamUrl, cleanArtist, cleanTitle, format);
     }
 
-    // Otherwise use ffmpeg to capture stream for 240s (4 mins) or direct stream copy
-    return this._recordViaFfmpeg(streamUrl, cleanArtist, cleanTitle);
+    // Otherwise use ffmpeg to capture stream for 240s (4 mins)
+    return this._recordViaFfmpeg(streamUrl, cleanArtist, cleanTitle, format);
   }
 
-  _recordViaYtDlp(url, artist, title) {
+  _recordViaYtDlp(url, artist, title, format = 'opus') {
+    const targetFmt = ['opus', 'mp3', 'flac', 'm4a'].includes(format) ? format : 'opus';
     const outputTemplate = join(RECORDINGS_DIR, `${artist} - ${title}.%(ext)s`);
 
     const child = spawn('yt-dlp', [
       '-x',
-      '--audio-format', 'opus',
+      '--audio-format', targetFmt,
       '--audio-quality', '0',
       '--no-playlist',
       '--embed-metadata',
@@ -130,7 +131,7 @@ export class StreamRecorder {
       }
 
       if (code === 0) {
-        sendNotification('✅ Tape Recording Complete', `Saved to ~/Music/Boombox Recordings/${artist} - ${title}.opus`);
+        sendNotification('✅ Tape Recording Complete', `Saved to ~/Music/Boombox Recordings/${artist} - ${title}.${targetFmt}`);
       } else {
         sendNotification('⚠️ Tape Recording Failed', `Could not rip stream for: ${title}`);
       }
@@ -139,17 +140,23 @@ export class StreamRecorder {
     return { success: true, message: `Started recording: ${title}` };
   }
 
-  _recordViaFfmpeg(url, artist, title) {
-    const outputFile = join(RECORDINGS_DIR, `${artist} - ${title}.mp3`);
+  _recordViaFfmpeg(url, artist, title, format = 'mp3') {
+    const targetExt = ['mp3', 'opus', 'flac', 'm4a'].includes(format) ? format : 'mp3';
+    const outputFile = join(RECORDINGS_DIR, `${artist} - ${title}.${targetExt}`);
 
-    const child = spawn('ffmpeg', [
-      '-y',
-      '-i', url,
-      '-t', '240', // Cap stream recording to 4 minutes max
-      '-c:a', 'libmp3lame',
-      '-b:a', '320k',
-      outputFile
-    ], { stdio: 'ignore' });
+    const args = ['-y', '-i', url, '-t', '240'];
+    if (targetExt === 'opus') {
+      args.push('-c:a', 'libopus', '-b:a', '160k');
+    } else if (targetExt === 'flac') {
+      args.push('-c:a', 'flac');
+    } else if (targetExt === 'm4a') {
+      args.push('-c:a', 'aac', '-b:a', '256k');
+    } else {
+      args.push('-c:a', 'libmp3lame', '-b:a', '320k');
+    }
+    args.push(outputFile);
+
+    const child = spawn('ffmpeg', args, { stdio: 'ignore' });
 
     const job = { process: child, cancelled: false, outputFile };
     this.activeJobs.set(url, job);

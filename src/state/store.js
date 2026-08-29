@@ -423,8 +423,9 @@ export class Store {
       return { success: false, isLocal: true };
     }
 
-    this.update({ recording: true, status: `🔴 Recording: "${track.title || track.name}" (Press 'R' to cancel)` });
-    const res = await streamRecorder.recordTrack(track);
+    const format = this.config.recording?.format || 'opus';
+    this.update({ recording: true, status: `🔴 Recording [${format.toUpperCase()}]: "${track.title || track.name}" (Press 'R' to cancel)` });
+    const res = await streamRecorder.recordTrack(track, format);
     if (!res.success) {
       this.update({ recording: false, status: `⚠️ Recording failed: ${res.error || res.message}` });
     }
