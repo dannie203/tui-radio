@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+# Query Hyprland for active window and Hip-Hop Radio window
+ACTIVE_ADDR=$(hyprctl activewindow -j 2>/dev/null | jq -r '.address // empty')
+
+WINDOW_ADDR=$(hyprctl clients -j 2>/dev/null | jq -r '
+  .[] | select(
+    (.class | test("hiphop-radio"; "i")) or
+    (.initialClass | test("hiphop-radio"; "i")) or
+    (.title | test("NEON//WAVE|Hip-Hop Radio|BOOMBOX"; "i")) or
+    (.initialTitle | test("hiphop-radio|Hip-Hop Radio|BOOMBOX"; "i"))
+  ) | .address
+' | head -n1)
+
+if [[ -n "$WINDOW_ADDR" && "$WINDOW_ADDR" != "null" ]]; then
+  if [[ "$ACTIVE_ADDR" == "$WINDOW_ADDR" ]]; then
+    # Currently focused on Hip-Hop Radio -> Toggle/Minimize down to background tray
+    hyprctl dispatch closewindow "address:$WINDOW_ADDR" >/dev/null 2>&1
+  else
+    # Window open in background -> bring to front and focus
+    hyprctl dispatch focuswindow "address:$WINDOW_ADDR" >/dev/null 2>&1
+  fi
+else
+  # No window open (or running detached in background tray) -> spawn terminal
+  if command -v alacritty >/dev/null 2>&1; then
+    exec alacritty --class hiphop-radio,hiphop-radio -T "Hip-Hop Radio" -e hiphop-radio
+  elif command -v foot >/dev/null 2>&1; then
+    exec foot --app-id=hiphop-radio --title="Hip-Hop Radio" hiphop-radio
+  elif command -v ghostty >/dev/null 2>&1; then
+    exec ghostty --class=hiphop-radio --title="Hip-Hop Radio" -e hiphop-radio
+  else
+    exec hiphop-radio
+  fi
+fi
