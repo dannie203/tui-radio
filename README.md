@@ -1,113 +1,119 @@
-# 📼 BOOMBOX-TUI (v2.2.1)
+# 📼 BOOMBOX-RS (v3.3.0)
 
-> **BOOMBOX RX-505** — A retro-cyberpunk cassette music player, Hi-Res local audio explorer, YouTube streamer, and worldwide radio deck for the Linux & Unix terminal.
+> **BOOMBOX RX-505** — A high-performance retro cyberpunk cassette deck music player, local Hi-Res audio explorer, multi-platform streaming engine, and worldwide radio deck written in **pure Rust**.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D20-green.svg)](https://nodejs.org)
-[![Version](https://img.shields.io/badge/Version-2.2.1-amber.svg)](package.json)
+[![Rust](https://img.shields.io/badge/Rust-1.80%2B-orange.svg)](https://www.rust-lang.org)
+[![Version](https://img.shields.io/badge/Version-3.3.0-amber.svg)](Cargo.toml)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Wayland%20%7C%20X11-purple.svg)]()
 
 ---
 
-## ⚡ Features
+## ⚡ Highlights & New in v3.3.0
 
-- 📼 **Retro Cassette Deck UI**: Dual rotating spools, tape-head bay, smoked cassette window, ANSI half-block album art decoding (JPEG/PNG).
-- 🎵 **Hi-Res Local Audio Player**: High-speed scanner and tag parser for FLAC (16/24/32-bit up to 192kHz), MP3, OPUS, OGG, M4A, WAV with folder hierarchy and artist/album sorting.
-- 📻 **Worldwide Radio Explorer**: Integrated Radio Browser API with 30,000+ stations across genres (Lofi, Jazz, Synthwave, Hip-Hop, Classical, Rock, EDM, Ambient) and countries.
-- 📺 **YouTube & Multi-Platform Streaming**: Search YouTube Music directly from the TUI, load tracks, playlists, SoundCloud, Bandcamp, Mixcloud, and direct stream URLs.
-- 🎚️ **Hardware DSP & Audio FX**:
-  - **3D WIDE**: Open-Air acoustic matrix soundstage expansion.
-  - **Mega Bass**: +7dB analog sub-harmonic low-end boost.
-  - **Dolby NR Tape Bias**: Analog tape simulation (Dolby B, C, S, Off).
-- 📊 **32-Band ISO Equalizer Visualizer**: Logarithmic FFT spectrum analyzer with asymmetric attack/decay ballistic physics and dynamic Hi-Res sample rate LUT.
-- 🎤 **Word-by-Word Synced Karaoke & Lyrics**: LRCLIB synced lyrics engine with Matrix-style word unscrambling and manual sync offset adjustment (`[` / `]`).
-- 🖥️ **Desktop & System Tray Integration**: FreeDesktop StatusNotifierItem (SNI) + MPRIS2 Media Controller + Quickshell / EasyEffects-style AppMenu with 22 quick controls.
-- 🪟 **Hyprland / Wayland Integration**: Smart workspace focus & scratchpad toggle script (`boombox-toggle`).
+- 🦀 **100% Pure Rust Port**: Blazing-fast startup, sub-millisecond I/O, minimal resource footprint (~20MB RAM vs 150MB+ in Node.js), and zero garbage collection pauses.
+- 💽 **High-Res TrueColor Half-Block Artwork (`w`)**: 24-bit ANSI Half-Block (`▀`) terminal cover art renderer with 2x vertical resolution. Supports embedded FLAC/MP3/M4A pictures, YouTube & YouTube Music CDN thumbnails, `yt-dlp` stream covers (SoundCloud, Bandcamp, Spotify), and Apple iTunes (600x600 HD) fallback.
+- 🌈 **32-Band ISO Equalizer with 60 FPS Fluid RGB Chroma Wave**: Real-time PCM audio FFT spectral analyzer with ballistic peak physics and 8 dynamic visualizer color palettes (`rgb_cycle`, `chroma_rainbow`, `vertical_gradient`, `cyberpunk_neon`, `fire_and_ice`, `matrix_phosphor`, `amber_vintage`, `theme_accent`).
+- 🎤 **Sub-Millisecond Synced Karaoke Lyrics (`l`)**: Smart multi-source LRCLIB search flow with automated local `.lrc` caching alongside audio files, manual timing offset controls (`[` / `]` / `{` / `}`), and Matrix Cipher text decryption mode (`Shift+S`).
+- 📺 **Universal Stream Queue Expansion (`u`)**: Paste YouTube, YouTube Music, SoundCloud, Bandcamp, or Qobuz links to auto-expand entire playlists directly into the queue.
+- 🔴 **Tape Recorder & Stream Ripper (`R` / `Ctrl+R`)**: Rip streams and live radio broadcasts directly to `~/Music/Boombox Recordings` with configurable encoding formats (`OPUS`, `MP3`, `FLAC`, `M4A`).
+- ⚡ **Instant Hot-Reload (`F5`)**: Reload app, theme, and configuration on the fly via dedicated keybinding or Unix signals (`SIGUSR1`, `SIGHUP`) without interrupting playback.
+- 🖥️ **StatusNotifierItem (SNI) Desktop Tray**: Native KSNI FreeDesktop tray icon with AppMenu controls and live metadata.
+
+---
+
+## 🕹️ Keybindings Cheat Sheet
+
+| Key | Action | Description |
+| :--- | :--- | :--- |
+| **`Space`** | Play / Pause | Toggle audio playback |
+| **`s`** | Stop | Stop playback and reset position |
+| **`n` / `p`** | Next / Prev | Skip to next or previous track in list/queue |
+| **`[` / `]`** | Seek ±10s / Sync Offset | Seek ±10s in Deck view, or adjust Lyrics timing ±0.25s in Lyrics view |
+| **`{` / `}`** | Fine Sync Offset | Adjust Lyrics timing offset by ±1.0s |
+| **`0`** | Reset Sync Offset | Reset Lyrics offset to `0.0s` |
+| **`Shift+S`** | Matrix Scramble | Toggle Matrix cipher text decryption effect in Lyrics view |
+| **`+` / `-`** | Volume Up / Down | Adjust audio volume by configured step |
+| **`b`** | Mega Bass | Toggle +7dB analog sub-harmonic low-end boost |
+| **`d`** | Dolby Mode | Cycle Dolby Noise Reduction filter (Off, Dolby B, Dolby C, Dolby S) |
+| **`e`** | EQ Profile | Cycle 32-band ISO Equalizer curves (Flat, Mega Bass, Vocal, Rock, Lo-Fi, Synth, EDM) |
+| **`t`** | Theme | Cycle 8 retro cyberpunk & Hi-Fi color themes |
+| **`r`** | Repeat Mode | Cycle repeat mode (Off, Repeat Track, Repeat All) |
+| **`z`** | Shuffle | Toggle playlist shuffle on/off |
+| **`1` - `4`** | Switch Mode | `1`: Local Library, `2`: Radio Stations, `3`: Queue, `4`: YouTube Streams |
+| **`Tab`** | Cycle Mode | Cycle between Local, Radio, Queue, and Streams views |
+| **`g`** | Cycle Genre | Paginate radio genres (Lofi, Jazz, Synthwave, Hip-Hop, Rock, EDM, Ambient, Classical) |
+| **`l`** | Lyrics View | Toggle live synced karaoke lyrics screen |
+| **`w`** | Artwork View | Toggle high-resolution album cover artwork & thumbnail screen |
+| **`u`** | Stream URL | Open modal to paste and expand YouTube / SoundCloud / Stream links |
+| **`/`** | Search Filter | Interactive fuzzy search across tracks, artists, and stations |
+| **`m`** | Favorite | Toggle star / favorite on selected track |
+| **`M`** | Mixtapes | Open custom mixtape playlist manager |
+| **`R`** | Record | Start recording current track/stream to `~/Music/Boombox Recordings` |
+| **`Ctrl+R`** | Cancel Record | Instantly abort active tape recording |
+| **`o`** | Settings | Open comprehensive settings dashboard |
+| **`F5`** | Hot-Reload | Instantly hot-reload application and configuration without audio drop |
+| **`?`** | Help Modal | Show quick reference and keybindings modal |
+| **`q`** | Quit | Exit Boombox |
 
 ---
 
 ## 📦 Requirements
 
-- **Node.js**: `>= 20.0.0`
-- **mpv**: Audio playback backend engine
-- **python-gobject** (optional): For desktop MPRIS2 & System Tray AppMenu on Linux
-- **yt-dlp** (optional): For YouTube streaming & music search
-- **jq** (optional): For Hyprland toggle script
+- **Linux** (Wayland / Hyprland / Sway or X11)
+- **mpv**: Audio playback backend daemon
+- **yt-dlp** *(optional)*: For YouTube streaming & playlist expansion
+- **ffmpeg** *(optional)*: For tape recording and stream ripping
 
 ---
 
-## 🚀 Installation
+## 🚀 Installation & Build
+
+### From Source (Cargo)
 
 ```bash
-# Clone the repository
 git clone https://github.com/dannie203/tui-radio.git
 cd tui-radio
-
-# Install dependencies and link globally
-npm install
-npm link
+cargo build --release
+install -m 755 target/release/boombox-rs ~/.local/bin/boombox-rs
+install -m 755 boombox-toggle ~/.local/bin/boombox-toggle
 ```
 
----
+### Launching
 
-## 🎮 Usage
-
-Start the player:
 ```bash
-boombox
-# or aliases:
-radio
-hiphop-radio
-```
+# Launch Boombox interactive TUI
+boombox-rs
 
-Toggle or focus existing window in Hyprland / Sway / Wayland:
-```bash
+# Or toggle as a scratchpad in Hyprland / Sway
 boombox-toggle
 ```
 
-Run in background tray/daemon mode:
-```bash
-boombox --tray
+---
+
+## ⚙️ Configuration
+
+Boombox automatically generates its configuration file at `~/.config/boombox/config.toml` on first run:
+
+```toml
+[general]
+music_dir = "~/Music"
+volume_step = 5
+notifications = true
+
+[ui]
+theme = "cyberpunk"
+spectrum_color_mode = "rgb_cycle"
+lyrics_offset = 0.0
+matrix_scramble = false
+
+[audio]
+eq_preset = "flat"
+record_format = "opus"
 ```
 
 ---
 
-## ⌨️ Keybindings
+## 📜 License
 
-| Key | Action |
-| :--- | :--- |
-| `Space` | Play / Pause |
-| `↑` / `↓` / `j` / `k` | Navigate lists & tracks |
-| `Enter` / `→` | Play selected track / Open folder |
-| `←` / `Backspace` | Go back / Parent directory |
-| `N` / `P` | Next / Previous track |
-| `+` / `-` | Volume up / down (+/- 5%) |
-| `Tab` / `M` | Cycle deck mode (Local / Radio / YouTube / Queue) |
-| `/` | Search current library / YouTube Music |
-| `L` | Toggle Synced Lyrics & Karaoke |
-| `[` / `]` | Adjust Lyrics Sync Offset (±200ms) |
-| `O` | Open DSP & Audio Settings Panel |
-| `B` | Toggle Mega Bass Boost (+7dB) |
-| `S` | Cycle Stereo DSP Mode (Stereo / 3D WIDE / Mono) |
-| `D` | Cycle Dolby NR Bias (Off / Dolby-B / Dolby-C / Dolby-S) |
-| `W` | Toggle Fullscreen Cassette / Album Artwork |
-| `F` | Add / Remove current track from Favorites |
-| `A` | Append selected track to Playback Queue |
-| `R` | Toggle Repeat mode |
-| `Z` | Toggle Shuffle mode |
-| `Ctrl+D` / `H` | Detach / Minimize player to System Tray (Background mode) |
-| `Esc` / `q` | Close overlay / Quit player |
-
----
-
-## 🧪 Testing
-
-Run the automated test suite (73 unit tests across 25 suites):
-```bash
-npm test
-```
-
----
-
-## 📄 License
-
-This project is licensed under the **GNU General Public License v3.0 or later** (GPL-3.0-or-later). See [LICENSE](LICENSE) for details.
+Distributed under the **GNU General Public License v3.0 or later** (GPL-3.0-or-later). See [LICENSE](LICENSE) for details.

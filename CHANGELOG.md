@@ -1,60 +1,54 @@
-# 📜 Changelog
+# 📜 Changelog (Boombox-RS)
 
-All notable changes to the **BOOMBOX-TUI** project will be documented in this file.
+All notable changes to the **BOOMBOX-RS** Rust port will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.2.1] - 2026-08-30
+## [3.3.0] - 2026-08-30
 
 ### 🚀 Added
-- **Horizontal Sliding Carousel for Filter Tabs**: Implemented dynamic `renderCarouselTabs` sliding window engine. When cycling through genres (or long tab lists), the active item is always kept visible and centered with styled overflow indicators (`◀` / `▶`) that adapt seamlessly to any terminal width.
+- **💽 High-Resolution Album Cover Artwork & Multi-Platform Thumbnails** (`w`):
+  - TrueColor 24-bit Half-Block (`▀`) terminal artwork renderer delivering 2x vertical resolution in TUI.
+  - Native embedded picture extraction from `FLAC`, `MP3`, `M4A`, and `OGG` tags using `lofty` with directory cover image scan (`cover.jpg`, `folder.jpg`, `artwork.jpg`).
+  - High-speed direct thumbnail fetching for YouTube / YouTube Music videos & streams via YouTube CDN (`maxresdefault.jpg` / `hqdefault.jpg`).
+  - Universal thumbnail extraction for online streaming sources (SoundCloud, Bandcamp, Spotify, Vimeo, Twitch, Bilibili) using `yt-dlp`.
+  - Apple iTunes Search API (600x600 HD) fallback search.
+- **🌈 Dynamic 60FPS Fluid RGB Chroma Spectrum Visualizer**:
+  - Introduced `SpectrumColorMode` enum with 8 palettes (`rgb_cycle`, `chroma_rainbow`, `vertical_gradient`, `cyberpunk_neon`, `fire_and_ice`, `matrix_phosphor`, `amber_vintage`, `theme_accent`).
+  - Animated 60 FPS fluid rainbow wave cycle running across 32 ISO EQ frequency bands.
+  - Configurable via Settings modal (`o`) and persisted in `~/.config/boombox/config.toml`.
+- **⚡ Hot-Reload Keybinding (`F5`)**:
+  - Added dedicated `F5` hotkey and Unix signals (`SIGUSR1`, `SIGHUP`) to instantly reload the app, UI, and configuration without stopping audio.
+- **🎯 Smart Synced Lyrics Search & Local Caching**:
+  - Upgraded LRCLIB search flow to prioritize true `syncedLyrics` across full search results before falling back to plain lyrics.
+  - Automated local `.lrc` file caching alongside audio files in `~/Music` for 0ms instant loading on future playback.
+  - Fixed 3-digit millisecond timestamp decimal parsing and added standard `[offset:ms]` LRC tag support.
+  - Interactive lyrics timing offset controls (`[` / `]` for ±0.25s, `{` / `}` for ±1.0s, `0` to reset).
 
 ---
 
-## [2.2.0] - 2026-08-30
+## [3.2.0] - 2026-08-30
 
 ### 🚀 Added
-- **Worldwide International Radio Gathering**: Upgraded Radio Browser API integration to query diverse multi-genre categories across the globe (Lofi, Synthwave, Jazz, Hip-Hop, Rock, Electronic, Classical, Pop, Vietnam, Japan, Global Top Voted).
-- **International Genre & Country Filters**: Expanded Radio deck filters to include `LO-FI`, `SYNTHWAVE`, `JAZZ`, `HIP-HOP`, `ROCK`, `ELECTRONIC`, `CLASSICAL`, `POP`, `VIETNAM`, `JAPAN`, `GLOBAL TOP`.
-- **Multi-Server Resilient Fetching**: Added auto-balancing across `all.api.radio-browser.info`, `de1`, `nl1`, and `at1` mirrors.
-
----
-
-## [2.1.0] - 2026-08-29
-
-### 🚀 Added
-- **In-App Detach & Minimize to Tray**: Added `Ctrl+D`, `Ctrl+H`, and `H` keyboard shortcuts to seamlessly detach / minimize the player to the system tray while music keeps playing in the background.
-- **Tray AppMenu Minimize Action**: Added `📦 Hide / Minimize to Tray` option to the D-Bus StatusNotifierItem AppMenu.
-- **Desktop Minimize Notification**: Dispatched desktop notification when the player is minimized to background.
-- **Help Bar Update**: Added `[^D / H] Detach / Hide` to the bottom TUI control hints.
-
----
-
-## [2.0.0] - 2026-08-29
-
-### 🚀 Added
-- **Complete Rebranding**: Renamed project to `boombox-tui` (`BOOMBOX RX-505 Retro Audio Player`).
-- **Full CLI Command Suite**: Provided `boombox`, `boombox-tui`, `boombox-toggle`, `radio`, `hiphop-radio`, `hiphop-radio-toggle`.
-- **High-Resolution Vector Logo**: Created `assets/icons/hicolor/scalable/apps/boombox.svg` with 8 standard PNG resolutions (16x16 to 512x512).
-- **Dynamic Tray Icons**: Added `boombox-tray.svg`, `boombox-tray-playing.svg` (green wave glow), and `boombox-tray-paused.svg` (amber pause state).
-- **FreeDesktop Desktop Entry**: Added `assets/boombox.desktop` with quick actions (*Focus*, *Play/Pause*, *Next*, *Previous*).
-- **Hyprland 0.56+ (Omarchy Quattro) Support**: Added native Lua dispatchers (`hl.dsp.focus` / `hl.dsp.window.move`) with smart scratchpad and workspace restoration.
-- **Developer Guidelines**: Added `AGENTS.md` enforcing automatic SemVer version increments (`x.y.z`) and changelog tracking for all future modifications.
+- **Universal Stream Queue Expansion** (`u` → paste link, then `Ctrl+A` or `Enter`): Pasting a supported stream link (YouTube, YouTube Music, SoundCloud, BandLab, Qobuz, Deezer, Tidal, Bandcamp, Apple Music, ...) now resolves it via `yt-dlp --flat-playlist` into its real track list and populates the entire queue (deduplicated). Pressing `Enter` auto-plays the first expanded track; `Ctrl+A` just queues. Plain single-track / non-supported links keep the original one-track behavior.
 
 ### 🔄 Changed
-- **Tray Activation Logic**: Clicking the Tray Icon or AppMenu now strictly runs in `focus` mode to restore/bring the app window to the front without accidental scratchpad minimization.
-- **D-Bus SNI Registration**: Standardized `RegisterStatusNotifierItem` to object path `/StatusNotifierItem` with `IconThemePath` support.
-- **Dependency Cleanup**: Removed unused `blessed-contrib` and pruned unused imports.
+- Renamed `src/api/youtube.rs` → `src/api/stream.rs` as a universal stream resolver (`api::stream`). `resolve_youtube_queue` → `resolve_stream_queue`, `enqueue_youtube_url` → `enqueue_stream_url`. Detect and label arbitrary yt-dlp-backed sources generically, so new domains (e.g. BandLab, Qobuz) need only a KNOWN_SOURCES entry.
 
 ---
 
-## [1.0.0] - 2026-08-28
+## [3.1.0] - 2026-08-30
 
-### 🎵 Initial Release
-- **Cassette Deck UI**: Dual spools animation, smoked tape window, ANSI half-block album art decoder.
-- **Local Audio Engine**: High-speed FLAC, MP3, OPUS, OGG, WAV tag parser and library explorer.
-- **Radio Explorer**: Radio Browser API integration with genre and country filtering.
-- **YouTube Music**: In-TUI music searching and stream resolver.
-- **Hardware DSP**: 3D WIDE matrix, Mega Bass (+7dB), Dolby NR tape bias simulation (B/C/S).
-- **32-Band Visualizer**: 32 ISO center frequencies spectrum analyzer with ballistic physics.
-- **LRCLIB Karaoke**: Word-by-word synced lyrics and Matrix-style decoding.
-- **MPRIS2 & Tray**: FreeDesktop StatusNotifierItem and DBusMenu AppMenu.
+### 🚀 Added (Synced from BOOMBOX-TUI v2.4.1)
+- **Tape Recorder / Stream Ripper** (`R` / `Ctrl+R`): Record current YouTube / SoundCloud / Bandcamp streams via `yt-dlp` and live radio streams via `ffmpeg` straight to `~/Music/Boombox Recordings`, with desktop notifications and instant cancel (`Ctrl+R`). Zero-touch safeguard preserves existing local Hi-Res files.
+- **Configurable Recording Formats** (`[O] → f`): Choose `OPUS` native 0-loss, `MP3` 320k, `FLAC` lossless, or `M4A` 256k.
+- **Mixtape & Custom Playlist Manager** (`M`): Create, manage, delete, and persist mixtapes to `~/.config/boombox-tui/mixtapes.json` across sessions. Add current track with `Enter`, add currently-playing with `a`, removes with `d`.
+- **32-Band Explorer EQ Presets** (`E`): Full 7-preset ISO curve generator (`FLAT`, `MEGA_BASS`, `VOCAL_CLEAR`, `ROCK_PUNCH`, `LOFI_WARMTH`, `CYBER_SYNTH`, `CLUB_EDM`) with the live spectral visualizer now honoring the active gain curve.
+- **Live Recording Status**: `[● REC]` badge in header, EQ/Rec status in the Phosphor LCD monitor, and recorder/format state in the Settings modal.
+
+### 🔄 Changed
+- Updated `EqPreset` from a 6-value DSP set to the full 7-preset 32-band ISO curve set matching BOOMBOX-TUI.
+
+---
+
+## [3.0.0] - 2026-08-30
+- Initial Rust port of the BOOMBOX-TUI cassette deck music player and radio explorer.
