@@ -6,11 +6,15 @@ export const CONFIG_DIR = join(homedir(), '.config', 'hiphop-tui');
 export const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
 export const COLOR_THEMES = [
+  { id: 'SYSTEM_AUTO', name: '🖥️ System Auto-Sync (Omarchy / OS Theme)' },
   { id: 'RGB_CHROMA', name: '🌈 RGB Chroma Wave (Keyboard Cycle)' },
   { id: 'AMBER_GOLD', name: '📻 Vintage Amber Gold (Nakamichi Hi-Fi)' },
-  { id: 'GREEN_PHOSPHOR', name: '📟 Cyber Phosphor Green (CRT Bay)' },
-  { id: 'CYAN_NEON', name: '🌆 Neon Synthwave (Cyberpunk Cyan/Pink)' },
-  { id: 'MONOCHROME', name: '🧊 Monochrome Ice (Silver Studio)' }
+  { id: 'CATPPUCCIN_MOCHA', name: '☕ Catppuccin Mocha (Pastel Lavender)' },
+  { id: 'TOKYO_NIGHT', name: '🌃 Tokyo Night (Neon Storm)' },
+  { id: 'GRUVBOX_RETRO', name: '🍂 Gruvbox Retro (Warm Analog)' },
+  { id: 'NORD_FROST', name: '❄️ Nord Frost (Arctic Ice)' },
+  { id: 'DRACULA', name: '🧛 Dracula (Vampire Night)' },
+  { id: 'MATRIX_GREEN', name: '📟 Matrix Cyber Green (Hacker CRT)' }
 ];
 
 export const PEAK_HOLD_OPTIONS = [
@@ -35,7 +39,8 @@ export const BAND_WIDTH_OPTIONS = [
 
 export const DEFAULT_CONFIG = {
   visualizer: {
-    colorTheme: 'RGB_CHROMA',
+    theme: 'SYSTEM_AUTO',
+    colorTheme: 'SYSTEM_AUTO',
     bandWidth: 'auto',
     peakHoldMs: 1100,
     peakDecayRate: 38

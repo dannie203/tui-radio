@@ -1,10 +1,11 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { THEMES, THEME_KEYS, getTheme, cycleTheme } from '../src/ui/theme.js';
+import { THEMES, THEME_KEYS, getTheme, cycleTheme, detectSystemTheme } from '../src/ui/theme.js';
 
 describe('Linux Theme Engine', () => {
-  test('contains all 7 popular Linux palettes with valid hex colors', () => {
-    assert.equal(THEME_KEYS.length, 7);
+  test('contains all 8 Linux palettes including SYSTEM_AUTO with valid hex colors', () => {
+    assert.equal(THEME_KEYS.length, 8);
+    assert.ok(THEME_KEYS.includes('SYSTEM_AUTO'));
     assert.ok(THEME_KEYS.includes('CATPPUCCIN_MOCHA'));
     assert.ok(THEME_KEYS.includes('TOKYO_NIGHT'));
     assert.ok(THEME_KEYS.includes('GRUVBOX_RETRO'));
@@ -22,8 +23,15 @@ describe('Linux Theme Engine', () => {
     }
   });
 
+  test('dynamically resolves and syncs with Linux desktop theme in SYSTEM_AUTO mode', () => {
+    const sysTheme = getTheme('SYSTEM_AUTO');
+    assert.ok(sysTheme.bgDark.startsWith('#'));
+    assert.ok(sysTheme.amber.startsWith('#'));
+    assert.ok(sysTheme.name.includes('System Auto-Sync'));
+  });
+
   test('cycles themes forward and backward cleanly with wrap-around', () => {
-    const start = 'AMBER_GOLD';
+    const start = 'SYSTEM_AUTO';
     const next = cycleTheme(start, 1);
     assert.notEqual(next, start);
     const prev = cycleTheme(next, -1);

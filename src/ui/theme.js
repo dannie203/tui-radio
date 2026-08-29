@@ -1,9 +1,134 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
 /**
- * Theme Engine for BOOMBOX-TUI
- * Supporting modern popular Linux palettes (Catppuccin, Tokyo Night, Gruvbox, Nord, Dracula, Matrix, Amber)
+ * Parses simple key = value pairs from TOML color files (Omarchy / Linux themes)
  */
+function parseTomlColors(filePath) {
+  if (!existsSync(filePath)) return null;
+  try {
+    const raw = readFileSync(filePath, 'utf8');
+    const colors = {};
+    for (const line of raw.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) continue;
+      const [k, v] = trimmed.split('=', 1).map((s) => s.trim());
+      const rest = trimmed.slice(trimmed.indexOf('=') + 1).trim().replace(/^["']|["']$/g, '');
+      if (rest.startsWith('#') || rest.startsWith('rgb') || rest.startsWith('rgba')) {
+        colors[k] = rest;
+      }
+    }
+    return colors;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Detects current Linux desktop / Omarchy theme colors
+ */
+export function detectSystemTheme() {
+  const home = homedir();
+  const omarchyStatePath = join(home, '.local', 'state', 'omarchy', 'current', 'theme', 'colors.toml');
+  const omarchyConfigPath = join(home, '.config', 'omarchy', 'current', 'theme', 'colors.toml');
+  const pywalCachePath = join(home, '.cache', 'wal', 'colors.json');
+
+  // 1. Check Omarchy Dynamic System Theme
+  const omarchyColors = parseTomlColors(omarchyStatePath) || parseTomlColors(omarchyConfigPath);
+  if (omarchyColors) {
+    const accent = omarchyColors.accent || omarchyColors.active_border_color || omarchyColors.cyan || '#7aa2f7';
+    const bgDark = omarchyColors.darker_background || omarchyColors.dark_background || omarchyColors.background || '#101315';
+    const bgPanel = omarchyColors.background || omarchyColors.dark_background || '#15181b';
+    const fg = omarchyColors.foreground || omarchyColors.bright_foreground || '#cacccc';
+    const muted = omarchyColors.muted || omarchyColors.dark_foreground || '#4b4e55';
+    const borderDim = omarchyColors.selection || omarchyColors.muted || '#343d41';
+    const borderFocus = omarchyColors.active_border_color || accent;
+
+    return {
+      id: 'SYSTEM_AUTO',
+      name: '🖥️ System Auto-Sync (Omarchy / OS Theme)',
+      bgDark,
+      bgPanel,
+      bgLcd: omarchyColors.darker_background || bgDark,
+      borderDim,
+      borderFocus,
+      borderLcd: borderDim,
+      amber: accent,
+      amberBright: omarchyColors.light_foreground || omarchyColors.bright_yellow || fg,
+      amberDim: omarchyColors.blue || omarchyColors.muted || muted,
+      greenPhosphor: omarchyColors.green || omarchyColors.bright_green || '#9fa5a9',
+      greenDim: borderDim,
+      gold: omarchyColors.yellow || omarchyColors.bright_yellow || '#d9dbdc',
+      cyanDolby: omarchyColors.cyan || omarchyColors.bright_cyan || accent,
+      redLed: omarchyColors.bright_red || omarchyColors.red || '#de6145',
+      yellowLed: omarchyColors.yellow || '#d9dbdc',
+      cream: fg,
+      chrome: omarchyColors.bright_foreground || fg,
+      muted
+    };
+  }
+
+  // 2. Check Pywal System Colors
+  if (existsSync(pywalCachePath)) {
+    try {
+      const walData = JSON.parse(readFileSync(pywalCachePath, 'utf8'));
+      if (walData?.colors) {
+        const c = walData.colors;
+        const special = walData.special || {};
+        return {
+          id: 'SYSTEM_AUTO',
+          name: '🖥️ System Auto-Sync (Pywal / Wal Theme)',
+          bgDark: special.background || c.color0 || '#11111b',
+          bgPanel: c.color0 || '#181825',
+          bgLcd: special.background || '#11111b',
+          borderDim: c.color8 || '#45475a',
+          borderFocus: c.color4 || c.color6 || '#cba6f7',
+          borderLcd: c.color8 || '#45475a',
+          amber: c.color3 || c.color4 || '#fabd2f',
+          amberBright: c.color11 || c.color15 || '#ffd24d',
+          amberDim: c.color8 || '#89b4fa',
+          greenPhosphor: c.color2 || c.color10 || '#a6e3a1',
+          greenDim: c.color8 || '#313244',
+          gold: c.color3 || c.color11 || '#f9e2af',
+          cyanDolby: c.color6 || c.color14 || '#89dceb',
+          redLed: c.color1 || c.color9 || '#f38ba8',
+          yellowLed: c.color3 || '#fab387',
+          cream: special.foreground || c.color7 || c.color15 || '#cdd6f4',
+          chrome: c.color7 || '#bac2de',
+          muted: c.color8 || '#6c7086'
+        };
+      }
+    } catch {}
+  }
+
+  // Fallback to Amber Gold
+  return null;
+}
 
 export const THEMES = {
+  SYSTEM_AUTO: {
+    id: 'SYSTEM_AUTO',
+    name: '🖥️ System Auto-Sync (Omarchy / OS Theme)',
+    bgDark: '#101315',
+    bgPanel: '#15181b',
+    bgLcd: '#0c0e10',
+    borderDim: '#343d41',
+    borderFocus: '#798186',
+    borderLcd: '#22282c',
+    amber: '#798186',
+    amberBright: '#cacccc',
+    amberDim: '#4b4e55',
+    greenPhosphor: '#9fa5a9',
+    greenDim: '#22282c',
+    gold: '#d9dbdc',
+    cyanDolby: '#707070',
+    redLed: '#de6145',
+    yellowLed: '#d9dbdc',
+    cream: '#cacccc',
+    chrome: '#a5aeb4',
+    muted: '#4b4e55'
+  },
   AMBER_GOLD: {
     id: 'AMBER_GOLD',
     name: '📻 Vintage Amber Gold (Nakamichi Hi-Fi)',
@@ -164,6 +289,11 @@ export const THEME_LIST = Object.values(THEMES);
 export const THEME_KEYS = Object.keys(THEMES);
 
 export function getTheme(themeId) {
+  if (themeId === 'SYSTEM_AUTO' || !themeId) {
+    const detected = detectSystemTheme();
+    if (detected) return detected;
+    return THEMES.SYSTEM_AUTO;
+  }
   return THEMES[themeId] || THEMES.AMBER_GOLD;
 }
 

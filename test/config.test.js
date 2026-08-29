@@ -56,11 +56,11 @@ describe('Settings & Configuration System', () => {
     const themeIdx = store.state.settingsSections.findIndex((s) => s.id === 'visualizer.colorTheme');
     store.state.settingsSelectedIndex = themeIdx;
     const initialTheme = store.config.visualizer.colorTheme;
-    assert.equal(initialTheme, 'RGB_CHROMA');
+    assert.equal(initialTheme, 'SYSTEM_AUTO');
 
     const res = store.cycleSettingValue(1);
-    assert.equal(res.value, 'AMBER_GOLD');
-    assert.equal(store.config.visualizer.colorTheme, 'AMBER_GOLD');
+    assert.equal(res.value, 'RGB_CHROMA');
+    assert.equal(store.config.visualizer.colorTheme, 'RGB_CHROMA');
 
     // Find and select Stereo Mode
     const dspIdx = store.state.settingsSections.findIndex((s) => s.id === 'dsp.stereoMode');
