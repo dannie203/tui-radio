@@ -37,17 +37,12 @@
 
 ## 🚀 Installation
 
-### Arch Linux (AUR)
 ```bash
-paru -S boombox-tui
-# or
-yay -S boombox-tui
-```
-
-### From Source (All Platforms)
-```bash
+# Clone the repository
 git clone https://github.com/dannie203/tui-radio.git
 cd tui-radio
+
+# Install dependencies and link globally
 npm install
 npm link
 ```
