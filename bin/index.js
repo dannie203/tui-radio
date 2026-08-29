@@ -10,10 +10,12 @@ import { getEqPreset } from '../src/audio/equalizer.js';
 import { TrayManager } from '../src/desktop/tray_manager.js';
 import { clearPidFile, isProcessAlive, readPidFile, writePidFile } from '../src/desktop/instance_manager.js';
 
-const PID_FILE = '/tmp/hiphop-tui.pid';
+const PID_FILE = '/tmp/boombox-tui.pid';
+const LEGACY_PID_FILE = '/tmp/hiphop-tui.pid';
 
 async function lockInstance() {
   const isDaemonMode = process.argv.includes('--daemon') || process.argv.includes('--tray') || process.argv.includes('--minimized') || process.argv.includes('-d');
+  clearPidFile(LEGACY_PID_FILE);
   const existingPid = readPidFile(PID_FILE);
 
   if (existingPid && existingPid !== process.pid && isProcessAlive(existingPid)) {
