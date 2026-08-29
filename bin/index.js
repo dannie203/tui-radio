@@ -7,6 +7,26 @@ import { scanDirectory } from '../src/audio/library.js';
 import { MpvPlayer } from '../src/audio/player.js';
 import { createLayout } from '../src/ui/layout.js';
 import { TrayManager } from '../src/desktop/tray_manager.js';
+import { clearPidFile, isProcessAlive, readPidFile, writePidFile } from '../src/desktop/instance_manager.js';
+
+const PID_FILE = '/tmp/hiphop-tui.pid';
+
+async function lockInstance() {
+  const isDaemonMode = process.argv.includes('--daemon') || process.argv.includes('--tray') || process.argv.includes('--minimized') || process.argv.includes('-d');
+  const existingPid = readPidFile(PID_FILE);
+
+  if (existingPid && existingPid !== process.pid && isProcessAlive(existingPid)) {
+    if (isDaemonMode) {
+      process.exit(0);
+    }
+    try {
+      process.kill(existingPid, 'SIGTERM');
+      await new Promise((r) => setTimeout(r, 200));
+    } catch {}
+  }
+
+  writePidFile(PID_FILE, process.pid);
+}
 
 const store = new Store();
 const player = new MpvPlayer();
@@ -30,8 +50,31 @@ async function shutdown(exitCode = 0) {
   tray?.destroy();
   if (layout?.animTimer) clearInterval(layout.animTimer);
   layout?.screen?.destroy();
+  clearPidFile(PID_FILE);
   try { await player.close(); }
   finally { process.exit(exitCode); }
+}
+
+function restoreUi() {
+  if (layout) {
+    try {
+      layout.screen?.show();
+      layout.screen?.focus();
+      layout.screen?.render();
+    } catch {}
+    return;
+  }
+
+  try {
+    layout = createLayout(store, actions, player);
+    if (layout?.screen) {
+      layout.screen.show();
+      layout.screen.focus();
+      layout.screen.render();
+    }
+  } catch (error) {
+    setStatus(`UI restore failed: ${error.message}`);
+  }
 }
 
 function detachToBackground() {
@@ -58,6 +101,18 @@ function detachToBackground() {
 process.on('exit', () => { if (shuttingDown) player.close(); });
 process.on('SIGINT', () => { shutdown(0); }); // Ctrl+C explicitly shuts down
 process.on('SIGTERM', () => { shutdown(0); });
+process.on('SIGUSR1', () => {
+  if (!layout) {
+    restoreUi();
+    return;
+  }
+
+  try {
+    layout.screen?.show();
+    layout.screen?.focus();
+    layout.screen?.render();
+  } catch {}
+});
 process.on('SIGHUP', () => {
   // Super+W / Window Close sends SIGHUP: detach and continue playing in background!
   detachToBackground();
@@ -68,6 +123,7 @@ process.on('uncaughtException', (error) => {
 });
 
 async function main() {
+  await lockInstance();
   await store.initSettings();
   await store.loadFavorites();
 
@@ -211,6 +267,10 @@ async function main() {
     togglePause: () => {
       if (!store.state.current) {
         actions.play();
+        return;
+      }
+      if (player.state === 'idle' || !player.currentItem) {
+        actions.play(store.state.current);
         return;
       }
       player.togglePause();

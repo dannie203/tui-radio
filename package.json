@@ -6,7 +6,8 @@
   "license": "GPL-3.0-or-later",
   "author": "Nguyễn Trần Duy Hưng",
   "bin": {
-    "hiphop-radio": "bin/index.js"
+    "hiphop-radio": "bin/index.js",
+    "hiphop-radio-toggle": "bin/toggle.js"
   },
   "scripts": {
     "start": "node bin/index.js",

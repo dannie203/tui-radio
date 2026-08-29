@@ -927,7 +927,7 @@ export class Store {
       if (session.bassBoost !== undefined) this.state.bassBoost = session.bassBoost;
       if (session.selectedIndex !== undefined) this.state.selectedIndex = session.selectedIndex;
       if (session.lyricsSyncOffset !== undefined) this.state.lyricsSyncOffset = session.lyricsSyncOffset;
-      if (session.current) {
+      if (session.current && (session.current.path || session.current.url) && !['artist', 'album', 'playlist'].includes(session.current.type)) {
         this.state.current = session.current;
         this.state.timePos = session.timePos || 0;
         this.state.duration = session.current.duration || 0;

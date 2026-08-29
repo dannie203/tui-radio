@@ -18,12 +18,13 @@ describe('Session Persistence & Restoration Engine', () => {
       artist: 'Retro Artist',
       album: 'Tape Vol 1',
       duration: 210,
+      path: '/home/aki/Music/song1.flac',
       type: 'local'
     };
     store.state.timePos = 65.5;
     store.state.queue = [
-      { id: '1', title: 'Q1', type: 'local' },
-      { id: '2', title: 'Q2', type: 'local' }
+      { id: '1', title: 'Q1', path: '/music/q1.mp3', type: 'local' },
+      { id: '2', title: 'Q2', path: '/music/q2.mp3', type: 'local' }
     ];
     store.state.queueIndex = 0;
 

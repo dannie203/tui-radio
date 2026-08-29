@@ -2,6 +2,9 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
+import { isProcessAlive, readPidFile } from './instance_manager.js';
+
+const PID_FILE = '/tmp/hiphop-tui.pid';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -149,12 +152,23 @@ export class TrayManager {
       case 'toggle_bass':
         this.actions.toggleBassBoost?.();
         break;
-      case 'open_tui':
-        // Try to focus terminal window via hyprctl or notification
+      case 'open_tui': {
+        const existingPid = readPidFile(PID_FILE);
+        if (existingPid && isProcessAlive(existingPid)) {
+          try {
+            process.kill(existingPid, 'SIGUSR1');
+          } catch {}
+          try {
+            spawn('hyprctl', ['dispatch', 'focuswindow', 'title:NEON//WAVE CYBERPUNK AUDIO TERMINAL'], { stdio: 'ignore' });
+          } catch {}
+          break;
+        }
+
         try {
           spawn('hyprctl', ['dispatch', 'focuswindow', 'title:NEON//WAVE CYBERPUNK AUDIO TERMINAL'], { stdio: 'ignore' });
         } catch {}
         break;
+      }
       case 'quit':
         this.actions.quit?.();
         break;

@@ -17,6 +17,7 @@ export async function loadSession() {
 export async function saveSession(state) {
   if (!state) return;
   try {
+    const isPlayable = state.current && (state.current.path || state.current.url) && !['artist', 'album', 'playlist'].includes(state.current.type);
     const session = {
       mode: state.mode,
       nav: {
@@ -25,7 +26,7 @@ export async function saveSession(state) {
         selectedAlbumKey: state.nav?.selectedAlbumKey || null,
         selectedPlaylist: state.nav?.selectedPlaylist || null
       },
-      current: state.current ? {
+      current: isPlayable ? {
         id: state.current.id,
         title: state.current.title || state.current.name,
         name: state.current.name || state.current.title,
@@ -39,7 +40,7 @@ export async function saveSession(state) {
         bitrate: state.current.bitrate,
         sampleRate: state.current.sampleRate
       } : null,
-      timePos: state.timePos || 0,
+      timePos: isPlayable ? (state.timePos || 0) : 0,
       queue: state.queue || [],
       queueIndex: state.queueIndex ?? -1,
       selectedIndex: state.selectedIndex || 0,

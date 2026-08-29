@@ -68,16 +68,45 @@ function stripTags(str) {
   return String(str || '').replace(/\{[^}]+\}/g, '');
 }
 
+function visibleLength(str) {
+  const plain = stripTags(str);
+  let width = 0;
+  for (const ch of Array.from(plain)) {
+    const code = ch.codePointAt(0) ?? 0;
+    const isWide = /[\u1100-\u115F\u2329\u232A\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE10-\uFE19\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/u.test(ch);
+    const isEmoji = code > 0x1F000 && code < 0x1FAFF;
+    width += isWide || isEmoji ? 2 : 1;
+  }
+  return width;
+}
+
+function fitVisibleText(str, maxLen = 40) {
+  if (!str) return '';
+  const clean = String(str).replace(/[{}]/g, '').trim();
+  if (visibleLength(clean) <= maxLen) return clean;
+
+  let out = '';
+  let width = 0;
+  for (const ch of Array.from(clean)) {
+    const code = ch.codePointAt(0) ?? 0;
+    const isWide = /[\u1100-\u115F\u2329\u232A\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE10-\uFE19\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/u.test(ch);
+    const isEmoji = code > 0x1F000 && code < 0x1FAFF;
+    const step = isWide || isEmoji ? 2 : 1;
+    if (width + step > maxLen) break;
+    out += ch;
+    width += step;
+  }
+  return out.trimEnd();
+}
+
 function padLine(str, targetWidth) {
-  const len = stripTags(str).length;
+  const len = visibleLength(str);
   if (len >= targetWidth) return str;
   return str + ' '.repeat(targetWidth - len);
 }
 
 function sanitize(str, maxLen = 40) {
-  if (!str) return '';
-  const clean = String(str).replace(/[{}]/g, '').trim();
-  return clean.length > maxLen ? clean.slice(0, maxLen) : clean;
+  return fitVisibleText(str, maxLen);
 }
 
 function formatHeader(state) {
@@ -640,6 +669,8 @@ export function createLayout(store, actions, player) {
     height: 3,
     wrap: false,
     tags: true,
+    overflow: 'hidden',
+    crop: true,
     style: { fg: colors.cream, bg: colors.bgDark }
   });
 
@@ -673,6 +704,8 @@ export function createLayout(store, actions, player) {
     height: 1,
     wrap: false,
     tags: true,
+    overflow: 'hidden',
+    crop: true,
     style: { fg: colors.cream, bg: colors.bgDark }
   });
 
@@ -689,6 +722,8 @@ export function createLayout(store, actions, player) {
     mouse: true,
     tags: true,
     wrap: false,
+    overflow: 'hidden',
+    crop: true,
     border: { type: 'line' },
     scrollbar: { ch: '█', style: { fg: colors.amber, bg: colors.bgPanel } },
     style: {
@@ -711,6 +746,8 @@ export function createLayout(store, actions, player) {
     label: ' 📟 CASSETTE DECK & PHOSPHOR LCD MONITOR ',
     tags: true,
     wrap: false,
+    overflow: 'hidden',
+    crop: true,
     border: { type: 'line' },
     padding: { left: 1, right: 1 },
     style: {
@@ -730,6 +767,8 @@ export function createLayout(store, actions, player) {
     label: ' 🎚 DECK HARDWARE CONTROLS & SHORTCUTS ',
     tags: true,
     wrap: false,
+    overflow: 'hidden',
+    crop: true,
     border: { type: 'line' },
     padding: { left: 1, right: 1 },
     style: {
@@ -755,6 +794,8 @@ export function createLayout(store, actions, player) {
     label: ' 🌈 DUAL STEREO VU METERS & 16-BAND RGB CHROMA EQUALIZER ',
     tags: true,
     wrap: false,
+    overflow: 'hidden',
+    crop: true,
     border: { type: 'line' },
     padding: { left: 1, right: 1 },
     style: {
@@ -848,17 +889,21 @@ export function createLayout(store, actions, player) {
   };
 
   function getMarqueeText(metadata, maxLen = 38) {
+    const base = metadata || 'READY';
     if (!metadata || metadata === 'Nothing playing' || metadata === 'Waiting for metadata...') {
-      return metadata || 'READY';
+      return fitVisibleText(base, maxLen);
     }
     if (metadata !== lastMetadata) {
       lastMetadata = metadata;
       marqueeOffset = 0;
     }
-    if (metadata.length <= maxLen) return metadata;
-    const padded = `${metadata}   ★★★   `;
-    const offset = marqueeOffset % padded.length;
-    return (padded + padded).slice(offset, offset + maxLen);
+    const visibleBase = fitVisibleText(metadata, maxLen + 8);
+    if (visibleLength(visibleBase) <= maxLen) return visibleBase;
+    const padded = `${visibleBase}   ★★★   `;
+    const offset = marqueeOffset % Math.max(1, padded.length);
+    const looped = `${padded}${padded}`;
+    const slice = looped.slice(offset, offset + maxLen);
+    return fitVisibleText(slice, maxLen);
   }
 
   function render(state) {
@@ -1486,6 +1531,9 @@ export function createLayout(store, actions, player) {
     if (elapsed < FRAME_INTERVAL - 2) return;
     lastFrameTime = now;
 
+    const safeScreenWidth = Math.max(80, screen.width || 120);
+    const safeContentWidth = Math.max(40, Math.min(96, safeScreenWidth - 10));
+
     // Update marquee text scroll offset every ~100ms (every 6 frames at 60 FPS)
     if (++marqueeTick >= 6) {
       marqueeOffset++;
@@ -1521,21 +1569,24 @@ export function createLayout(store, actions, player) {
     store.updateActiveLyric(telemetry.timePos);
 
     // Render Unified Monitor Console (Cassette Bay + Phosphor LCD Screen + Album Art)
-    const marquee = getMarqueeText(store.state.metadata, 46);
-    monitorConsole.setContent(
-      formatCombinedMonitor(
-        telemetry.spoolFrame,
-        store.state.playing,
-        store.state.paused,
-        store.state.current,
-        store.state.mode,
-        store.state,
-        marquee,
-        currentArtLines,
-        showFullArtwork,
-        telemetry
-      )
+    const marquee = getMarqueeText(store.state.metadata, Math.min(46, safeContentWidth - 12));
+    const monitorContent = formatCombinedMonitor(
+      telemetry.spoolFrame,
+      store.state.playing,
+      store.state.paused,
+      store.state.current,
+      store.state.mode,
+      store.state,
+      marquee,
+      currentArtLines,
+      showFullArtwork,
+      telemetry
     );
+    const safeMonitorContent = monitorContent
+      .split('\n')
+      .map((line) => fitVisibleText(line, safeContentWidth))
+      .join('\n');
+    monitorConsole.setContent(safeMonitorContent);
 
     // Render Wide VU Meters & 32-band RGB Chroma Graphic Equalizer with Smooth Ballistics
     const vuL = formatVuMeter('L CH', telemetry.vuLeft, telemetry.peakLeft, 56);
@@ -1565,14 +1616,15 @@ export function createLayout(store, actions, player) {
     const themeLabel = themeTitles[cfgTheme] || 'RGB CHROMA';
     const scaleLine = ` {#6f7e91-fg}SCALE  -30    -20    -15    -10     -7     -5     -3     -1      0     +1     +2     +3 dB{/#6f7e91-fg}`;
 
-    vuEqualizerBox.setContent([
+    const eqLines = [
       scaleLine,
       vuL,
       vuR,
       ``,
       ` {bold}{#f5c542-fg}32-BAND ${themeLabel} EQUALIZER SPECTRUM [20Hz — 20kHz]{/#f5c542-fg}{/bold}`,
       eq
-    ].join('\n'));
+    ].map((line) => fitVisibleText(line, safeContentWidth)).join('\n');
+    vuEqualizerBox.setContent(eqLines);
 
     if (store.state.settingsVisible) {
       settingsModal.setFront();

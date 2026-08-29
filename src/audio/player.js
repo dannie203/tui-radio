@@ -106,6 +106,9 @@ export class MpvPlayer extends EventEmitter {
   async start() {
     if (!MpvPlayer.isInstalled()) throw new Error('mpv is not installed or not on PATH');
     await this.initWorker();
+    try {
+      execFileSync('pkill', ['-f', `input-ipc-server=${this.socketPath}`], { stdio: 'ignore' });
+    } catch {}
     this.cleanupSocket();
     this.closed = false;
 
@@ -340,6 +343,7 @@ export class MpvPlayer extends EventEmitter {
   }
 
   play(url, item = null) {
+    if (!url) return;
     this.setState('buffering');
     this.currentItem = item;
     this.elapsedMs = 0;
