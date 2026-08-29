@@ -234,9 +234,12 @@ function formatHeader(state) {
     ? `{#f5c542-fg}[REP: ${state.repeat.toUpperCase()}]{/#f5c542-fg}`
     : '{#475466-fg}[REP: OFF]{/#475466-fg}';
 
+  const eqBadge = `{bold}{#00e5ff-fg}[EQ: ${state.eqPreset || 'FLAT'} (E)]{/#00e5ff-fg}{/bold}`;
+  const recBadge = state.recording ? '{bold}{#ff3344-fg}[● REC (R)]{/#ff3344-fg}{/bold}' : '';
+
   return [
-    ` {bold}{#ffb000-fg}▶ BOOMBOX RX-505{/#ffb000-fg}{/bold}  {#6f7e91-fg}│{/#6f7e91-fg}  ${stereoBadge}  ${dolbyBadge}  ${tapeBadge}  ${bassBadge}  {#6f7e91-fg}│{/#6f7e91-fg}  ${shufBadge}  ${repBadge}`,
-    ` {bold}{#b8c4ce-fg}DECK MODE [M/TAB/1-4]:{/#b8c4ce-fg}{/bold}  ${modeTabs}`
+    ` {bold}{#ffb000-fg}▶ BOOMBOX RX-505{/#ffb000-fg}{/bold}  {#6f7e91-fg}│{/#6f7e91-fg}  ${stereoBadge}  ${dolbyBadge}  ${tapeBadge}  ${bassBadge}  ${eqBadge}  ${recBadge}  {#6f7e91-fg}│{/#6f7e91-fg}  ${shufBadge}  ${repBadge}`,
+    ` {bold}{#b8c4ce-fg}DECK MODE [TAB/1-4]:{/#b8c4ce-fg}{/bold}  ${modeTabs}`
   ].join('\n');
 }
 
@@ -1356,7 +1359,19 @@ export function createLayout(store, actions, player) {
       render(store.state);
       return;
     }
-    if (ch === 't' || ch === 'T') {
+    if (ch === 'e' || ch === 'E') {
+      if (actions.cycleEqPreset) actions.cycleEqPreset(1);
+      else store.cycleEqPreset(1);
+      render(store.state);
+      return;
+    }
+    if (ch === 'T' || fullKey === 'C-t') {
+      if (actions.cycleTheme) actions.cycleTheme(1);
+      else store.cycleTheme(1);
+      render(store.state);
+      return;
+    }
+    if (ch === 't') {
       actions.cycleTapeType(1);
       render(store.state);
       return;
@@ -1370,8 +1385,23 @@ export function createLayout(store, actions, player) {
       actions.toggleShuffle();
       return;
     }
-    if (ch === 'r' || ch === 'R') {
+    if (ch === 'R' || fullKey === 'C-r') {
+      if (actions.recordTrack) actions.recordTrack();
+      else store.recordCurrentTrack();
+      render(store.state);
+      return;
+    }
+    if (ch === 'r') {
       actions.toggleRepeat();
+      return;
+    }
+    if (ch === 'M' || fullKey === 'C-m') {
+      const target = store.state.current || store.getActiveList()[store.state.selectedIndex];
+      if (target) {
+        if (actions.addToMixtape) actions.addToMixtape('mixtape:favorites', target);
+        else store.addTrackToMixtape('mixtape:favorites', target);
+      }
+      render(store.state);
       return;
     }
     if (ch === 'a' || ch === 'A') {

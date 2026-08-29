@@ -6,6 +6,7 @@ import { fetchLyrics, cleanTitleAndArtist } from '../src/api/lyrics.js';
 import { scanDirectory } from '../src/audio/library.js';
 import { MpvPlayer } from '../src/audio/player.js';
 import { createLayout } from '../src/ui/layout.js';
+import { getEqPreset } from '../src/audio/equalizer.js';
 import { TrayManager } from '../src/desktop/tray_manager.js';
 import { clearPidFile, isProcessAlive, readPidFile, writePidFile } from '../src/desktop/instance_manager.js';
 
@@ -451,6 +452,28 @@ async function main() {
         store.state.current?.title || 'BOOMBOX RX-505',
         'Music continues in background (Controlled via Tray & Media Keys)'
       );
+    },
+    cycleTheme: (delta = 1) => {
+      const nextTheme = store.cycleTheme(delta);
+      return nextTheme;
+    },
+    cycleEqPreset: (delta = 1) => {
+      const nextPreset = store.cycleEqPreset(delta);
+      const presetObj = getEqPreset(nextPreset);
+      player.applyDsp({
+        stereoMode: store.state.stereoMode,
+        dolbyMode: store.state.dolbyMode,
+        tapeType: store.state.tapeType,
+        bassBoost: store.state.bassBoost,
+        eqGains: presetObj.gains
+      });
+      return nextPreset;
+    },
+    recordTrack: () => {
+      return store.recordCurrentTrack();
+    },
+    addToMixtape: (mixtapeId, track) => {
+      return store.addTrackToMixtape(mixtapeId || 'mixtape:favorites', track);
     },
     detach: () => {
       detachToBackground();

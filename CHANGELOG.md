@@ -3,6 +3,17 @@
 All notable changes to the **BOOMBOX-TUI** project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-08-30
+
+### 🚀 Added
+- **Linux Theme Engine**: Added 7 popular Linux desktop palettes with instant dynamic switching (`AMBER_GOLD`, `CATPPUCCIN_MOCHA`, `TOKYO_NIGHT`, `GRUVBOX_RETRO`, `NORD_FROST`, `DRACULA`, `MATRIX_GREEN`). Shortcut: `T` / `Ctrl+T`.
+- **32-Band Equalizer Sound Presets**: Added 1-touch sound profiles (`FLAT`, `MEGA_BASS`, `VOCAL_CLEAR`, `ROCK_PUNCH`, `LOFI_WARMTH`, `CYBER_SYNTH`, `CLUB_EDM`). Shortcut: `E`.
+- **Tape Recorder / Stream Ripper**: Record live YouTube, SoundCloud, Bandcamp, and radio streams directly to `~/Music/Boombox Recordings` with full tags and desktop notifications. Shortcut: `R` / `Ctrl+R`.
+- **Mixtape & Custom Playlist Manager**: Create, manage, and save personal mixtapes across local and online tracks. Shortcut: `M` / `Ctrl+M`.
+- **Official Arch Linux PKGBUILD**: Added `PKGBUILD` for AUR packaging and 1-click installation.
+
+---
+
 ## [2.2.1] - 2026-08-30
 
 ### 🚀 Added

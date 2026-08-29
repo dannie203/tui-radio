@@ -356,6 +356,46 @@ export class MpvPlayer extends EventEmitter {
       filters.push('equalizer=f=12000:width_type=o:w=1:g=3');
     }
 
+    // 5. 32-Band / ISO EQ Preset Gain Curves
+    if (Array.isArray(options.eqGains) && options.eqGains.length >= 32) {
+      this.dspConfig.eqGains = options.eqGains;
+      const bands = [
+        { f: 31, g: options.eqGains[2] || 0 },
+        { f: 63, g: options.eqGains[5] || 0 },
+        { f: 125, g: options.eqGains[8] || 0 },
+        { f: 250, g: options.eqGains[11] || 0 },
+        { f: 500, g: options.eqGains[14] || 0 },
+        { f: 1000, g: options.eqGains[17] || 0 },
+        { f: 2000, g: options.eqGains[20] || 0 },
+        { f: 4000, g: options.eqGains[23] || 0 },
+        { f: 8000, g: options.eqGains[26] || 0 },
+        { f: 16000, g: options.eqGains[29] || 0 }
+      ];
+      for (const b of bands) {
+        if (Math.abs(b.g) > 0.1) {
+          filters.push(`equalizer=f=${b.f}:width_type=o:w=1:g=${b.g}`);
+        }
+      }
+    } else if (Array.isArray(this.dspConfig.eqGains)) {
+      const bands = [
+        { f: 31, g: this.dspConfig.eqGains[2] || 0 },
+        { f: 63, g: this.dspConfig.eqGains[5] || 0 },
+        { f: 125, g: this.dspConfig.eqGains[8] || 0 },
+        { f: 250, g: this.dspConfig.eqGains[11] || 0 },
+        { f: 500, g: this.dspConfig.eqGains[14] || 0 },
+        { f: 1000, g: this.dspConfig.eqGains[17] || 0 },
+        { f: 2000, g: this.dspConfig.eqGains[20] || 0 },
+        { f: 4000, g: this.dspConfig.eqGains[23] || 0 },
+        { f: 8000, g: this.dspConfig.eqGains[26] || 0 },
+        { f: 16000, g: this.dspConfig.eqGains[29] || 0 }
+      ];
+      for (const b of bands) {
+        if (Math.abs(b.g) > 0.1) {
+          filters.push(`equalizer=f=${b.f}:width_type=o:w=1:g=${b.g}`);
+        }
+      }
+    }
+
     const afString = filters.join(',');
     if (force || afString !== this.currentAf) {
       this.currentAf = afString;

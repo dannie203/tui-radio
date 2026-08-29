@@ -2,6 +2,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { findActiveLyricIndex } from '../api/lyrics.js';
+import { THEMES, getTheme, cycleTheme, THEME_KEYS } from '../ui/theme.js';
+import { EQ_PRESETS, getEqPreset, cycleEqPreset, EQ_PRESET_KEYS } from '../audio/equalizer.js';
+import { mixtapeManager } from '../audio/mixtape.js';
+import { streamRecorder } from '../audio/recorder.js';
 import {
   CONFIG_DIR,
   loadConfig,
@@ -97,7 +101,11 @@ export class Store {
       activeLyricIndex: -1,
       youtubeResults: [],
       youtubeQuery: '',
-      youtubeLoading: false
+      youtubeLoading: false,
+      theme: this.config.visualizer?.theme || 'AMBER_GOLD',
+      eqPreset: this.config.dsp?.eqPreset || 'FLAT',
+      mixtapes: [],
+      recording: false
     };
     this.listeners = new Set();
   }
@@ -348,6 +356,80 @@ export class Store {
     this.state.status = `Tape Bias: [ ${this.state.tapeType} ]`;
     this.emit();
     return this.state.tapeType;
+  }
+
+  cycleTheme(delta = 1) {
+    const nextTheme = cycleTheme(this.state.theme, delta);
+    this.state.theme = nextTheme;
+    const themeObj = getTheme(nextTheme);
+    this.state.status = `Theme: ${themeObj.name}`;
+    if (this.config.visualizer) this.config.visualizer.theme = nextTheme;
+    this.emit();
+    return nextTheme;
+  }
+
+  setTheme(themeId) {
+    if (THEME_KEYS.includes(themeId)) {
+      this.state.theme = themeId;
+      const themeObj = getTheme(themeId);
+      this.state.status = `Theme: ${themeObj.name}`;
+      if (this.config.visualizer) this.config.visualizer.theme = themeId;
+      this.emit();
+      return themeId;
+    }
+    return this.state.theme;
+  }
+
+  cycleEqPreset(delta = 1) {
+    const nextPreset = cycleEqPreset(this.state.eqPreset, delta);
+    this.state.eqPreset = nextPreset;
+    const presetObj = getEqPreset(nextPreset);
+    this.state.status = `EQ Preset: ${presetObj.name}`;
+    if (this.config.dsp) this.config.dsp.eqPreset = nextPreset;
+    this.emit();
+    return nextPreset;
+  }
+
+  setEqPreset(presetId) {
+    if (EQ_PRESET_KEYS.includes(presetId)) {
+      this.state.eqPreset = presetId;
+      const presetObj = getEqPreset(presetId);
+      this.state.status = `EQ Preset: ${presetObj.name}`;
+      if (this.config.dsp) this.config.dsp.eqPreset = presetId;
+      this.emit();
+      return presetId;
+    }
+    return this.state.eqPreset;
+  }
+
+  async recordCurrentTrack() {
+    const track = this.state.current;
+    if (!track) {
+      this.update({ status: '⚠️ No active track/stream playing to record' });
+      return { success: false, error: 'No active track' };
+    }
+    this.update({ recording: true, status: `🔴 Recording: "${track.title || track.name}"...` });
+    const res = await streamRecorder.recordTrack(track);
+    return res;
+  }
+
+  async loadMixtapes() {
+    const list = await mixtapeManager.init();
+    this.state.mixtapes = list;
+    this.emit();
+    return list;
+  }
+
+  async addTrackToMixtape(mixtapeId, track) {
+    const targetTrack = track || this.state.current;
+    if (!targetTrack) return false;
+    const ok = await mixtapeManager.addTrackToMixtape(mixtapeId, targetTrack);
+    if (ok) {
+      const mixtape = mixtapeManager.getMixtape(mixtapeId);
+      this.update({ status: `★ Added to Mixtape: "${mixtape?.name}"` });
+      this.loadMixtapes();
+    }
+    return ok;
   }
 
   toggleBassBoost() {

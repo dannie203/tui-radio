@@ -1,24 +1,28 @@
-# 📼 BOOMBOX-TUI (v2.2.1)
+# 📼 BOOMBOX-TUI (v2.3.0)
 
 > **BOOMBOX RX-505** — A retro-cyberpunk cassette music player, Hi-Res local audio explorer, YouTube streamer, and worldwide radio deck for the Linux & Unix terminal.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D20-green.svg)](https://nodejs.org)
-[![Version](https://img.shields.io/badge/Version-2.2.1-amber.svg)](package.json)
+[![Version](https://img.shields.io/badge/Version-2.3.0-amber.svg)](package.json)
 
 ---
 
 ## ⚡ Features
 
 - 📼 **Retro Cassette Deck UI**: Dual rotating spools, tape-head bay, smoked cassette window, ANSI half-block album art decoding (JPEG/PNG).
+- 🎨 **7 Linux Themes**: Instant live switching between popular desktop palettes (Catppuccin Mocha, Tokyo Night, Gruvbox Retro, Nord Frost, Dracula, Cyberpunk Matrix, Vintage Amber Gold).
+- 🎚️ **32-Band ISO Equalizer & Sound Presets**: 1-touch profiles (Flat, Mega Bass +7dB, Vocal Clarity, Rock Punch, Lo-Fi Warmth, Cyber Synthwave, Club EDM).
+- 🔴 **Tape Recorder & Stream Ripper**: Record live YouTube, SoundCloud, Bandcamp, and radio streams directly to `~/Music/Boombox Recordings` with full tags and desktop notifications.
+- ★ **Mixtapes & Custom Playlists**: Create, manage, and save personal mixtapes across local and online tracks.
 - 🎵 **Hi-Res Local Audio Player**: High-speed scanner and tag parser for FLAC (16/24/32-bit up to 192kHz), MP3, OPUS, OGG, M4A, WAV with folder hierarchy and artist/album sorting.
-- 📻 **Worldwide Radio Explorer**: Integrated Radio Browser API with 30,000+ stations across genres (Lofi, Jazz, Synthwave, Hip-Hop, Classical, Rock, EDM, Ambient) and countries.
+- 📻 **Worldwide Radio Explorer**: Integrated Radio Browser API with 30,000+ stations across genres (Lofi, Jazz, Synthwave, Hip-Hop, Classical, Rock, EDM, Ambient) and countries with smart anti-propaganda filtering.
 - 📺 **YouTube & Multi-Platform Streaming**: Search YouTube Music directly from the TUI, load tracks, playlists, SoundCloud, Bandcamp, Mixcloud, and direct stream URLs.
-- 🎚️ **Hardware DSP & Audio FX**:
+- 🎛️ **Hardware DSP & Audio FX**:
   - **3D WIDE**: Open-Air acoustic matrix soundstage expansion.
   - **Mega Bass**: +7dB analog sub-harmonic low-end boost.
   - **Dolby NR Tape Bias**: Analog tape simulation (Dolby B, C, S, Off).
-- 📊 **32-Band ISO Equalizer Visualizer**: Logarithmic FFT spectrum analyzer with asymmetric attack/decay ballistic physics and dynamic Hi-Res sample rate LUT.
+- 📊 **32-Band ISO Visualizer**: Logarithmic FFT spectrum analyzer with asymmetric attack/decay ballistic physics.
 - 🎤 **Word-by-Word Synced Karaoke & Lyrics**: LRCLIB synced lyrics engine with Matrix-style word unscrambling and manual sync offset adjustment (`[` / `]`).
 - 🖥️ **Desktop & System Tray Integration**: FreeDesktop StatusNotifierItem (SNI) + MPRIS2 Media Controller + Quickshell / EasyEffects-style AppMenu with 22 quick controls.
 - 🪟 **Hyprland / Wayland Integration**: Smart workspace focus & scratchpad toggle script (`boombox-toggle`).
@@ -29,14 +33,16 @@
 
 - **Node.js**: `>= 20.0.0`
 - **mpv**: Audio playback backend engine
+- **yt-dlp**: For YouTube/SoundCloud/Bandcamp streaming & recording
+- **ffmpeg**: For stream capture & format conversion
 - **python-gobject** (optional): For desktop MPRIS2 & System Tray AppMenu on Linux
-- **yt-dlp** (optional): For YouTube streaming & music search
 - **jq** (optional): For Hyprland toggle script
 
 ---
 
 ## 🚀 Installation
 
+### From Source
 ```bash
 # Clone the repository
 git clone https://github.com/dannie203/tui-radio.git
@@ -45,6 +51,12 @@ cd tui-radio
 # Install dependencies and link globally
 npm install
 npm link
+```
+
+### Arch Linux / Manjaro / Omarchy (PKGBUILD)
+```bash
+# Build and install locally via makepkg
+makepkg -si
 ```
 
 ---
@@ -81,8 +93,12 @@ boombox --tray
 | `←` / `Backspace` | Go back / Parent directory |
 | `N` / `P` | Next / Previous track |
 | `+` / `-` | Volume up / down (+/- 5%) |
-| `Tab` / `M` | Cycle deck mode (Local / Radio / YouTube / Queue) |
+| `Tab` | Cycle deck mode (Local / Radio / YouTube / Queue) |
 | `/` | Search current library / YouTube Music |
+| `T` / `Ctrl+T` | Cycle Desktop Color Themes (Catppuccin, Tokyo Night, Gruvbox, Nord, Dracula, Matrix...) |
+| `E` | Cycle 32-Band Equalizer Sound Presets (Flat, Mega Bass, Vocal, Rock, Lo-Fi, Cyber, EDM) |
+| `R` / `Ctrl+R` | Record current stream to `~/Music/Boombox Recordings` (Tape Recorder) |
+| `M` / `Ctrl+M` | Add current track to Mixtape / Favorites |
 | `L` | Toggle Synced Lyrics & Karaoke |
 | `[` / `]` | Adjust Lyrics Sync Offset (±200ms) |
 | `O` | Open DSP & Audio Settings Panel |
@@ -92,7 +108,7 @@ boombox --tray
 | `W` | Toggle Fullscreen Cassette / Album Artwork |
 | `F` | Add / Remove current track from Favorites |
 | `A` | Append selected track to Playback Queue |
-| `R` | Toggle Repeat mode |
+| `r` | Toggle Repeat mode |
 | `Z` | Toggle Shuffle mode |
 | `Ctrl+D` / `H` | Detach / Minimize player to System Tray (Background mode) |
 | `Esc` / `q` | Close overlay / Quit player |
@@ -101,7 +117,7 @@ boombox --tray
 
 ## 🧪 Testing
 
-Run the automated test suite (73 unit tests across 25 suites):
+Run the automated test suite (88 unit tests across 30 suites):
 ```bash
 npm test
 ```
