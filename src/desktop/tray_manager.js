@@ -41,6 +41,12 @@ export class TrayManager {
         }
       });
 
+      this.process.stdout?.on('error', () => {});
+      this.process.stderr?.on('error', () => {});
+      this.process.stdin?.on('error', () => {
+        this.active = false;
+      });
+
       this.process.on('exit', () => {
         this.active = false;
         this.process = null;

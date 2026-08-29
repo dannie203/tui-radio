@@ -121,8 +121,11 @@ process.on('SIGHUP', () => {
   detachToBackground();
 });
 process.on('uncaughtException', (error) => {
-  console.error(error);
+  console.error('[FATAL UNCAUGHT]', error);
   shutdown(1);
+});
+process.on('unhandledRejection', (reason) => {
+  // Prevent unhandled promise rejections from crashing the process
 });
 
 async function main() {
