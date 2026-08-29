@@ -1,10 +1,10 @@
 export class VisualizerBallisticsEngine {
   constructor({
-    numBands = 10,
-    attackAlpha = 0.68,
+    numBands = 32,
+    attackAlpha = 0.72,
     releaseAlpha = 0.16,
-    peakHoldMs = 280,
-    peakDecayRate = 85 // units per second
+    peakHoldMs = 1100, // Longer peak hold (1.1s)
+    peakDecayRate = 38 // Smooth gentle peak descent
   } = {}) {
     this.numBands = numBands;
     this.attackAlpha = attackAlpha;

@@ -17,7 +17,7 @@ const CONFIG_DIR = join(homedir(), '.config', 'hiphop-tui');
 const COOKIES_FILE = join(CONFIG_DIR, 'cookies.txt');
 
 export class MpvPlayer extends EventEmitter {
-  constructor({ socketPath = SOCKET_PATH } = {}) {
+  constructor({ socketPath = SOCKET_PATH, config = null } = {}) {
     super();
     this.socketPath = socketPath;
     this.process = null;
@@ -28,17 +28,26 @@ export class MpvPlayer extends EventEmitter {
     this.closed = false;
 
     // Visualizer Ballistics Engine (Dual-Rate EMA + Gravity Peak Falloff)
-    this.ballistics = new VisualizerBallisticsEngine();
+    this.numBands = 32;
+    const peakHoldMs = config?.visualizer?.peakHoldMs ?? 1100;
+    const peakDecayRate = config?.visualizer?.peakDecayRate ?? 38;
+    this.ballistics = new VisualizerBallisticsEngine({
+      numBands: this.numBands,
+      peakHoldMs,
+      peakDecayRate
+    });
 
-    // Shared Memory Buffer: 12 elements (VU Left, VU Right, 10 EQ bands) (scaled x100 as Int32)
-    this.sharedBuffer = new SharedArrayBuffer(12 * Int32Array.BYTES_PER_ELEMENT);
+    // Shared Memory Buffer: 34 elements (VU Left, VU Right, 32 EQ bands) (scaled x100 as Int32)
+    this.sharedBuffer = new SharedArrayBuffer((2 + this.numBands) * Int32Array.BYTES_PER_ELEMENT);
     this.sharedView = new Int32Array(this.sharedBuffer);
+    this.rawBands = new Float32Array(this.numBands);
 
     this.worker = null;
     this.elapsedMs = 0;
     this.lastTickTime = null;
     this.spoolFrame = 0;
     this.timePos = 0;
+    this.lastTimePosUpdate = 0;
     this.duration = 0;
     this.percentPos = 0;
     this.audioCodec = '';
@@ -49,11 +58,28 @@ export class MpvPlayer extends EventEmitter {
     this.currentAf = '';
 
     this.dspConfig = {
-      stereoMode: 'STEREO',
-      dolbyMode: 'DOLBY-B',
-      tapeType: 'TYPE-II',
-      bassBoost: false
+      stereoMode: config?.dsp?.stereoMode || 'STEREO',
+      dolbyMode: config?.dsp?.dolbyMode || 'DOLBY-B',
+      tapeType: config?.dsp?.tapeType || 'TYPE-II',
+      bassBoost: Boolean(config?.dsp?.bassBoost)
     };
+  }
+
+  updateBallistics(options = {}) {
+    if (options.peakHoldMs !== undefined) this.ballistics.peakHoldMs = options.peakHoldMs;
+    if (options.peakDecayRate !== undefined) this.ballistics.peakDecayRate = options.peakDecayRate;
+    if (options.attackAlpha !== undefined) this.ballistics.attackAlpha = options.attackAlpha;
+    if (options.releaseAlpha !== undefined) this.ballistics.releaseAlpha = options.releaseAlpha;
+  }
+
+  setSampleRate(rate) {
+    if (rate && Number.isFinite(rate) && rate > 0) {
+      this.audioSampleRate = rate;
+      this.worker?.postMessage({
+        type: 'SET_SAMPLE_RATE',
+        sampleRate: rate
+      });
+    }
   }
 
   static isInstalled() {
@@ -72,6 +98,9 @@ export class MpvPlayer extends EventEmitter {
     });
 
     this.worker.on('error', (err) => this.emit('error', err));
+    if (this.audioSampleRate) {
+      this.setSampleRate(this.audioSampleRate);
+    }
   }
 
   async start() {
@@ -200,7 +229,9 @@ export class MpvPlayer extends EventEmitter {
     }
     if (message.event === 'end-file') {
       this.setState('idle');
-      if (message.reason === 'eof') this.emit('ended');
+      if (message.reason === 'eof' || message.reason === 'error') {
+        this.emit('ended');
+      }
     }
     if (message.event !== 'property-change') return;
     if (message.name === 'icy-title') {
@@ -220,6 +251,7 @@ export class MpvPlayer extends EventEmitter {
     }
     if ((message.name === 'time-pos' || message.name === 'playback-time') && typeof message.data === 'number') {
       this.timePos = message.data;
+      this.lastTimePosUpdate = performance.now();
       if (this.state === 'buffering') this.setState('playing');
       this.emit('time-pos', this.timePos);
     }
@@ -240,7 +272,7 @@ export class MpvPlayer extends EventEmitter {
     }
     if (message.name === 'audio-params' && message.data && typeof message.data === 'object') {
       if (message.data.samplerate) {
-        this.audioSampleRate = message.data.samplerate;
+        this.setSampleRate(message.data.samplerate);
       }
       if (message.data.format) {
         this.audioSampleFormat = message.data.format;
@@ -265,10 +297,11 @@ export class MpvPlayer extends EventEmitter {
     const filters = [];
 
     // 1. Stereo soundstage DSP
-    if (this.dspConfig.stereoMode === 'MONO') {
-      filters.push('lavfi=[pan=mono|c0=0.5*c0+0.5*c1]');
-    } else if (this.dspConfig.stereoMode === 'WIDE') {
-      filters.push('lavfi=[stereowiden=level_in=0.8:level_out=0.8:crossfeed=0.3]');
+    const normStereo = String(this.dspConfig.stereoMode || '').toUpperCase().trim();
+    if (normStereo === 'MONO') {
+      filters.push('lavfi=[pan=stereo|c0=0.5*c0+0.5*c1|c1=0.5*c0+0.5*c1]');
+    } else if (normStereo === 'WIDE' || normStereo === '3D WIDE' || normStereo === 'STEREO-3D' || normStereo === '3D') {
+      filters.push('lavfi=[stereotools=mlev=1.0:slev=1.45:base=0.35,equalizer=f=12000:width_type=h:width=4000:g=1.5]');
     }
 
     // 2. Mega Bass Boost
@@ -317,6 +350,9 @@ export class MpvPlayer extends EventEmitter {
     this.audioCodec = item?.codec || item?.format || '';
     this.audioBitrate = item?.bitrate || 0;
     this.audioSampleRate = item?.sampleRate || 0;
+    if (this.audioSampleRate) {
+      this.setSampleRate(this.audioSampleRate);
+    }
     this.audioSampleFormat = '';
     this.command('loadfile', [url, 'replace']);
     this.command('set_property', ['pause', false]);
@@ -369,7 +405,16 @@ export class MpvPlayer extends EventEmitter {
 
     const effectiveDuration = this.duration > 0 ? this.duration : (this.currentItem?.duration || 0);
     const hasDuration = effectiveDuration > 0;
-    const currentSec = hasDuration ? this.timePos : Math.floor(this.elapsedMs / 1000);
+
+    let currentTimePos = this.timePos;
+    if (isPlaying && this.state !== 'paused' && this.lastTimePosUpdate > 0) {
+      const deltaSec = (performance.now() - this.lastTimePosUpdate) / 1000;
+      if (deltaSec > 0 && deltaSec < 2.0) {
+        currentTimePos = this.timePos + deltaSec;
+      }
+    }
+
+    const currentSec = hasDuration ? currentTimePos : Math.floor(this.elapsedMs / 1000);
     const totalSec = hasDuration ? effectiveDuration : 0;
 
     const formatSec = (s) => {
@@ -389,13 +434,12 @@ export class MpvPlayer extends EventEmitter {
     // Zero-copy read from Shared Memory populated by Worker Thread
     const rawVuLeft = isPlaying ? Atomics.load(this.sharedView, 0) / 100 : 0;
     const rawVuRight = isPlaying ? Atomics.load(this.sharedView, 1) / 100 : 0;
-    const rawBands = [];
-    for (let i = 0; i < 10; i++) {
-      rawBands.push(isPlaying ? Atomics.load(this.sharedView, 2 + i) / 100 : 0);
+    for (let i = 0; i < this.numBands; i++) {
+      this.rawBands[i] = isPlaying ? Atomics.load(this.sharedView, 2 + i) / 100 : 0;
     }
 
     // Apply Asymmetric Dual-Rate EMA & Gravitational Ballistics Decay
-    const smoothed = this.ballistics.update({ rawBands, rawVuLeft, rawVuRight });
+    const smoothed = this.ballistics.update({ rawBands: this.rawBands, rawVuLeft, rawVuRight });
 
     return {
       vuLeft: smoothed.vuLeft,
@@ -405,7 +449,7 @@ export class MpvPlayer extends EventEmitter {
       eqBands: smoothed.bands,
       eqPeaks: smoothed.peaks,
       spoolFrame: this.spoolFrame,
-      timePos: this.timePos,
+      timePos: currentTimePos,
       duration: effectiveDuration,
       percentPos: percent,
       tapeCounter,

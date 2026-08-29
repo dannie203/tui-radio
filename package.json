@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node bin/index.js",
-    "check": "node --check bin/index.js && node --check src/api/lyrics.js && node --check src/api/stations.js && node --check src/api/youtube.js && node --check src/audio/art.js && node --check src/audio/library.js && node --check src/audio/player.js && node --check src/audio/visualizer_engine.js && node --check src/audio/worker/dsp_worker.js && node --check src/state/store.js && node --check src/ui/layout.js",
+    "check": "node --check bin/index.js && node --check src/desktop/tray_manager.js && node --check src/api/lyrics.js && node --check src/api/stations.js && node --check src/api/youtube.js && node --check src/audio/art.js && node --check src/audio/library.js && node --check src/audio/player.js && node --check src/audio/visualizer_engine.js && node --check src/audio/worker/dsp_worker.js && node --check src/state/config.js && node --check src/state/store.js && node --check src/ui/layout.js",
     "test": "node --test test/**/*.test.js"
   },
   "engines": {

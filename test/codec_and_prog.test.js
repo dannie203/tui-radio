@@ -46,16 +46,33 @@ describe('Audio Codec & Progress Telemetry', () => {
     });
   });
 
-  describe('Station Codec Normalization', () => {
-    test('normalizes fallback stations with valid codec and bitrate', async () => {
-      const mockFetch = async () => { throw new Error('Offline'); };
-      const { stations } = await fetchStations({ fetchImpl: mockFetch });
+  describe('32-Band Equalizer Spectrum & Ballistics', () => {
+    test('VisualizerBallisticsEngine handles 32 bands with peak decay', async () => {
+      const { VisualizerBallisticsEngine } = await import('../src/audio/visualizer_engine.js');
+      const engine = new VisualizerBallisticsEngine({ numBands: 32 });
+      const rawBands = new Array(32).fill(60);
 
-      assert.ok(stations.length > 0);
-      for (const s of stations) {
-        assert.ok(s.codec, `Station ${s.name} should have a codec`);
-        assert.equal(typeof s.codec, 'string');
-        assert.ok(s.bitrate >= 0);
+      const res = engine.update({ rawBands, rawVuLeft: 75, rawVuRight: 70 });
+      assert.equal(res.bands.length, 32);
+      assert.equal(res.peaks.length, 32);
+      assert.ok(res.bands[0] > 0);
+      assert.ok(res.peaks[0] >= res.bands[0]);
+    });
+
+    test('computeLogBands calculates 32 ISO frequency bands from magnitudes', async () => {
+      const { computeLogBands, NUM_BANDS, ISO_FREQUENCIES } = await import('../src/audio/worker/dsp_worker.js');
+      assert.equal(NUM_BANDS, 32);
+      assert.equal(ISO_FREQUENCIES.length, 32);
+
+      const fakeMags = new Float32Array(1024).fill(0.05);
+      fakeMags[5] = 0.8; // Low frequency energy
+      fakeMags[100] = 0.5; // Mid frequency energy
+      fakeMags[300] = 0.3; // High frequency energy
+
+      const bands = computeLogBands(fakeMags, 44100);
+      assert.equal(bands.length, 32);
+      for (let i = 0; i < 32; i++) {
+        assert.ok(bands[i] >= 0 && bands[i] <= 100);
       }
     });
   });

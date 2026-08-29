@@ -5,11 +5,51 @@ const LRCLIB_BASE_URL = 'https://lrclib.net/api';
 const REQUEST_HEADERS = { 'User-Agent': 'hiphop-radio-tui/1.0' };
 
 /**
+ * Parses inline word-level timestamps in enhanced LRC lines like <00:12.34>Word
+ *
+ * @param {string} rawLine
+ * @param {number} lineStartTime
+ * @returns {Array<{ time: number, text: string }>|null}
+ */
+export function parseEnhancedWords(rawLine, lineStartTime) {
+  if (!rawLine || typeof rawLine !== 'string') return null;
+  const wordTagRegex = /<(?:\d{1,3}:)?\d{2}(?:\.\d{1,3})?>/g;
+  if (!wordTagRegex.test(rawLine)) return null;
+
+  wordTagRegex.lastIndex = 0;
+  const tokens = [];
+  const parts = rawLine.split(/(<(?:\d{1,3}:)?\d{2}(?:\.\d{1,3})?>)/g).filter(Boolean);
+
+  let currentWordTime = lineStartTime;
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const match = /^<(\d{1,3}:)?(\d{2})(?:\.(\d{1,3}))?>$/.exec(part);
+    if (match) {
+      const minutes = match[1] ? parseInt(match[1].replace(':', ''), 10) : 0;
+      const seconds = parseInt(match[2], 10);
+      let ms = 0;
+      if (match[3]) {
+        const msStr = match[3].padEnd(3, '0').slice(0, 3);
+        ms = parseInt(msStr, 10);
+      }
+      currentWordTime = Number((minutes * 60 + seconds + ms / 1000).toFixed(3));
+    } else {
+      const cleanWord = part.trim();
+      if (cleanWord) {
+        tokens.push({ time: currentWordTime, text: part });
+      }
+    }
+  }
+
+  return tokens.length > 0 ? tokens : null;
+}
+
+/**
  * Parses LRC formatted text into a sorted array of timed lyric objects.
  * Format: [mm:ss.xx] Lyric text
  *
  * @param {string} lrcContent
- * @returns {Array<{ time: number, text: string }>}
+ * @returns {Array<{ time: number, text: string, words?: Array<{ time: number, text: string }> }>}
  */
 export function parseLrc(lrcContent) {
   if (!lrcContent || typeof lrcContent !== 'string') return [];
@@ -32,8 +72,8 @@ export function parseLrc(lrcContent) {
 
     if (matches.length === 0) continue;
 
-    // Extract text after stripping all timestamp tags
-    const text = trimmed.replace(timeRegex, '').trim();
+    const rawLineBody = trimmed.replace(timeRegex, '').trim();
+    const cleanText = rawLineBody.replace(/<(?:\d{1,3}:)?\d{2}(?:\.\d{1,3})?>/g, '').trim();
 
     for (const m of matches) {
       const minutes = parseInt(m[1], 10);
@@ -44,11 +84,192 @@ export function parseLrc(lrcContent) {
         ms = parseInt(msStr, 10);
       }
       const totalSeconds = Number((minutes * 60 + seconds + ms / 1000).toFixed(3));
-      result.push({ time: totalSeconds, text });
+      const words = parseEnhancedWords(rawLineBody, totalSeconds);
+      const item = { time: totalSeconds, text: cleanText };
+      if (words && words.length > 0) {
+        item.words = words;
+      }
+      result.push(item);
     }
   }
 
   return result.sort((a, b) => a.time - b.time);
+}
+
+export const MATRIX_GLYPHS = '01#@$%&*+=~?<>{}[]X0Z79¥§ΔΨΩ░▒▓█';
+
+/**
+ * Scrambles a single word into Matrix / cyber glyphs, preserving punctuation.
+ *
+ * @param {string} word
+ * @param {number} [tick=0]
+ * @returns {string} Scrambled word
+ */
+export function matrixScrambleWord(word, tick = 0) {
+  if (!word || typeof word !== 'string') return '';
+  let res = '';
+  for (let i = 0; i < word.length; i++) {
+    const ch = word[i];
+    if (/[.,!?:;"'()\[\]\s\-\/\\]/.test(ch)) {
+      res += ch;
+    } else {
+      const rand = Math.floor(Math.abs(Math.sin(i * 9.1 + (tick || 0) * 0.35 + ch.charCodeAt(0) * 3.7) * 1000));
+      res += MATRIX_GLYPHS[rand % MATRIX_GLYPHS.length];
+    }
+  }
+  return res;
+}
+
+/**
+ * Scrambles an entire line into Matrix code, preserving whitespace and punctuation.
+ *
+ * @param {string} text
+ * @param {number} [tick=0]
+ * @returns {string} Scrambled line
+ */
+export function scrambleLine(text, tick = 0) {
+  if (!text || typeof text !== 'string') return '';
+  const tokens = text.match(/\S+|\s+/g) || [text];
+  return tokens.map((token, idx) => {
+    if (/^\s+$/.test(token)) return token;
+    return matrixScrambleWord(token, tick + idx * 7);
+  }).join('');
+}
+
+/**
+ * Formats a lyric line where upcoming words are scrambled in Matrix code,
+ * and as playback reaches each word, it un-matrixes into the clean lyrical text.
+ *
+ * @param {object} item Timed lyric item { time: number, text: string, words?: Array<{ time: number, text: string }> }
+ * @param {number} currentTime Current playback position in seconds
+ * @param {object|null} [nextItem] Next lyric item for duration estimation
+ * @param {number} [totalDuration=0] Total track duration in seconds
+ * @param {object} [options] Styling options
+ * @returns {string} Formatted markup string
+ */
+export function formatKaraokeText(item, currentTime, nextItem = null, totalDuration = 0, options = {}) {
+  if (!item || !item.text) return '';
+
+  const safeText = String(item.text).replace(/[{}]/g, '').trim();
+  if (!safeText) return '';
+
+  const sungColor = options.sungColor || '#33ff33';
+  const activeWordColor = options.activeWordColor || '#ffd24d';
+  const peakWordColor = options.peakWordColor || '#ffffff';
+  const cipherColor = options.cipherColor || '#475466';
+  const tick = options.tick || Math.floor((currentTime || 0) * 30);
+
+  const startTime = item.time || 0;
+
+  // Calculate estimated line singing duration
+  let lineDuration;
+  if (nextItem && nextItem.time > startTime) {
+    const rawGap = nextItem.time - startTime;
+    const estimated = Math.max(2.5, Math.min(8.0, safeText.length * 0.18 + 0.6));
+    lineDuration = rawGap <= 8.0 ? rawGap : Math.min(rawGap, estimated);
+  } else if (totalDuration > startTime) {
+    const rem = totalDuration - startTime;
+    const estimated = Math.max(3.0, safeText.length * 0.18 + 0.6);
+    lineDuration = Math.min(rem, estimated);
+  } else {
+    lineDuration = Math.max(3.0, safeText.length * 0.18 + 0.6);
+  }
+
+  // If line hasn't started yet: entire line is scrambled matrix code
+  if (currentTime < startTime) {
+    return `{${cipherColor}-fg}${scrambleLine(safeText, tick)}{/${cipherColor}-fg}`;
+  }
+
+  // If line has finished singing: entire line is fully un-matrixed & sung (green)
+  if (currentTime >= startTime + lineDuration) {
+    return `{bold}{${sungColor}-fg}${safeText}{/${sungColor}-fg}{/bold}`;
+  }
+
+  // Tokenize into words and whitespace delimiters
+  const tokens = safeText.match(/\S+|\s+/g) || [safeText];
+  const wordTokens = tokens.filter((t) => /\S/.test(t));
+  const totalWords = Math.max(1, wordTokens.length);
+
+  // If enhanced word-level timestamps exist
+  if (Array.isArray(item.words) && item.words.length > 0) {
+    let result = '';
+    for (let w = 0; w < item.words.length; w++) {
+      const wordObj = item.words[w];
+      const wordText = String(wordObj.text || '').replace(/[{}]/g, '');
+      if (!wordText) continue;
+
+      const wStart = wordObj.time;
+      let wEnd;
+      if (w < item.words.length - 1) {
+        wEnd = item.words[w + 1].time;
+      } else {
+        wEnd = startTime + lineDuration;
+      }
+      const wDuration = Math.max(0.1, wEnd - wStart);
+      const wElapsed = currentTime - wStart;
+
+      if (wElapsed <= 0) {
+        // Upcoming word -> scrambled matrix code
+        const trailing = wordText.endsWith(' ') ? ' ' : '';
+        result += `{${cipherColor}-fg}${matrixScrambleWord(wordText.trimEnd(), tick + w * 7)}${trailing}{/${cipherColor}-fg}`;
+      } else if (wElapsed >= wDuration) {
+        // Fully un-matrixed sung word
+        result += `{bold}{${sungColor}-fg}${wordText}{/${sungColor}-fg}{/bold}`;
+      } else {
+        // Active word: actively un-matrixing
+        const wProgress = Math.min(1.0, Math.max(0, wElapsed / wDuration));
+        const trailing = wordText.endsWith(' ') ? ' ' : '';
+        if (wProgress < 0.35) {
+          const matrixWord = matrixScrambleWord(wordText.trimEnd(), tick + w * 3);
+          result += `{bold}{${activeWordColor}-fg}${matrixWord}${trailing}{/${activeWordColor}-fg}{/bold}`;
+        } else {
+          result += `{bold}{${peakWordColor}-fg}${wordText}{/${peakWordColor}-fg}{/bold}`;
+        }
+      }
+    }
+    return result;
+  }
+
+  // Standard line-level LRC: word-by-word un-matrix progression
+  const elapsed = currentTime - startTime;
+  const lineProgress = Math.min(1.0, Math.max(0, elapsed / lineDuration));
+
+  let wordIndex = 0;
+  let result = '';
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (/^\s+$/.test(token)) {
+      result += token;
+      continue;
+    }
+
+    const currentWordIdx = wordIndex++;
+    const wordStartProgress = currentWordIdx / totalWords;
+    const wordEndProgress = (currentWordIdx + 1) / totalWords;
+    const wordDurationProgress = 1 / totalWords;
+
+    if (lineProgress >= wordEndProgress) {
+      // Word is un-matrixed & sung (green)
+      result += `{bold}{${sungColor}-fg}${token}{/${sungColor}-fg}{/bold}`;
+    } else if (lineProgress <= wordStartProgress) {
+      // Word is still scrambled matrix code
+      result += `{${cipherColor}-fg}${matrixScrambleWord(token, tick + currentWordIdx * 7)}{/${cipherColor}-fg}`;
+    } else {
+      // Word is actively un-matrixing in real-time
+      const wordProgress = (lineProgress - wordStartProgress) / wordDurationProgress;
+      if (wordProgress < 0.35) {
+        // Matrix glitch phase (amber)
+        const matrixWord = matrixScrambleWord(token, tick + currentWordIdx * 3);
+        result += `{bold}{${activeWordColor}-fg}${matrixWord}{/${activeWordColor}-fg}{/bold}`;
+      } else {
+        // Un-matrix lock phase: snaps into crystal clear word (white)
+        result += `{bold}{${peakWordColor}-fg}${token}{/${peakWordColor}-fg}{/bold}`;
+      }
+    }
+  }
+
+  return result;
 }
 
 /**

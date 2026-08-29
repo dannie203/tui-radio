@@ -94,9 +94,38 @@ export async function extractArtworkBuffer(trackPath) {
 }
 
 /**
- * Render image buffer into high-resolution ANSI half-block characters (▀)
+ * Samples a rectangular region from decoded RGBA image data and computes average RGB.
  */
-export function renderHalfBlockArt(imageBuffer, format, targetWidth = 26, targetHeight = 13) {
+function sampleAreaRgb(data, srcW, srcH, x0, y0, x1, y1) {
+  const startX = Math.max(0, Math.min(srcW - 1, Math.floor(x0)));
+  const endX = Math.max(startX + 1, Math.min(srcW, Math.ceil(x1)));
+  const startY = Math.max(0, Math.min(srcH - 1, Math.floor(y0)));
+  const endY = Math.max(startY + 1, Math.min(srcH, Math.ceil(y1)));
+
+  let rSum = 0;
+  let gSum = 0;
+  let bSum = 0;
+  let count = 0;
+
+  for (let sy = startY; sy < endY; sy++) {
+    const rowOffset = sy * srcW * 4;
+    for (let sx = startX; sx < endX; sx++) {
+      const idx = rowOffset + (sx * 4);
+      rSum += data[idx];
+      gSum += data[idx + 1];
+      bSum += data[idx + 2];
+      count++;
+    }
+  }
+
+  if (count === 0) return '#000000';
+  return rgbToHex(rSum / count, gSum / count, bSum / count);
+}
+
+/**
+ * Render image buffer into high-resolution ANSI half-block characters (▀) with antialiased area supersampling
+ */
+export function renderHalfBlockArt(imageBuffer, format, targetWidth = 32, targetHeight = 16) {
   const decoded = decodeImage(imageBuffer, format);
   if (!decoded) return null;
 
@@ -106,16 +135,17 @@ export function renderHalfBlockArt(imageBuffer, format, targetWidth = 26, target
 
   for (let y = 0; y < targetHeight; y++) {
     let line = '';
+    const y0Top = ((y * 2) / (targetHeight * 2)) * srcH;
+    const y1Top = ((y * 2 + 1) / (targetHeight * 2)) * srcH;
+    const y0Bot = ((y * 2 + 1) / (targetHeight * 2)) * srcH;
+    const y1Bot = ((y * 2 + 2) / (targetHeight * 2)) * srcH;
+
     for (let x = 0; x < targetWidth; x++) {
-      const srcX = Math.floor((x / targetWidth) * srcW);
-      const srcYTop = Math.floor(((y * 2) / (targetHeight * 2)) * srcH);
-      const srcYBot = Math.floor(((y * 2 + 1) / (targetHeight * 2)) * srcH);
+      const x0 = (x / targetWidth) * srcW;
+      const x1 = ((x + 1) / targetWidth) * srcW;
 
-      const idxTop = (srcYTop * srcW + srcX) * 4;
-      const idxBot = (srcYBot * srcW + srcX) * 4;
-
-      const fgHex = rgbToHex(decoded.data[idxTop], decoded.data[idxTop + 1], decoded.data[idxTop + 2]);
-      const bgHex = rgbToHex(decoded.data[idxBot], decoded.data[idxBot + 1], decoded.data[idxBot + 2]);
+      const fgHex = sampleAreaRgb(decoded.data, srcW, srcH, x0, y0Top, x1, y1Top);
+      const bgHex = sampleAreaRgb(decoded.data, srcW, srcH, x0, y0Bot, x1, y1Bot);
 
       line += `{${fgHex}-fg}{${bgHex}-bg}▀{/${bgHex}-bg}{/${fgHex}-fg}`;
     }
