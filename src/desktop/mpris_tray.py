@@ -417,24 +417,44 @@ class DesktopService:
         if method == "GetLayout":
             parent_id, depth, prop_names = params
             menu_items = self.get_menu_items()
+            items_by_id = dict((item[0], item[1]) for item in menu_items)
             
-            child_variants = []
-            for item_id, props in menu_items:
+            if parent_id == 0:
+                child_variants = []
+                for item_id, props in menu_items:
+                    prop_dict = {}
+                    for k, v in props.items():
+                        if k != "action":
+                            if not prop_names or k in prop_names:
+                                prop_dict[k] = v
+                    child_node = GLib.Variant("(ia{sv}av)", (item_id, prop_dict, []))
+                    child_variants.append(GLib.Variant("v", child_node))
+                
+                root_props = {"children-display": GLib.Variant("s", "submenu")}
+                root_layout = (0, root_props, child_variants)
+                ret = GLib.Variant("(u(ia{sv}av))", (self.menu_revision, root_layout))
+                invocation.return_value(ret)
+            elif parent_id in items_by_id:
                 prop_dict = {}
-                for k, v in props.items():
+                for k, v in items_by_id[parent_id].items():
                     if k != "action":
-                        prop_dict[k] = v
-                child_node = GLib.Variant("(ia{sv}av)", (item_id, prop_dict, []))
-                child_variants.append(GLib.Variant("v", child_node))
-            
-            root_layout = (0, {"children-display": GLib.Variant("s", "submenu")}, child_variants)
-            invocation.return_value(GLib.Variant("(u(ia{sv}av))", (self.menu_revision, root_layout)))
+                        if not prop_names or k in prop_names:
+                            prop_dict[k] = v
+                leaf_layout = (parent_id, prop_dict, [])
+                ret = GLib.Variant("(u(ia{sv}av))", (self.menu_revision, leaf_layout))
+                invocation.return_value(ret)
+            else:
+                empty_layout = (parent_id, {}, [])
+                ret = GLib.Variant("(u(ia{sv}av))", (self.menu_revision, empty_layout))
+                invocation.return_value(ret)
         elif method == "GetGroupProperties":
             ids, prop_names = params
             menu_items = dict((item[0], item[1]) for item in self.get_menu_items())
             result = []
             for item_id in ids:
-                if item_id in menu_items:
+                if item_id == 0:
+                    result.append((0, {"children-display": GLib.Variant("s", "submenu")}))
+                elif item_id in menu_items:
                     prop_dict = {}
                     for k, v in menu_items[item_id].items():
                         if k != "action":
@@ -444,11 +464,17 @@ class DesktopService:
             invocation.return_value(GLib.Variant("(a(ia{sv}))", (result,)))
         elif method == "GetProperty":
             item_id, name = params
-            menu_items = dict((item[0], item[1]) for item in self.get_menu_items())
-            if item_id in menu_items and name in menu_items[item_id]:
-                invocation.return_value(GLib.Variant("(v)", (menu_items[item_id][name],)))
+            if item_id == 0:
+                if name == "children-display":
+                    invocation.return_value(GLib.Variant("(v)", (GLib.Variant("s", "submenu"),)))
+                else:
+                    invocation.return_value(GLib.Variant("(v)", (GLib.Variant("s", ""),)))
             else:
-                invocation.return_value(GLib.Variant("(v)", (GLib.Variant("s", ""),)))
+                menu_items = dict((item[0], item[1]) for item in self.get_menu_items())
+                if item_id in menu_items and name in menu_items[item_id]:
+                    invocation.return_value(GLib.Variant("(v)", (menu_items[item_id][name],)))
+                else:
+                    invocation.return_value(GLib.Variant("(v)", (GLib.Variant("s", ""),)))
         elif method == "Event":
             item_id, event_id, data, ts = params
             menu_items = dict((item[0], item[1]) for item in self.get_menu_items())
