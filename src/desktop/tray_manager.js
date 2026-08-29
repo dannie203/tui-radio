@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { isProcessAlive, readPidFile } from './instance_manager.js';
 
 const PID_FILE = '/tmp/hiphop-tui.pid';
@@ -154,7 +155,12 @@ export class TrayManager {
         break;
       case 'open_tui': {
         try {
-          spawn('hiphop-radio-toggle', [], { stdio: 'ignore' });
+          const localToggle = join(homedir(), '.local', 'bin', 'hiphop-radio-toggle');
+          if (existsSync(localToggle)) {
+            spawn(localToggle, [], { stdio: 'ignore' });
+          } else {
+            spawn('hiphop-radio-toggle', [], { stdio: 'ignore' });
+          }
         } catch {}
         break;
       }

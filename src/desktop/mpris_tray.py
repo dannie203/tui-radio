@@ -315,7 +315,8 @@ class DesktopService:
     # --- SNI Tray Callbacks ---
     def handle_sni_method(self, connection, sender, path, iface, method, params, invocation):
         if method == "Activate":
-            self.send_action("play_pause")
+            # Left-click on Tray Icon: Toggle/Reopen the TUI window (EasyEffects-style)
+            self.send_action("open_tui")
             invocation.return_value(None)
         elif method == "SecondaryActivate":
             self.send_action("open_tui")
