@@ -29,9 +29,12 @@ use ui::tray::{spawn_tray, TrayAction, TrayState};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 0. Kernel-level flock for single-instance protection (Unix)
+    // 0. Set process name & kernel-level flock for single-instance protection (Unix)
     #[cfg(unix)]
     {
+        unsafe {
+            libc::prctl(libc::PR_SET_NAME, b"boombox-rs\0".as_ptr(), 0, 0, 0);
+        }
         use std::fs::OpenOptions;
         use std::os::unix::io::AsRawFd;
         if let Ok(lock_file) = OpenOptions::new()

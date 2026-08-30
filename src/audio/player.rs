@@ -134,9 +134,11 @@ impl MpvPlayer {
         let status_clone = Arc::clone(&self.status);
         let running_clone = Arc::clone(&self.running);
 
-        thread::spawn(move || {
-            let mut reader = BufReader::new(stream);
-            let mut line = String::new();
+        let _ = thread::Builder::new()
+            .name("boombox-mpv-ipc".to_string())
+            .spawn(move || {
+                let mut reader = BufReader::new(stream);
+                let mut line = String::new();
 
             while running_clone.load(Ordering::Relaxed) {
                 line.clear();

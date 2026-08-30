@@ -36,22 +36,22 @@ impl Tray for BoomboxTray {
     }
 
     fn title(&self) -> String {
-        let st = self.state.lock().unwrap();
-        if st.is_playing {
-            format!("{} — {}", st.title, st.artist)
-        } else {
-            "Boombox RX-505".into()
-        }
+        "Boombox RX-505".into()
+    }
+
+    fn icon_theme_path(&self) -> String {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/home/aki".to_string());
+        format!("{}/.local/share/icons/hicolor", home)
     }
 
     fn icon_name(&self) -> String {
         let st = self.state.lock().unwrap();
         if st.is_recording {
-            "media-record".into()
+            "boombox-tray".into()
         } else if st.is_playing {
-            "media-playback-start".into()
+            "boombox-tray-playing".into()
         } else {
-            "media-playback-pause".into()
+            "boombox-tray-paused".into()
         }
     }
 
