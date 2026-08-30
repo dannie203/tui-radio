@@ -409,26 +409,27 @@ impl AppState {
     }
 
     pub fn peek_next_track(&self) -> Option<MediaItem> {
+        let cur_track = self.current_track.as_ref()?;
+        let cur_id = &cur_track.id;
+
         if !self.queue.is_empty() {
-            let cur_id = self.current_track.as_ref().map(|t| &t.id);
-            let cur_idx = self.queue.iter().position(|t| Some(&t.id) == cur_id).unwrap_or(0);
+            let cur_idx = self.queue.iter().position(|t| &t.id == cur_id).unwrap_or(0);
             if cur_idx + 1 < self.queue.len() {
                 return self.queue.get(cur_idx + 1).cloned();
             } else if self.repeat_mode == RepeatMode::All {
                 return self.queue.first().cloned();
             }
+            return None;
         }
 
         let list = self.get_active_list();
         if !list.is_empty() {
-            let cur_id = self.current_track.as_ref().map(|t| &t.id);
-            let cur_idx = list.iter().position(|t| Some(&t.id) == cur_id).unwrap_or(self.selected_index);
-            if cur_idx + 1 < list.len() {
-                return list.get(cur_idx + 1).cloned();
-            } else if self.repeat_mode == RepeatMode::All {
-                return list.first().cloned();
-            } else {
-                return list.first().cloned();
+            if let Some(cur_idx) = list.iter().position(|t| &t.id == cur_id) {
+                if cur_idx + 1 < list.len() {
+                    return list.get(cur_idx + 1).cloned();
+                } else if self.repeat_mode == RepeatMode::All {
+                    return list.first().cloned();
+                }
             }
         }
         None

@@ -44,10 +44,10 @@ pub fn render_cassette_deck(f: &mut Frame, area: Rect, state: &AppState, theme: 
 
     let title_a = track_a
         .map(|t| t.title.as_str())
-        .unwrap_or("DECK A STANDBY");
+        .unwrap_or("STANDBY / NO TAPE");
     let title_b = track_b
         .map(|t| t.title.as_str())
-        .unwrap_or("DECK B (CUE STANDBY)");
+        .unwrap_or("STANDBY / NO TAPE");
 
     // Neural Profiles for Deck A & Deck B
     let prof_a = track_a.and_then(|t| state.neural_engine.get_profile(&t.url));
@@ -74,7 +74,9 @@ pub fn render_cassette_deck(f: &mut Frame, area: Rect, state: &AppState, theme: 
     let tape_label_b: String = format!("{:<width$}", title_b.chars().take(title_width).collect::<String>(), width = title_width);
 
     // Crossfader Slider Rendering (15 chars)
-    let crossfader_bar = if is_xfading {
+    let crossfader_bar = if state.current_track.is_none() {
+        "[A ─────●───── B]".to_string()
+    } else if is_xfading {
         let pct = (xfade_progress * 100.0).round() as u32;
         let pos = (xfade_progress * 10.0).round().clamp(0.0, 10.0) as usize;
         let mut bar = String::from("[A ");
@@ -96,7 +98,9 @@ pub fn render_cassette_deck(f: &mut Frame, area: Rect, state: &AppState, theme: 
     };
 
     // Header Status for Deck A and Deck B
-    let (deck_a_badge, deck_a_color) = if is_xfading && !is_deck_b_master {
+    let (deck_a_badge, deck_a_color) = if state.current_track.is_none() {
+        ("💽 DECK A [STANDBY]", theme.muted)
+    } else if is_xfading && !is_deck_b_master {
         ("💽 DECK A [FADING OUT]", theme.amber_bright)
     } else if is_deck_b_master {
         ("💽 DECK A [CUE / STANDBY]", theme.muted)
@@ -104,7 +108,9 @@ pub fn render_cassette_deck(f: &mut Frame, area: Rect, state: &AppState, theme: 
         ("💽 DECK A [MASTER ▶]", theme.green_phosphor)
     };
 
-    let (deck_b_badge, deck_b_color) = if is_xfading && !is_deck_b_master {
+    let (deck_b_badge, deck_b_color) = if state.current_track.is_none() || track_b.is_none() {
+        ("💽 DECK B [STANDBY]", theme.muted)
+    } else if is_xfading && !is_deck_b_master {
         ("💽 DECK B [FADING IN]", theme.cyan_dolby)
     } else if is_deck_b_master {
         ("💽 DECK B [MASTER ▶]", theme.cyan_dolby)
@@ -113,7 +119,9 @@ pub fn render_cassette_deck(f: &mut Frame, area: Rect, state: &AppState, theme: 
     };
 
     // Calculate Dynamic Volumes during crossfade
-    let (vol_a_str, vol_b_str) = if is_xfading {
+    let (vol_a_str, vol_b_str) = if state.current_track.is_none() {
+        ("Vol:  0%".to_string(), "Vol:  0%".to_string())
+    } else if is_xfading {
         let pct_a = ((1.0 - xfade_progress) * 100.0).round() as u32;
         let pct_b = (xfade_progress * 100.0).round() as u32;
         (format!("Vol: {:>2}%", pct_a), format!("Vol: {:>2}%", pct_b))
