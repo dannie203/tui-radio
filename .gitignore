@@ -44,3 +44,10 @@ lcov.info
 tarpaulin-report.html
 .env
 .env.local
+
+# ==========================================
+# Developer Notes & Scratchpad
+# ==========================================
+DEV_NOTES.md
+dev-notes*
+TODO_*.md
