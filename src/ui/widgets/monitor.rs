@@ -131,10 +131,18 @@ pub fn render_monitor(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme
     let file_clip: String = file_info_str.chars().take(width.saturating_sub(12)).collect();
 
     // Line 1: Source & Soundstage & Sample Rate Spec
+    let live_badge_span = if state.telemetry.is_live {
+        Span::styled(" [● LIVE]", Style::default().fg(theme.red_led).add_modifier(Modifier::BOLD))
+    } else {
+        Span::styled("", Style::default())
+    };
+
     let source_line = Line::from(vec![
         Span::styled(" SOURCE  : [", Style::default().fg(theme.muted)),
         Span::styled(source_badge, Style::default().fg(source_color).add_modifier(Modifier::BOLD)),
-        Span::styled("]       SAMPLE RATE: ", Style::default().fg(theme.muted)),
+        Span::styled("]", Style::default().fg(theme.muted)),
+        live_badge_span,
+        Span::styled("       SAMPLE RATE: ", Style::default().fg(theme.muted)),
         Span::styled(format!("[{}]", sample_rate_badge), Style::default().fg(theme.green_phosphor).add_modifier(Modifier::BOLD)),
         Span::styled("   SOUNDSTAGE: ", Style::default().fg(theme.muted)),
         Span::styled(
@@ -178,7 +186,7 @@ pub fn render_monitor(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme
     };
 
     let prog_width: usize = (width.saturating_sub(35)).clamp(18, 80);
-    let (progress_bar, prog_details) = if track_dur > 0.0 {
+    let (progress_bar, prog_details) = if !state.telemetry.is_live && track_dur > 0.0 {
         let pct = (state.telemetry.time_pos / track_dur).clamp(0.0, 1.0);
         let filled = (pct * prog_width as f64).round() as usize;
         let filled_str = "■".repeat(filled);
@@ -191,7 +199,7 @@ pub fn render_monitor(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme
             format!("[{}{}]", filled_str, empty_str),
             format!("{}/ {:02}:{:02} ({}%)", state.telemetry.tape_counter, total_m, total_s, pct_round),
         )
-    } else if state.is_playing && !state.is_paused {
+    } else if state.telemetry.is_live || (state.is_playing && !state.is_paused) {
         let frame = state.telemetry.spool_frame;
         let max_pos = prog_width.saturating_sub(4);
         let pos = if max_pos > 0 { frame % max_pos } else { 0 };
@@ -204,7 +212,7 @@ pub fn render_monitor(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme
             }
         }
         bar.push(']');
-        (bar, format!("{} ● LIVE", state.telemetry.tape_counter))
+        (bar, format!("{} ● LIVE BROADCAST", state.telemetry.tape_counter))
     } else {
         (format!("[{}]", "□".repeat(prog_width)), format!("{} (STANDBY)", state.telemetry.tape_counter))
     };

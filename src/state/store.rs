@@ -237,7 +237,7 @@ impl AppState {
         self.genre_filter = self.genre_filter.cycle(delta);
         self.status_message = format!("Radio Genre: {}", self.genre_filter.label());
         let q = self.search_query.clone();
-        self.filter(&q);
+        self.filter_radio(&q);
     }
 
     pub fn drill_down(&mut self) -> Option<MediaItem> {
@@ -419,11 +419,8 @@ impl AppState {
         None
     }
 
-    pub fn filter(&mut self, query: &str) {
-        self.search_query = query.to_string();
+    pub fn filter_local(&mut self, query: &str) {
         let q = query.trim().to_lowercase();
-
-        // Filter local
         if q.is_empty() {
             self.filtered_local = self.local_tracks.clone();
             self.filtered_albums = self.local_albums.clone();
@@ -459,8 +456,10 @@ impl AppState {
                 self.local_view_level = LocalViewLevel::AllTracks;
             }
         }
+    }
 
-        // Filter radio by genre + query
+    pub fn filter_radio(&mut self, query: &str) {
+        let q = query.trim().to_lowercase();
         let mut stations: Vec<MediaItem> = match self.genre_filter {
             GenreFilter::All => self.radio_stations.clone(),
             GenreFilter::Favorites => {
@@ -521,6 +520,12 @@ impl AppState {
         }
 
         self.filtered_radio = stations;
+    }
+
+    pub fn filter(&mut self, query: &str) {
+        self.search_query = query.to_string();
+        self.filter_local(query);
+        self.filter_radio(query);
         self.filter_history(query);
         self.selected_index = 0;
     }

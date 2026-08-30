@@ -70,6 +70,12 @@ pub fn render_cassette_deck(f: &mut Frame, area: Rect, state: &AppState, theme: 
         Style::default().fg(theme.muted)
     };
 
+    let live_style = if state.telemetry.is_live {
+        Style::default().fg(theme.red_led).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(theme.muted)
+    };
+
     // Line 1: Tape Deck Mechanism & Hardware Labels
     let line1 = Line::from(vec![
         Span::styled(format!(" {} ", spool_l), Style::default().fg(theme.amber).add_modifier(Modifier::BOLD)),
@@ -88,6 +94,7 @@ pub fn render_cassette_deck(f: &mut Frame, area: Rect, state: &AppState, theme: 
         Span::styled(format!(" [{}]", pause_led), pause_style),
         Span::styled(format!(" [{}]", stop_led), stop_style),
         Span::styled(" [⏺ REC]", rec_style),
+        Span::styled(" [● LIVE]", live_style),
         Span::styled(format!("   EQ: {}", state.eq_preset.label()), Style::default().fg(theme.amber_bright)),
         Span::styled(format!(" • BASS: {}", if state.bass_boost { "ON" } else { "OFF" }), Style::default().fg(if state.bass_boost { theme.green_phosphor } else { theme.muted })),
         Span::styled(format!(" • SHUFFLE: {}", if state.shuffle { "ON" } else { "OFF" }), Style::default().fg(if state.shuffle { theme.green_phosphor } else { theme.muted })),
