@@ -75,13 +75,14 @@
 
 * **Option 1: Windows Installer Package (`.msi`) — (Recommended)**
   * Download [**`Boombox-3.8.2-x86_64.msi`**](https://github.com/dannie203/tui-radio/releases/latest/download/Boombox-3.8.2-x86_64.msi).
-  * Double-click to install. It automatically configures PATH, creates Desktop & Start Menu shortcuts, and registers cleanly in Windows Settings / Control Panel.
-* **Option 2: 1-Line PowerShell Installer**
+  * Double-click to install. Automatically configures PATH, creates Desktop & Start Menu shortcuts, and registers in Windows Settings / Control Panel with 1-click clean uninstall.
+* **Option 2: Standalone Portable Edition (`.zip`)**
+  * Download [**`boombox-rs-windows-portable-x86_64.zip`**](https://github.com/dannie203/tui-radio/releases/latest/download/boombox-rs-windows-portable-x86_64.zip).
+  * Extract anywhere and double-click `RUN-BOOMBOX.bat` or `boombox-rs.exe`. Zero installation or admin rights required.
+* **Option 3: 1-Line PowerShell Installer**
   ```powershell
   irm https://raw.githubusercontent.com/dannie203/tui-radio/main/install.ps1 | iex
   ```
-* **Option 3: Portable Archive (`.zip`)**
-  * Download [**`boombox-rs-windows-x86_64.zip`**](https://github.com/dannie203/tui-radio/releases/latest/download/boombox-rs-windows-x86_64.zip), extract and run `boombox-rs.exe` anywhere.
 
 ---
 
