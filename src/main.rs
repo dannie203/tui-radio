@@ -244,6 +244,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         state.telemetry.duration = status.duration;
         state.telemetry.percent_pos = status.percent_pos;
         state.telemetry.spool_frame = frame_count;
+        state.telemetry.active_deck = status.active_deck.clone();
+        state.telemetry.is_crossfading = status.is_crossfading;
+        state.telemetry.crossfade_progress = status.crossfade_progress;
+
+        let cur_url = state.current_track.as_ref().map(|t| t.url.as_str()).unwrap_or("");
+        if let Some(prof) = state.neural_engine.get_profile(cur_url) {
+            state.telemetry.current_bpm = Some(prof.bpm);
+            state.telemetry.current_key = Some(prof.camelot_key.clone());
+        } else {
+            state.telemetry.current_bpm = None;
+            state.telemetry.current_key = None;
+        }
 
         let cur_m = (status.time_pos / 60.0).floor() as u32;
         let cur_s = (status.time_pos % 60.0).floor() as u32;

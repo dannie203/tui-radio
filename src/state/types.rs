@@ -455,6 +455,14 @@ pub struct AudioTelemetry {
     pub audio_sample_rate: u32,
     pub audio_channels: String,
     pub is_live: bool,
+    pub active_deck: String,
+    pub is_crossfading: bool,
+    pub crossfade_progress: f32,
+    pub current_bpm: Option<f64>,
+    pub current_key: Option<String>,
+    pub next_bpm: Option<f64>,
+    pub next_key: Option<String>,
+    pub transition_strategy_label: Option<String>,
 }
 
 impl Default for AudioTelemetry {
@@ -477,6 +485,14 @@ impl Default for AudioTelemetry {
             audio_sample_rate: 48000,
             audio_channels: "Stereo".to_string(),
             is_live: false,
+            active_deck: "DECK A".to_string(),
+            is_crossfading: false,
+            crossfade_progress: 0.0,
+            current_bpm: None,
+            current_key: None,
+            next_bpm: None,
+            next_key: None,
+            transition_strategy_label: None,
         }
     }
 }

@@ -59,9 +59,9 @@ pub fn render_ui(f: &mut Frame, state: &AppState, theme: &Theme) {
             let right_chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
-                    Constraint::Length(5), // Cassette Bay
-                    Constraint::Length(9), // Phosphor LCD
-                    Constraint::Min(8),    // Dual VU + 32-Band Visualizer
+                    Constraint::Length(5),  // Cassette Bay
+                    Constraint::Length(10), // Phosphor LCD (7 lines content + borders)
+                    Constraint::Min(8),     // Dual VU + 32-Band Visualizer
                 ])
                 .split(workspace_chunks[1]);
 

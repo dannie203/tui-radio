@@ -228,7 +228,29 @@ pub fn render_monitor(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme
         Span::styled(vol_bar, Style::default().fg(theme.amber)),
     ]);
 
-    // Line 7: System Status
+    // Line 7: Neural DJ Telemetry & Camelot Alignment
+    let cur_key = state.telemetry.current_key.as_deref().unwrap_or("--");
+    let cur_bpm = state.telemetry.current_bpm.map(|b| format!("{:.1} BPM", b)).unwrap_or_else(|| "-- BPM".to_string());
+    let energy_str = if let Some(t) = current {
+        if let Some(prof) = state.neural_engine.get_profile(&t.url) {
+            let n = (prof.energy * 5.0).round() as usize;
+            format!("{:.2} [{}{}]", prof.energy, "⚡".repeat(n.min(5)), "·".repeat(5 - n.min(5)))
+        } else {
+            "--".to_string()
+        }
+    } else {
+        "--".to_string()
+    };
+
+    let dj_line = Line::from(vec![
+        Span::styled(" AI-DJ   : ", Style::default().fg(theme.muted)),
+        Span::styled(format!("KEY: [🎹 {}]  ", cur_key), Style::default().fg(theme.green_phosphor).add_modifier(Modifier::BOLD)),
+        Span::styled(format!("TEMPO: [🎵 {}]  ", cur_bpm), Style::default().fg(theme.gold).add_modifier(Modifier::BOLD)),
+        Span::styled(format!("ENERGY: [{}]  ", energy_str), Style::default().fg(theme.amber_bright)),
+        Span::styled(format!("MODE: [{}]", state.automix_mode.short_badge()), Style::default().fg(theme.cyan_dolby)),
+    ]);
+
+    // Line 8: System Status
     let rec_label = if state.is_recording {
         format!("[{}] ", state.recording_status)
     } else {
@@ -250,6 +272,7 @@ pub fn render_monitor(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme
         file_line,
         prog_line,
         status_line,
+        dj_line,
         sys_line,
     ])
     .block(
