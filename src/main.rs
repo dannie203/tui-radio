@@ -83,7 +83,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut running = true;
     let mut should_hot_reload = false;
     let mut frame_count = 0usize;
-    let mut prev_was_playing = false;
 
     // Helper closure to dispatch lyrics query
     let dispatch_lyrics = |title: String, artist: String, path: Option<String>, track_id: String, tx: mpsc::UnboundedSender<(String, Vec<SyncedLyricLine>)>| {
@@ -212,8 +211,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let status = player.get_status();
         let live_audio = capture.get_live_data();
 
-        let track_finished = prev_was_playing && !status.is_playing && status.time_pos > 1.0;
-        let at_eof = status.duration > 0.0 && status.time_pos >= status.duration - 0.6;
+        let at_eof = status.duration > 5.0 && status.time_pos >= status.duration - 0.5;
+        let is_eof = (status.eof || (at_eof && state.is_playing)) && !state.is_paused && !status.is_paused;
 
         state.is_playing = status.is_playing;
         state.is_paused = status.is_paused;
@@ -317,8 +316,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        // Auto-advance when track finishes or at EOF
-        if track_finished || (at_eof && state.is_playing && !state.is_paused) {
+        // Auto-advance when track finishes (natural EOF reached)
+        if is_eof {
             if let Some(next) = state.get_next_track() {
                 player.play(&next.url);
                 state.current_track = Some(next.clone());
@@ -338,7 +337,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 send_track_notification(&next.title, &next.artist, next.format.as_deref().unwrap_or("FLAC"));
             }
         }
-        prev_was_playing = status.is_playing;
 
         // B. Update Visualizer Spectrum with REAL-TIME PCM AUDIO OUTPUT
         let eq_gains = audio::equalizer::preset_gains(state.eq_preset);

@@ -30,6 +30,7 @@ pub struct PlayerStatus {
     pub duration: f64,
     pub percent_pos: f64,
     pub volume: u32,
+    pub eof: bool,
     pub metadata: PlayerMetadata,
 }
 
@@ -111,7 +112,6 @@ impl MpvPlayer {
             ("audio-params/samplerate", 8),
             ("audio-params/channel-count", 9),
             ("audio-bitrate", 10),
-            ("core-idle", 11),
         ];
 
         for (prop, id) in props {
@@ -141,14 +141,16 @@ impl MpvPlayer {
                                 match event {
                                     "playback-restart" | "file-loaded" => {
                                         st.is_playing = true;
+                                        st.eof = false;
                                     }
                                     "end-file" => {
+                                        let reason = val.get("reason").and_then(|r| r.as_str()).unwrap_or("");
+                                        if reason == "eof" {
+                                            st.eof = true;
+                                        }
                                         st.is_playing = false;
                                         st.time_pos = 0.0;
                                         st.percent_pos = 0.0;
-                                    }
-                                    "idle" => {
-                                        st.is_playing = false;
                                     }
                                     _ => {}
                                 }
@@ -219,13 +221,6 @@ impl MpvPlayer {
                                                 }
                                             }
                                         }
-                                        "core-idle" => {
-                                            if let Some(idle) = data.and_then(|d| d.as_bool()) {
-                                                if idle {
-                                                    st.is_playing = false;
-                                                }
-                                            }
-                                        }
                                         _ => {}
                                     }
                                 }
@@ -285,9 +280,12 @@ impl MpvPlayer {
     }
 
     pub fn toggle_pause(&self) {
-        let mut st = self.status.lock().unwrap();
-        st.is_paused = !st.is_paused;
-        self.send_json_command(serde_json::json!(["cycle", "pause"]));
+        let new_paused = {
+            let mut st = self.status.lock().unwrap();
+            st.is_paused = !st.is_paused;
+            st.is_paused
+        };
+        self.send_json_command(serde_json::json!(["set_property", "pause", new_paused]));
     }
 
     pub fn stop(&self) {
@@ -295,6 +293,7 @@ impl MpvPlayer {
         let mut st = self.status.lock().unwrap();
         st.is_playing = false;
         st.is_paused = false;
+        st.eof = false;
         st.time_pos = 0.0;
     }
 
@@ -310,8 +309,11 @@ impl MpvPlayer {
     }
 
     pub fn get_status(&self) -> PlayerStatus {
-        let mut status = self.status.lock().unwrap().clone();
+        let mut guard = self.status.lock().unwrap();
+        let mut status = guard.clone();
         status.volume = *self.master_volume.lock().unwrap();
+        // Clear eof pulse so auto-advance only fires once per track completion
+        guard.eof = false;
         status
     }
 }
