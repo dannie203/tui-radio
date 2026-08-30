@@ -416,15 +416,33 @@ impl AppState {
             self.filtered_local = self
                 .local_tracks
                 .iter()
-                .filter(|t| t.title.to_lowercase().contains(&q) || t.artist.to_lowercase().contains(&q))
+                .filter(|t| {
+                    t.title.to_lowercase().contains(&q)
+                        || t.artist.to_lowercase().contains(&q)
+                        || t.album.as_deref().unwrap_or("").to_lowercase().contains(&q)
+                        || t.url.to_lowercase().contains(&q)
+                })
                 .cloned()
                 .collect();
+
             self.filtered_albums = self
                 .local_albums
                 .iter()
-                .filter(|a| a.name.to_lowercase().contains(&q) || a.artist.to_lowercase().contains(&q))
+                .filter(|a| {
+                    a.name.to_lowercase().contains(&q)
+                        || a.artist.to_lowercase().contains(&q)
+                        || a.tracks.iter().any(|t| {
+                            t.title.to_lowercase().contains(&q)
+                                || t.artist.to_lowercase().contains(&q)
+                                || t.album.as_deref().unwrap_or("").to_lowercase().contains(&q)
+                        })
+                })
                 .cloned()
                 .collect();
+
+            if self.mode == AppMode::LocalTracks && self.local_view_level == LocalViewLevel::Albums {
+                self.local_view_level = LocalViewLevel::AllTracks;
+            }
         }
 
         // Filter radio by genre + query

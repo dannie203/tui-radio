@@ -497,11 +497,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             state.active_modal = ModalType::None;
                             state.input_buffer.clear();
                             state.filter("");
+                            state.status_message = "Search filter cleared".to_string();
                         }
                         KeyCode::Enter => {
                             let q = state.input_buffer.trim().to_string();
                             state.filter(&q);
                             state.active_modal = ModalType::None;
+                            state.status_message = if q.is_empty() {
+                                "Search filter cleared".to_string()
+                            } else {
+                                format!("Search: \"{}\" ({} results)", q, state.get_active_list_len())
+                            };
                         }
                         KeyCode::Backspace => {
                             state.input_buffer.pop();
@@ -628,8 +634,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 running = false;
                             }
                             KeyCode::Esc => {
-                                if !state.drill_up() {
-                                    running = false;
+                                if !state.search_query.is_empty() {
+                                    state.filter("");
+                                    state.input_buffer.clear();
+                                    state.status_message = "Search filter cleared".to_string();
+                                } else if !state.drill_up() {
+                                    // at root level
                                 }
                             }
                             // Playback
@@ -886,7 +896,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             KeyCode::Char('/') => {
                                 state.active_modal = ModalType::Search;
-                                state.input_buffer.clear();
+                                state.input_buffer = state.search_query.clone();
                             }
                             KeyCode::Char('o') => {
                                 state.active_modal = ModalType::Settings;
@@ -912,6 +922,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = terminal.show_cursor();
 
     player.stop();
+
+    // Cleanly unregister and shutdown the D-Bus StatusNotifierItem Tray immediately
+    #[cfg(unix)]
+    if let Some(ref h) = _tray_handle {
+        let _ = h.shutdown().await;
+    }
 
     // 7. If Hot-Reload requested via SIGUSR1/SIGHUP/Tray, re-execute binary in-place!
     if should_hot_reload {
