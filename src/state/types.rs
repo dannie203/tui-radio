@@ -455,14 +455,6 @@ pub struct AudioTelemetry {
     pub audio_sample_rate: u32,
     pub audio_channels: String,
     pub is_live: bool,
-    pub active_deck: String,
-    pub is_crossfading: bool,
-    pub crossfade_progress: f32,
-    pub current_bpm: Option<f64>,
-    pub current_key: Option<String>,
-    pub next_bpm: Option<f64>,
-    pub next_key: Option<String>,
-    pub transition_strategy_label: Option<String>,
 }
 
 impl Default for AudioTelemetry {
@@ -485,117 +477,8 @@ impl Default for AudioTelemetry {
             audio_sample_rate: 48000,
             audio_channels: "Stereo".to_string(),
             is_live: false,
-            active_deck: "DECK A".to_string(),
-            is_crossfading: false,
-            crossfade_progress: 0.0,
-            current_bpm: None,
-            current_key: None,
-            next_bpm: None,
-            next_key: None,
-            transition_strategy_label: None,
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AutomixMode {
-    NeuralAuto,
-    NeuralBassSwap,
-    NeuralEchoOut,
-    NeuralFilterSweep,
-    EqualPower,
-    SmoothExponential,
-    LinearRamp,
-    Disabled,
-}
-
-impl AutomixMode {
-    pub const ALL: [AutomixMode; 8] = [
-        AutomixMode::NeuralAuto,
-        AutomixMode::NeuralBassSwap,
-        AutomixMode::NeuralEchoOut,
-        AutomixMode::NeuralFilterSweep,
-        AutomixMode::EqualPower,
-        AutomixMode::SmoothExponential,
-        AutomixMode::LinearRamp,
-        AutomixMode::Disabled,
-    ];
-
-    pub fn cycle(&self) -> Self {
-        let idx = Self::ALL.iter().position(|m| m == self).unwrap_or(0);
-        Self::ALL[(idx + 1) % Self::ALL.len()]
-    }
-
-    pub fn is_enabled(&self) -> bool {
-        *self != AutomixMode::Disabled
-    }
-
-    pub fn label(&self) -> &'static str {
-        match self {
-            AutomixMode::NeuralAuto => "🤖 AI-DJ: Neural Smart Auto (Pro DJ)",
-            AutomixMode::NeuralBassSwap => "⚡ AI-DJ: Force Bass-Swap (Zero Mud)",
-            AutomixMode::NeuralEchoOut => "🌊 AI-DJ: Force Echo-Out Drop (Reverb)",
-            AutomixMode::NeuralFilterSweep => "🎚️ AI-DJ: Multi-Band Filter Sweep",
-            AutomixMode::EqualPower => "📻 Dual-Deck: Equal Power (Cos/Sin)",
-            AutomixMode::SmoothExponential => "〰️ Dual-Deck: Smooth S-Curve (Hermite)",
-            AutomixMode::LinearRamp => "📐 Dual-Deck: Linear Ramp (Classic)",
-            AutomixMode::Disabled => "⏹️ Dual-Deck: OFF (Gapless Native)",
-        }
-    }
-
-    pub fn short_badge(&self) -> &'static str {
-        match self {
-            AutomixMode::NeuralAuto => "AI-AUTO",
-            AutomixMode::NeuralBassSwap => "BASS-SWAP",
-            AutomixMode::NeuralEchoOut => "ECHO-OUT",
-            AutomixMode::NeuralFilterSweep => "FILTER",
-            AutomixMode::EqualPower => "COS/SIN",
-            AutomixMode::SmoothExponential => "S-CURVE",
-            AutomixMode::LinearRamp => "LINEAR",
-            AutomixMode::Disabled => "OFF",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CrossfadeCurve {
-    EqualPower,
-    Linear,
-    SmoothExponential,
-}
-
-impl CrossfadeCurve {
-    pub const ALL: [CrossfadeCurve; 3] = [
-        CrossfadeCurve::EqualPower,
-        CrossfadeCurve::Linear,
-        CrossfadeCurve::SmoothExponential,
-    ];
-
-    pub fn cycle(&self) -> Self {
-        match self {
-            CrossfadeCurve::EqualPower => CrossfadeCurve::SmoothExponential,
-            CrossfadeCurve::SmoothExponential => CrossfadeCurve::Linear,
-            CrossfadeCurve::Linear => CrossfadeCurve::EqualPower,
-        }
-    }
-
-    pub fn label(&self) -> &'static str {
-        match self {
-            CrossfadeCurve::EqualPower => "Equal Power (Cos/Sin)",
-            CrossfadeCurve::SmoothExponential => "Smooth Exponential",
-            CrossfadeCurve::Linear => "Linear Ramp",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct TransitionStatus {
-    pub is_transitioning: bool,
-    pub progress: f32, // 0.0 -> 1.0
-    pub outgoing_deck: String,
-    pub incoming_deck: String,
-    pub detected_bpm: Option<f64>,
-    pub detected_key: Option<String>,
 }
 
 

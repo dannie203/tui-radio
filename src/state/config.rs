@@ -45,36 +45,6 @@ pub struct AudioConfig {
     pub eq_preset: String,
     pub bass_boost: bool,
     pub record_format: String,
-    #[serde(default = "default_automix_mode")]
-    pub automix_mode: String,
-    #[serde(default = "default_crossfade_enabled")]
-    pub crossfade_enabled: bool,
-    #[serde(default = "default_crossfade_duration")]
-    pub crossfade_duration: u32,
-    #[serde(default = "default_crossfade_curve")]
-    pub crossfade_curve: String,
-    #[serde(default = "default_ai_dj_smart_cues")]
-    pub ai_dj_smart_cues: bool,
-}
-
-fn default_automix_mode() -> String {
-    "neural_auto".to_string()
-}
-
-fn default_crossfade_enabled() -> bool {
-    true
-}
-
-fn default_crossfade_duration() -> u32 {
-    6
-}
-
-fn default_crossfade_curve() -> String {
-    "equal_power".to_string()
-}
-
-fn default_ai_dj_smart_cues() -> bool {
-    true
 }
 
 impl Default for AudioConfig {
@@ -87,11 +57,6 @@ impl Default for AudioConfig {
             eq_preset: "flat".to_string(),
             bass_boost: false,
             record_format: "opus".to_string(),
-            automix_mode: "neural_auto".to_string(),
-            crossfade_enabled: true,
-            crossfade_duration: 6,
-            crossfade_curve: "equal_power".to_string(),
-            ai_dj_smart_cues: true,
         }
     }
 }
@@ -315,30 +280,6 @@ impl AppConfig {
             "fire_ice" | "fire" | "ice" => SpectrumColorMode::FireAndIce,
             "theme" | "accent" | "custom" => SpectrumColorMode::ThemeAccent,
             _ => SpectrumColorMode::RgbCycle,
-        }
-    }
-
-    pub fn get_crossfade_curve(&self) -> crate::state::types::CrossfadeCurve {
-        use crate::state::types::CrossfadeCurve;
-        match self.audio.crossfade_curve.to_lowercase().as_str() {
-            "linear" => CrossfadeCurve::Linear,
-            "smooth" | "exponential" => CrossfadeCurve::SmoothExponential,
-            _ => CrossfadeCurve::EqualPower,
-        }
-    }
-
-    pub fn get_automix_mode(&self) -> crate::state::types::AutomixMode {
-        use crate::state::types::AutomixMode;
-        match self.audio.automix_mode.to_lowercase().as_str() {
-            "neural_auto" | "ai_auto" | "auto" | "ai" => AutomixMode::NeuralAuto,
-            "bass_swap" | "bass" | "swap" => AutomixMode::NeuralBassSwap,
-            "echo_out" | "echo" | "reverb" => AutomixMode::NeuralEchoOut,
-            "filter" | "filter_sweep" | "sweep" => AutomixMode::NeuralFilterSweep,
-            "equal_power" | "cos" | "cos_sin" => AutomixMode::EqualPower,
-            "smooth" | "s_curve" | "exponential" => AutomixMode::SmoothExponential,
-            "linear" | "linear_ramp" => AutomixMode::LinearRamp,
-            "off" | "disabled" | "none" => AutomixMode::Disabled,
-            _ => AutomixMode::NeuralAuto,
         }
     }
 }

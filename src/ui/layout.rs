@@ -59,8 +59,8 @@ pub fn render_ui(f: &mut Frame, state: &AppState, theme: &Theme) {
             let right_chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
-                    Constraint::Length(7), // Dual-Deck Cyber-DJ Mixing Console (5 lines content + borders)
-                    Constraint::Length(9), // Phosphor LCD Monitor (7 lines content + borders)
+                    Constraint::Length(5), // Classic Hi-Fi Cassette Bay (3 lines content + borders)
+                    Constraint::Length(8), // Phosphor LCD Monitor (6 lines content + borders)
                     Constraint::Min(8),    // Dual VU + 32-Band Visualizer
                 ])
                 .split(workspace_chunks[1]);

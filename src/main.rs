@@ -66,7 +66,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (artwork_tx, mut artwork_rx) = mpsc::unbounded_channel::<(String, Option<api::artwork::ArtworkHalfblocks>)>();
     let (radio_tx, mut radio_rx) = mpsc::unbounded_channel::<(GenreFilter, Vec<MediaItem>)>();
     let (tray_action_tx, mut tray_action_rx) = mpsc::unbounded_channel::<TrayAction>();
-    let (neural_tx, mut neural_rx) = mpsc::unbounded_channel::<String>();
 
     // 4. Initialize SNI StatusNotifierItem Tray Icon with AppMenu
     let tray_state = Arc::new(Mutex::new(TrayState {
@@ -122,30 +121,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .arg(format!("{} • [{}]", artist_c, badge_c))
                 .output()
                 .await;
-        });
-    };
-
-    // Helper closure to dispatch a neural library scan in the background.
-    // The scan runs the BNE Python pipeline (venv) against ~/Music and writes
-    // ~/.config/boombox/neural_profiles.json, which NeuralEngine then reloads.
-    let dispatch_neural_scan = |tx: mpsc::UnboundedSender<String>| {
-        tokio::spawn(async move {
-            let _ = tx.send("start".to_string());
-            let result = tokio::process::Command::new(
-                "/home/aki/boombox-rs/neural/.venv/bin/python",
-            )
-            .arg("scan_library.py")
-            .current_dir("/home/aki/boombox-rs/neural")
-            .output()
-            .await;
-            match result {
-                Ok(_) => {
-                    let _ = tx.send("done".to_string());
-                }
-                Err(_) => {
-                    let _ = tx.send("error".to_string());
-                }
-            }
         });
     };
 
@@ -244,18 +219,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         state.telemetry.duration = status.duration;
         state.telemetry.percent_pos = status.percent_pos;
         state.telemetry.spool_frame = frame_count;
-        state.telemetry.active_deck = status.active_deck.clone();
-        state.telemetry.is_crossfading = status.is_crossfading;
-        state.telemetry.crossfade_progress = status.crossfade_progress;
-
-        let cur_url = state.current_track.as_ref().map(|t| t.url.as_str()).unwrap_or("");
-        if let Some(prof) = state.neural_engine.get_profile(cur_url) {
-            state.telemetry.current_bpm = Some(prof.bpm);
-            state.telemetry.current_key = Some(prof.camelot_key.clone());
-        } else {
-            state.telemetry.current_bpm = None;
-            state.telemetry.current_key = None;
-        }
 
         let cur_m = (status.time_pos / 60.0).floor() as u32;
         let cur_s = (status.time_pos % 60.0).floor() as u32;
@@ -351,107 +314,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        // Poll Neural Scan status & reload cache when finished
-        while let Ok(evt) = neural_rx.try_recv() {
-            match evt.as_str() {
-                "start" => {
-                    state.neural_scanning = true;
-                    state.status_message = "🧠 Neural Engine: Scanning library...".to_string();
-                }
-                "done" => {
-                    state.neural_engine.reload();
-                    state.neural_scanning = false;
-                    state.neural_profile_count = state.neural_engine.profile_count();
-                    state.status_message =
-                        format!("🧠 Neural Engine: Done — {} tracks analyzed & cached", state.neural_profile_count);
-                }
-                _ => {
-                    state.neural_scanning = false;
-                    state.status_message = "🧠 Neural Engine: Scan failed (venv/python not found)".to_string();
-                }
-            }
-        }
-
-        // Auto-advance & Smart Dual-Deck Crossfade
-        let should_start_crossfade = if state.crossfade_enabled
-            && state.is_playing
-            && !state.is_paused
-            && !status.is_crossfading
-            && status.duration > 15.0
-        {
-            let fade_dur = state.crossfade_duration as f64;
-            let current_url = state.current_track.as_ref().map(|t| t.url.as_str()).unwrap_or("");
-            let profile = state.neural_engine.get_profile(current_url);
-
-            let min_trigger = (status.duration - fade_dur - 6.0).max(status.duration * 0.88);
-            let trigger_time = if let Some(ref p) = profile {
-                if p.mix_out_sec >= min_trigger && p.mix_out_sec < status.duration {
-                    p.mix_out_sec
-                } else {
-                    (status.duration - fade_dur).max(1.0)
-                }
-            } else {
-                (status.duration - fade_dur).max(1.0)
-            };
-
-            status.time_pos >= trigger_time
-        } else {
-            false
-        };
-
-        if should_start_crossfade {
-            // Pick next track (handles Shuffle vs Sequential + History tracking)
-            let next = state.get_next_track();
-            if let Some(next) = next {
-                let next_profile = state.neural_engine.get_profile(&next.url);
-                let out_profile = state.neural_engine.get_profile(
-                    state.current_track.as_ref().map(|t| t.url.as_str()).unwrap_or(""),
-                );
-
-                let default_p_a = crate::audio::neural::TrackNeuralProfile::default();
-                let default_p_b = crate::audio::neural::TrackNeuralProfile::default();
-                let p_a = out_profile.as_ref().unwrap_or(&default_p_a);
-                let p_b = next_profile.as_ref().unwrap_or(&default_p_b);
-
-                let curve = match state.automix_mode {
-                    crate::state::types::AutomixMode::SmoothExponential => crate::state::types::CrossfadeCurve::SmoothExponential,
-                    crate::state::types::AutomixMode::LinearRamp => crate::state::types::CrossfadeCurve::Linear,
-                    _ => crate::state::types::CrossfadeCurve::EqualPower,
-                };
-                let plan = state.neural_engine.plan_transition(p_a, p_b, state.crossfade_duration as f64, state.automix_mode);
-
-                player.start_crossfade(
-                    &next.url,
-                    plan.duration_sec,
-                    curve,
-                    plan.mix_in_sec,
-                    plan.strategy,
-                    plan.tempo_sync_ratio,
-                );
-
-                state.current_track = Some(next.clone());
-                state.status_message = format!(
-                    "🧠 {} ▶ {} ({} Bars | {})",
-                    plan.strategy.label(),
-                    next.title,
-                    plan.overlap_bars,
-                    if plan.key_match { "Harmonic ✓" } else { "BPM Sync" }
-                );
-                state.lyrics.clear();
-                state.lyrics_loading = true;
-                state.current_artwork = None;
-                state.artwork_loading = true;
-
-                let local_path = if !next.is_radio && !next.is_youtube && !next.url.starts_with("http") {
-                    Some(next.url.clone())
-                } else {
-                    None
-                };
-                dispatch_lyrics(next.title.clone(), next.artist.clone(), local_path, next.id.clone(), lyrics_tx.clone());
-                dispatch_artwork(next.title.clone(), next.artist.clone(), Some(next.url.clone()), next.id.clone(), artwork_tx.clone());
-                send_track_notification(&next.title, &next.artist, "AI X-FADE");
-            }
-        } else if (track_finished || (at_eof && state.is_playing && !state.is_paused)) && !status.is_crossfading {
+        // Auto-advance when track finishes or at EOF
+        if track_finished || (at_eof && state.is_playing && !state.is_paused) {
             if let Some(next) = state.get_next_track() {
                 player.play(&next.url);
                 state.current_track = Some(next.clone());
@@ -800,7 +664,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             KeyCode::Enter => {
                                 if let Some(track) = state.drill_down() {
                                     player.play(&track.url);
-                                    state.record_history(&track.id);
                                     state.current_track = Some(track.clone());
                                     state.status_message = format!("Playing: {}", track.title);
                                     state.lyrics.clear();
@@ -891,22 +754,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     "Shuffle: OFF".to_string()
                                 };
                             }
-                            KeyCode::Char('X') => {
-                                state.automix_mode = state.automix_mode.cycle();
-                                state.crossfade_enabled = state.automix_mode.is_enabled();
-                                state.status_message = format!("🎛️ {}", state.automix_mode.label());
-                            }
-
-                            // Neural Engine library scan (runs BNE Python pipeline in background)
-                            KeyCode::Char('N') => {
-                                if state.neural_scanning {
-                                    state.status_message = "🧠 Neural Engine: Scan already in progress...".to_string();
-                                } else {
-                                    dispatch_neural_scan(neural_tx.clone());
-                                }
-                            }
-
-                            // View Toggles
                             KeyCode::Char('l') => {
                                 state.active_view = match state.active_view {
                                     ActiveView::Lyrics => ActiveView::Deck,

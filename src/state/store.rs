@@ -52,18 +52,9 @@ pub struct AppState {
     pub spectrum_custom_color: Option<String>,
     pub volume_step: u32,
     pub notifications_enabled: bool,
-    pub automix_mode: AutomixMode,
-    pub crossfade_enabled: bool,
-    pub crossfade_duration: u32,
-    pub crossfade_curve: CrossfadeCurve,
-    pub ai_dj_smart_cues: bool,
-    pub neural_engine: crate::audio::neural::NeuralEngine,
-    pub neural_scanning: bool,
-    pub neural_profile_count: usize,
     pub settings_selected_idx: usize,
     pub theme_index: usize,
     pub telemetry: AudioTelemetry,
-    pub played_history: std::collections::VecDeque<String>,
 }
 
 impl AppState {
@@ -73,7 +64,6 @@ impl AppState {
         let (local_tracks, local_albums) = scan_local_library(Some(&music_dir));
         let radio = get_curated_stations();
         let mixtapes = load_mixtapes();
-        let neural_engine = crate::audio::neural::NeuralEngine::new();
 
         let themes = get_themes();
         let theme_index = themes
@@ -128,18 +118,9 @@ impl AppState {
             spectrum_custom_color: cfg.ui.spectrum_custom_color.clone(),
             volume_step: cfg.general.volume_step.max(1).min(20),
             notifications_enabled: cfg.general.notifications,
-            automix_mode: cfg.get_automix_mode(),
-            crossfade_enabled: cfg.get_automix_mode().is_enabled(),
-            crossfade_duration: cfg.audio.crossfade_duration,
-            crossfade_curve: cfg.get_crossfade_curve(),
-            ai_dj_smart_cues: cfg.audio.ai_dj_smart_cues,
-            neural_profile_count: neural_engine.profile_count(),
-            neural_engine,
-            neural_scanning: false,
             settings_selected_idx: 0,
             theme_index,
             telemetry: AudioTelemetry::default(),
-            played_history: std::collections::VecDeque::new(),
         }
     }
 
@@ -198,7 +179,7 @@ impl AppState {
     }
 
     pub fn move_settings_selection(&mut self, delta: i32) {
-        const SETTINGS_COUNT: usize = 14;
+        const SETTINGS_COUNT: usize = 12;
         let new_idx = (self.settings_selected_idx as i32 + delta).rem_euclid(SETTINGS_COUNT as i32);
         self.settings_selected_idx = new_idx as usize;
     }
@@ -222,21 +203,6 @@ impl AppState {
                     2 => 5,
                     5 => 10,
                     _ => 1,
-                };
-            }
-            12 => {
-                self.automix_mode = self.automix_mode.cycle();
-                self.crossfade_enabled = self.automix_mode.is_enabled();
-            }
-            13 => {
-                self.crossfade_duration = match self.crossfade_duration {
-                    3 => 5,
-                    5 => 6,
-                    6 => 8,
-                    8 => 10,
-                    10 => 12,
-                    12 => 16,
-                    _ => 3,
                 };
             }
             _ => {}
@@ -360,8 +326,32 @@ impl AppState {
             return self.current_track.clone();
         }
 
+        let pool = if !self.queue.is_empty() {
+            self.queue.clone()
+        } else {
+            self.get_active_list()
+        };
+
+        if pool.is_empty() {
+            return None;
+        }
+
         if self.shuffle {
-            return self.pick_dj_next();
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            let cur_id = self.current_track.as_ref().map(|t| &t.id);
+            let candidates: Vec<(usize, MediaItem)> = pool
+                .into_iter()
+                .enumerate()
+                .filter(|(_, t)| Some(&t.id) != cur_id)
+                .collect();
+            if candidates.is_empty() {
+                return self.current_track.clone();
+            }
+            let pick = rng.gen_range(0..candidates.len());
+            let (idx, item) = &candidates[pick];
+            self.selected_index = *idx;
+            return Some(item.clone());
         }
 
         if !self.queue.is_empty() {
@@ -369,18 +359,10 @@ impl AppState {
             let cur_idx = self.queue.iter().position(|t| Some(&t.id) == cur_id).unwrap_or(0);
             if cur_idx + 1 < self.queue.len() {
                 self.selected_index = cur_idx + 1;
-                let track = self.queue.get(cur_idx + 1).cloned();
-                if let Some(ref t) = track {
-                    self.record_history(&t.id);
-                }
-                return track;
+                return self.queue.get(cur_idx + 1).cloned();
             } else if self.repeat_mode == RepeatMode::All {
                 self.selected_index = 0;
-                let track = self.queue.first().cloned();
-                if let Some(ref t) = track {
-                    self.record_history(&t.id);
-                }
-                return track;
+                return self.queue.first().cloned();
             }
             return None;
         }
@@ -391,173 +373,13 @@ impl AppState {
             let cur_idx = list.iter().position(|t| Some(&t.id) == cur_id).unwrap_or(self.selected_index);
             if cur_idx + 1 < list.len() {
                 self.selected_index = cur_idx + 1;
-                let track = list.get(cur_idx + 1).cloned();
-                if let Some(ref t) = track {
-                    self.record_history(&t.id);
-                }
-                return track;
+                return list.get(cur_idx + 1).cloned();
             } else if self.repeat_mode == RepeatMode::All {
                 self.selected_index = 0;
-                let track = list.first().cloned();
-                if let Some(ref t) = track {
-                    self.record_history(&t.id);
-                }
-                return track;
+                return list.first().cloned();
             }
         }
         None
-    }
-
-    pub fn peek_next_track(&self) -> Option<MediaItem> {
-        // 1. If Queue has items, show the next queued track on Deck B
-        if !self.queue.is_empty() {
-            let cur_id = self.current_track.as_ref().map(|t| &t.id);
-            let cur_idx = self.queue.iter().position(|t| Some(&t.id) == cur_id).unwrap_or(0);
-            if cur_idx + 1 < self.queue.len() {
-                return self.queue.get(cur_idx + 1).cloned();
-            } else if self.repeat_mode == RepeatMode::All {
-                return self.queue.first().cloned();
-            } else {
-                return self.queue.first().cloned();
-            }
-        }
-
-        // 2. If actively crossfading, show the next track fading in
-        if self.telemetry.is_crossfading {
-            let list = self.get_active_list();
-            if let Some(ref cur) = self.current_track {
-                if let Some(cur_idx) = list.iter().position(|t| t.id == cur.id) {
-                    if cur_idx + 1 < list.len() {
-                        return list.get(cur_idx + 1).cloned();
-                    } else if self.repeat_mode == RepeatMode::All {
-                        return list.first().cloned();
-                    }
-                }
-            }
-        }
-
-        // 3. Otherwise (normal playback without queue), Deck B remains EMPTY/STANDBY
-        None
-    }
-
-    pub fn record_history(&mut self, track_id: &str) {
-        if self.played_history.iter().any(|id| id == track_id) {
-            return;
-        }
-        self.played_history.push_back(track_id.to_string());
-        if self.played_history.len() > 60 {
-            self.played_history.pop_front();
-        }
-    }
-
-    /// AI-DJ Smart Harmonic Shuffle:
-    /// Evaluates unplayed candidate tracks for harmonic key compatibility, BPM matching, and energy.
-    /// Samples randomly among the Top-K best musical matches so songs are NEVER looped back and forth.
-    pub fn pick_dj_next(&mut self) -> Option<MediaItem> {
-        let pool: Vec<MediaItem> = if !self.queue.is_empty() {
-            self.queue.clone()
-        } else if self.mode == AppMode::LocalTracks {
-            if self.local_view_level == LocalViewLevel::Tracks && !self.filtered_local.is_empty() {
-                self.filtered_local.clone()
-            } else {
-                self.local_tracks.clone()
-            }
-        } else {
-            self.get_active_list()
-        };
-        if pool.is_empty() {
-            return None;
-        }
-
-        if pool.len() == 1 {
-            return pool.first().cloned();
-        }
-
-        let cur_id = self.current_track.as_ref().map(|t| t.id.clone());
-        if let Some(ref id) = cur_id {
-            self.record_history(id);
-        }
-
-        let cur_prof = self.current_track.as_ref().and_then(|t| self.neural_engine.get_profile(&t.url));
-        let cur_key = cur_prof.as_ref().map(|p| p.camelot_key.clone()).unwrap_or_default();
-        let cur_bpm = cur_prof.as_ref().map(|p| p.bpm).unwrap_or(0.0);
-
-        // Filter out currently playing track and recently played tracks
-        let mut candidates: Vec<(usize, MediaItem)> = pool
-            .iter()
-            .enumerate()
-            .filter(|(_, t)| Some(&t.id) != cur_id.as_ref() && !self.played_history.contains(&t.id))
-            .map(|(idx, t)| (idx, t.clone()))
-            .collect();
-
-        // If all tracks in pool have been played, reset history and use all other tracks
-        if candidates.is_empty() {
-            self.played_history.clear();
-            if let Some(ref id) = cur_id {
-                self.played_history.push_back(id.clone());
-            }
-            candidates = pool
-                .iter()
-                .enumerate()
-                .filter(|(_, t)| Some(&t.id) != cur_id.as_ref())
-                .map(|(idx, t)| (idx, t.clone()))
-                .collect();
-        }
-
-        if candidates.is_empty() {
-            return pool.first().cloned();
-        }
-
-        // Score candidates with Neural Compatibility
-        let mut scored: Vec<(f64, usize, MediaItem)> = candidates
-            .into_iter()
-            .map(|(idx, track)| {
-                let p = self.neural_engine.get_profile(&track.url);
-                let key = p.as_ref().map(|x| x.camelot_key.as_str()).unwrap_or("");
-                let bpm = p.as_ref().map(|x| x.bpm).unwrap_or(0.0);
-
-                let mut score: f64 = 1.0;
-
-                // 1. Harmonic Key Compatibility (+4.0 for harmonic match)
-                if !cur_key.is_empty() && !key.is_empty() {
-                    if crate::audio::neural::NeuralEngine::is_harmonic_match(&cur_key, key) {
-                        score += 4.0;
-                    } else {
-                        score -= 1.0;
-                    }
-                }
-
-                // 2. BPM Proximity (+3.0 for close tempo within +-10%)
-                if cur_bpm > 30.0 && bpm > 30.0 {
-                    let ratio = (bpm / cur_bpm).max(cur_bpm / bpm);
-                    if ratio <= 1.08 {
-                        score += 3.0;
-                    } else if ratio <= 1.15 {
-                        score += 1.5;
-                    }
-                }
-
-                if p.is_some() {
-                    score += 0.5;
-                }
-
-                (score, idx, track)
-            })
-            .collect();
-
-        // Sort descending by score
-        scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-
-        // Sample with random selection among Top-K (up to 8 candidates)
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
-        let top_k = scored.len().min(8);
-        let pick_idx = rng.gen_range(0..top_k);
-        let chosen = &scored[pick_idx];
-
-        self.record_history(&chosen.2.id);
-        self.selected_index = chosen.1;
-        Some(chosen.2.clone())
     }
 
     pub fn get_prev_track(&mut self) -> Option<MediaItem> {
