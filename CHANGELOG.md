@@ -3,6 +3,47 @@
 All notable changes to the **BOOMBOX-RS** Rust port will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.0] - 2026-08-30
+
+### 🚀 Added & Improved
+- **🧠 Full Neural Engine & Apple Music-Style Automix**:
+  - Implemented 4 PyTorch Neural Models (`BNEBeatTracker`, `BNECueDetector`, `BNEKeyClassifier`, `BNEDjTransitionPolicy`) with dynamic-axes ONNX Runtime GPU acceleration (`CUDAExecutionProvider` on NVIDIA RTX GPU).
+  - 8 selectable Automix / Transition modes (`Shift+X` cycle or Settings `o`): `NeuralAuto`, `NeuralBassSwap`, `NeuralEchoOut`, `NeuralFilterSweep`, `EqualPower`, `SmoothExponential`, `LinearRamp`, `Disabled`.
+  - Real-time DSP audio filter modulation in Rust via MPV IPC (`highpass`, `lowpass`, `aecho`, dynamic `speed` tempo stretching).
+  - **Bass-Swap**: Rolloff low-end on Deck A and snap 100% punchy bass on Deck B exactly at midpoint downbeat with zero muddy phase cancellation.
+  - **Echo-Out Drop**: 1/2 beat reverb tail on outgoing track for large BPM transitions.
+- **🔀 AI-DJ Smart Harmonic Shuffle with Anti-Loop History**:
+  - Integrated 60-track `played_history` ring buffer preventing 2-track mutual looping.
+  - Smart probabilistic Top-K sampling across entire library pool based on Camelot Wheel harmonic compatibility and tempo proximity.
+- **🛑 Clean Tray Shutdown & Outro Safeguard**:
+  - Fixed Tray menu Quit action to instantly tear down terminal, stop MPV, and exit cleanly without hanging on async tokio tasks.
+  - Constrained outro detection window strictly to the final 88%-95% of tracks, preventing premature halfway crossfades.
+
+---
+
+## [3.5.0] - 2026-08-30
+
+### ✨ Improved
+- **🎛️ Auto-Mix now uses real neural cues instead of hardcoded guesses**:
+  - `analyze_track.py` derives `mix_in_sec` from the Cue Detector's section-class output (first frame that leaves the Intro) and `mix_out_sec` from the start of the Outro / last structural boundary — falling back gracefully when the model is flat. No more fixed `min(15, dur*0.1)` / `dur-16` heuristics. Cache rescanned for all 105 tracks.
+- **🥁 Beat-synced crossfade**:
+  - The crossfade length is now rounded to a whole number of beats at the outgoing track's BPM, so the fade lands on the beat instead of drifting mid-measure.
+  - The incoming track's mix-in cue is snapped to the nearest beat boundary, so the next song comes in *on the beat* rather than jarringly mid-phrase.
+- **🧠 Harmonic + BPM-aware track selection**:
+  - In Auto-Mix with Smart Cues on, the AI DJ now picks the next track from the pool by scoring Camelot-key harmonic compatibility (`is_harmonic_match`, previously unused) plus BPM proximity — closest tempo that keeps the key in a compatible position. Falls back to queue order otherwise.
+- **🔧 Fix mid-song seek-play race**:
+  - `SingleDeck::play` now waits briefly for the demuxer after `loadfile` before issuing the cue `seek`, so the incoming deck reliably lands at the intended beat cue instead of a misplaced position.
+
+---
+
+### 🚀 Added
+- **🧠 In-App Neural Library Scan (`N`)**:
+  - Press `N` to launch the BNE Python pipeline (`neural/scan_library.py` via the bundled `.venv`) in the background. It analyzes every file in `~/Music` through the trained ONNX models (Beat Tracker, Cue Detector, Key Classifier) and writes `~/.config/boombox/neural_profiles.json`.
+  - `NeuralEngine` gained `reload()` + `profile_count()`; the on-disk cache is re-read automatically when the scan completes so the AI DJ immediately picks up new BPM / Camelot key / energy / mix cues without restarting.
+  - Status bar reflects live progress ("Scanning library...") and a summary when done ("N tracks analyzed & cached"), with a guard so only one scan runs at a time.
+
+---
+
 ## [3.3.0] - 2026-08-30
 
 ### 🚀 Added

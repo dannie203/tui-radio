@@ -65,6 +65,7 @@ fn render_help_modal(f: &mut Frame, area: Rect, theme: &Theme) {
         Line::from(vec![k("b"), d("Toggle Mega Bass Boost"), k("d"), d("Cycle Dolby NR Mode")]),
         Line::from(vec![k("e"), d("Cycle 32-Band EQ Profile"), k("t"), d("Cycle Color Theme")]),
         Line::from(vec![k("r"), d("Cycle Repeat Mode"), k("z"), d("Toggle Shuffle")]),
+        Line::from(vec![k("X"), d("Cycle Automix & AI-DJ Modes"), k("N"), d("GPU Neural Scan")]),
         Line::from(vec![k("R"), d("Tape Record Current Track"), k("Ctrl+R"), d("Cancel All Recordings")]),
         Line::from(vec![k("M"), d("Mixtape Manager"), k("m"), d("Toggle Favorite")]),
         Line::from(vec![k("o"), d("Interactive Settings Dashboard")]),
@@ -189,6 +190,8 @@ fn render_settings_modal(f: &mut Frame, area: Rect, state: &AppState, theme: &Th
         ("Lyrics Sync Timing", format!("◄ {} ►", offset_str), "Fine-tune karaoke timing (±0.25s)"),
         ("Matrix Scramble Text", if state.matrix_scramble { "ENABLED (Cyberpunk)".to_string() } else { "DISABLED (Plain Text)".to_string() }, "Upcoming lyrics decryption FX"),
         ("Volume Key Step", format!("±{}%", state.volume_step), "Volume delta on +/- keypress"),
+        ("Automix & Transition", state.automix_mode.label().to_string(), "AI Neural DJ / Bass-Swap / Equal Power / S-Curve"),
+        ("Transition Duration", format!("⏱️ {}s", state.crossfade_duration), "Length of transition audio overlap (3s - 16s)"),
     ];
 
     let mut lines = Vec::new();

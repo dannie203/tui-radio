@@ -44,3 +44,12 @@ lcov.info
 tarpaulin-report.html
 .env
 .env.local
+
+# ==========================================
+# Python & Neural Engine
+# ==========================================
+neural/.venv/
+neural/**/__pycache__/
+neural/.pytest_cache/
+neural/datasets/
+neural/weights/*.pth
