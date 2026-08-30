@@ -5,6 +5,22 @@ All notable changes to the **BOOMBOX-RS** project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.3] - 2026-08-31
+
+### Fixed
+- **Terminal Safety & Teardown**: Guaranteed raw mode disable and screen restore via RAII drop guard across all error returns and panics.
+- **Async Concurrency**: Removed synchronous mutex lock held across `.await` points in tape recorder to avoid async thread contention.
+- **MPV IPC Self-Healing**: Added automatic background process re-spawning and IPC socket reconnection when MPV exits or drops connection.
+- **List Viewport Scrolling**: Fixed scroll offset calculation in library and radio browsers for seamless auto-scrolling on large libraries.
+- **SSRF & Arg Injection Protection**: Hardened external `yt-dlp` tool invocations with strict `--` parameter delimiters.
+- **Decoupled Radio Genre Filtering**: Isolated radio genre switching from history queries to avoid inadvertent history list changes.
+- **Portability**: Replaced machine-specific hardcoded script path with dynamic `$HOME` lookup.
+
+### Added
+- **Live Broadcast Telemetry**: Activated `[● LIVE]` status LED on Cassette Deck and dynamic live broadcast indicator on CRT Phosphor Monitor.
+
+---
+
 ## [3.8.2] - 2026-08-30
 
 ### Added

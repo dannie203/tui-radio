@@ -3,6 +3,7 @@ use ksni::{menu::*, Handle, Orientation, ToolTip, Tray, TrayMethods};
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone)]
+#[cfg_attr(not(unix), allow(dead_code))]
 pub enum TrayAction {
     TogglePlay,
     NextTrack,
@@ -15,6 +16,7 @@ pub enum TrayAction {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(not(unix), allow(dead_code))]
 pub struct TrayState {
     pub title: String,
     pub artist: String,
