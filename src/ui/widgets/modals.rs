@@ -91,22 +91,30 @@ fn render_url_modal(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) 
 
     let input_str = state.input_buffer.trim();
     let detected_platform = if input_str.contains("spotify.com") || input_str.starts_with("spotify:") {
-        Span::styled(" [SPOTIFY DETECTED] ", Style::default().fg(theme.green_phosphor).add_modifier(Modifier::BOLD))
+        Span::styled(" [SPOTIFY LINK] ", Style::default().fg(theme.green_phosphor).add_modifier(Modifier::BOLD))
+    } else if input_str.starts_with("sp:") {
+        Span::styled(" [SPOTIFY SEARCH] ", Style::default().fg(theme.green_phosphor).add_modifier(Modifier::BOLD))
     } else if input_str.contains("music.youtube.com") {
-        Span::styled(" [YT MUSIC DETECTED] ", Style::default().fg(theme.red_led).add_modifier(Modifier::BOLD))
-    } else if input_str.contains("youtube.com") || input_str.contains("youtu.be") || input_str.starts_with("yt:") {
-        Span::styled(" [YOUTUBE DETECTED] ", Style::default().fg(theme.red_led).add_modifier(Modifier::BOLD))
-    } else if input_str.contains("soundcloud.com") || input_str.starts_with("sc:") {
-        Span::styled(" [SOUNDCLOUD DETECTED] ", Style::default().fg(theme.amber).add_modifier(Modifier::BOLD))
+        Span::styled(" [YT MUSIC LINK] ", Style::default().fg(theme.red_led).add_modifier(Modifier::BOLD))
+    } else if input_str.contains("youtube.com") || input_str.contains("youtu.be") {
+        Span::styled(" [YOUTUBE LINK] ", Style::default().fg(theme.red_led).add_modifier(Modifier::BOLD))
+    } else if input_str.starts_with("yt:") {
+        Span::styled(" [YOUTUBE SEARCH] ", Style::default().fg(theme.red_led).add_modifier(Modifier::BOLD))
+    } else if input_str.contains("soundcloud.com") {
+        Span::styled(" [SOUNDCLOUD LINK] ", Style::default().fg(theme.amber).add_modifier(Modifier::BOLD))
+    } else if input_str.starts_with("sc:") {
+        Span::styled(" [SOUNDCLOUD SEARCH] ", Style::default().fg(theme.amber).add_modifier(Modifier::BOLD))
     } else if input_str.starts_with("http") {
-        Span::styled(" [WEB STREAM DETECTED] ", Style::default().fg(theme.cyan_dolby).add_modifier(Modifier::BOLD))
+        Span::styled(" [WEB STREAM] ", Style::default().fg(theme.cyan_dolby).add_modifier(Modifier::BOLD))
+    } else if !input_str.is_empty() {
+        Span::styled(" [ONLINE SEARCH: YOUTUBE / STREAM] ", Style::default().fg(theme.green_phosphor).add_modifier(Modifier::BOLD))
     } else {
         Span::styled(" [READY] ", Style::default().fg(theme.muted))
     };
 
     let text = vec![
         Line::from(vec![
-            Span::styled("Paste YouTube, Spotify, SoundCloud, Bandcamp, or Direct Stream URL:", Style::default().fg(theme.cream)),
+            Span::styled("Search songs or paste links (YouTube, SoundCloud, Spotify, Bandcamp, Apple Music):", Style::default().fg(theme.cream)),
             detected_platform,
         ]),
         Line::from(""),
@@ -118,16 +126,16 @@ fn render_url_modal(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) 
         Line::from(""),
         Line::from(vec![
             Span::styled("[Enter] ", Style::default().fg(theme.amber).add_modifier(Modifier::BOLD)),
-            Span::styled("Play Now   ", Style::default().fg(theme.cream)),
+            Span::styled("Search & Play Now   ", Style::default().fg(theme.cream)),
             Span::styled("[Ctrl+A] ", Style::default().fg(theme.green_phosphor).add_modifier(Modifier::BOLD)),
-            Span::styled("Add to Queue   ", Style::default().fg(theme.cream)),
+            Span::styled("Add All to Queue   ", Style::default().fg(theme.cream)),
             Span::styled("[Esc] ", Style::default().fg(theme.muted)),
             Span::styled("Cancel", Style::default().fg(theme.muted)),
         ]),
     ];
 
     let block = Block::default()
-        .title(" 🌐 UNIVERSAL ONLINE STREAM & LINK LOADER ")
+        .title(" 🌐 UNIVERSAL ONLINE STREAM & SEARCH ")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.cyan_dolby));
 
@@ -136,12 +144,19 @@ fn render_url_modal(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) 
 }
 
 fn render_search_modal(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
-    let popup_area = centered_rect(60, 25, area);
+    let popup_area = centered_rect(65, 25, area);
     f.render_widget(Clear, popup_area);
+
+    let mode_hint = match state.mode {
+        crate::state::types::AppMode::LocalTracks => "Filter local tracks and albums by title, artist, or album",
+        crate::state::types::AppMode::RadioStations => "Filter radio stations by name, country, or genre",
+        crate::state::types::AppMode::YoutubeMusic => "Search online songs across YouTube & SoundCloud",
+        crate::state::types::AppMode::Queue => "Filter songs in current playback queue",
+    };
 
     let text = vec![
         Line::from(vec![Span::styled(
-            "Search local crates, global radio stations, or stream tracks:",
+            mode_hint,
             Style::default().fg(theme.cream),
         )]),
         Line::from(""),
@@ -152,7 +167,7 @@ fn render_search_modal(f: &mut Frame, area: Rect, state: &AppState, theme: &Them
         ]),
         Line::from(""),
         Line::from(vec![Span::styled(
-            "[Enter] Apply Search Filter  •  [Esc] Clear / Close",
+            "[Enter] Apply Search  •  [Esc] Clear / Close",
             Style::default().fg(theme.muted),
         )]),
     ];

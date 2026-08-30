@@ -8,7 +8,6 @@ mod ui;
 use api::artwork::fetch_artwork;
 use api::lyrics::fetch_lyrics;
 use api::stations::fetch_radio_browser_genre;
-use api::stream::resolve_stream_item;
 use audio::capture::AudioCaptureEngine;
 use audio::player::MpvPlayer;
 use audio::recorder::StreamRecorder;
@@ -439,8 +438,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         KeyCode::Char('a') if is_ctrl => {
                             let url = state.input_buffer.trim().to_string();
                             if !url.is_empty() {
-                                let label = api::stream::enqueue_stream_url(&url, &mut state.queue).await;
-                                state.status_message = format!("📥 Queued: {}", label);
+                                let (label, tracks) = api::stream::resolve_stream_queue(&url).await;
+                                let count = tracks.len();
+                                state.youtube_results = tracks.clone();
+                                for t in tracks {
+                                    if !state.queue.iter().any(|q| q.id == t.id) {
+                                        state.queue.push(t);
+                                    }
+                                }
+                                state.mode = AppMode::YoutubeMusic;
+                                state.selected_index = 0;
+                                state.status_message = format!("📥 Queued: {} ({} tracks)", label, count);
                             }
                             state.active_modal = ModalType::None;
                             state.input_buffer.clear();
@@ -461,24 +469,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     dispatch_artwork(first.title.clone(), first.artist.clone(), Some(first.url.clone()), first.id.clone(), artwork_tx.clone());
                                     send_track_notification(&first.title, &first.artist, first.format.as_deref().unwrap_or("STREAM"));
 
+                                    state.youtube_results = tracks.clone();
+                                    state.mode = AppMode::YoutubeMusic;
+                                    state.selected_index = 0;
+
                                     for t in tracks {
                                         if !state.queue.iter().any(|q| q.id == t.id) {
                                             state.queue.push(t);
                                         }
                                     }
-                                    state.status_message = format!("▶ Loaded Stream ({}) — {}", label, first_title);
+                                    state.status_message = format!("▶ Playing ({}) — {}", label, first_title);
                                 } else {
-                                    let item = resolve_stream_item(&url).await;
-                                    player.play(&item.url);
-                                    state.current_track = Some(item.clone());
-                                    state.lyrics.clear();
-                                    state.lyrics_loading = true;
-                                    state.current_artwork = None;
-                                    state.artwork_loading = true;
-                                    dispatch_lyrics(item.title.clone(), item.artist.clone(), None, item.id.clone(), lyrics_tx.clone());
-                                    dispatch_artwork(item.title.clone(), item.artist.clone(), Some(item.url.clone()), item.id.clone(), artwork_tx.clone());
-                                    send_track_notification(&item.title, &item.artist, item.format.as_deref().unwrap_or("STREAM"));
-                                    state.status_message = format!("Loaded Stream: {}", item.title);
+                                    state.status_message = format!("No results found for: {}", url);
                                 }
                             }
                             state.active_modal = ModalType::None;
@@ -501,13 +503,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         KeyCode::Enter => {
                             let q = state.input_buffer.trim().to_string();
-                            state.filter(&q);
-                            state.active_modal = ModalType::None;
-                            state.status_message = if q.is_empty() {
-                                "Search filter cleared".to_string()
+                            if state.mode == AppMode::YoutubeMusic && !q.is_empty() {
+                                let (label, tracks) = api::stream::resolve_stream_queue(&q).await;
+                                state.youtube_results = tracks;
+                                state.selected_index = 0;
+                                state.status_message = format!("Online Search: {}", label);
                             } else {
-                                format!("Search: \"{}\" ({} results)", q, state.get_active_list_len())
-                            };
+                                state.filter(&q);
+                                state.status_message = if q.is_empty() {
+                                    "Search filter cleared".to_string()
+                                } else {
+                                    format!("Search: \"{}\" ({} results)", q, state.get_active_list_len())
+                                };
+                            }
+                            state.active_modal = ModalType::None;
                         }
                         KeyCode::Backspace => {
                             state.input_buffer.pop();

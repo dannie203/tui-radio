@@ -126,8 +126,101 @@ fn is_collection_url(input: &str) -> bool {
     false
 }
 
+fn is_search_query(input: &str) -> bool {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") || trimmed.starts_with("ytdl://") {
+        return false;
+    }
+    true
+}
+
+fn build_search_target(input: &str) -> (String, String) {
+    let trimmed = input.trim();
+    if trimmed.starts_with("sc:") || trimmed.starts_with("soundcloud:") {
+        let q = trimmed.trim_start_matches("sc:").trim_start_matches("soundcloud:").trim();
+        ("SoundCloud".to_string(), format!("scsearch15:{}", q))
+    } else if trimmed.starts_with("sp:") || trimmed.starts_with("spotify:") {
+        let q = trimmed.trim_start_matches("sp:").trim_start_matches("spotify:").trim();
+        ("Spotify".to_string(), format!("ytsearch15:{} audio", q))
+    } else if trimmed.starts_with("yt:") || trimmed.starts_with("youtube:") {
+        let q = trimmed.trim_start_matches("yt:").trim_start_matches("youtube:").trim();
+        ("YouTube".to_string(), format!("ytsearch15:{}", q))
+    } else if trimmed.starts_with("scsearch") {
+        ("SoundCloud".to_string(), trimmed.to_string())
+    } else if trimmed.starts_with("ytsearch") {
+        ("YouTube".to_string(), trimmed.to_string())
+    } else {
+        ("YouTube".to_string(), format!("ytsearch15:{}", trimmed))
+    }
+}
+
 pub async fn resolve_stream_queue(input: &str) -> (String, Vec<MediaItem>) {
     let trimmed = input.trim().trim_start_matches("ytdl://");
+
+    if is_search_query(trimmed) {
+        let (source, search_cmd) = build_search_target(trimmed);
+        let mut cmd = Command::new("yt-dlp");
+        cmd.args(["--flat-playlist", "-J", "--no-warnings"])
+            .arg("--")
+            .arg(&search_cmd)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+
+        if let Ok(output) = cmd.output().await {
+            let text = String::from_utf8_lossy(&output.stdout);
+            if let Ok(collection) = serde_json::from_str::<StreamCollection>(&text) {
+                if let Some(entries) = collection.entries {
+                    let mut tracks = Vec::new();
+                    for (i, entry) in entries.into_iter().enumerate() {
+                        let id = entry.id.unwrap_or_default();
+                        let title = entry.title.unwrap_or_else(|| format!("{} Track", source));
+                        let url = entry
+                            .webpage_url
+                            .filter(|u| !u.is_empty())
+                            .or_else(|| entry.url.filter(|u| !u.is_empty()))
+                            .unwrap_or_else(|| {
+                                if id.is_empty() {
+                                    String::new()
+                                } else {
+                                    format!("https://www.youtube.com/watch?v={}", id)
+                                }
+                            });
+                        if url.is_empty() {
+                            continue;
+                        }
+                        let artist = entry.channel.unwrap_or_else(|| source.clone());
+                        let format_badge = if source == "SoundCloud" { "SC-MP3" } else { "OPUS" };
+                        let media = MediaItem {
+                            id: format!("str_{}_{}_{}", source.to_lowercase(), id, i),
+                            title,
+                            artist,
+                            album: Some(format!("{} Search: {}", source, trimmed)),
+                            url,
+                            duration: entry.duration.unwrap_or(0.0),
+                            format: Some(format_badge.to_string()),
+                            bitrate: Some(192),
+                            is_radio: false,
+                            is_youtube: source != "SoundCloud",
+                            is_favorite: false,
+                            file_size: None,
+                            track_no: Some((i + 1) as u32),
+                            sample_rate: Some(48000),
+                            bit_depth: Some(16),
+                        };
+                        tracks.push(media);
+                    }
+                    if !tracks.is_empty() {
+                        let label = format!("{} Search: {} ({} tracks)", source, trimmed, tracks.len());
+                        return (label, tracks);
+                    }
+                }
+            }
+        }
+    }
+
     let source = source_name(trimmed).unwrap_or_else(|| "Web Stream".to_string());
     let is_stream = is_stream_url(trimmed);
     let is_collection = is_collection_url(trimmed);
