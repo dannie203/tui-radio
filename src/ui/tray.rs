@@ -1,3 +1,4 @@
+#[cfg(unix)]
 use ksni::{menu::*, Handle, ToolTip, Tray, TrayMethods};
 use std::sync::{Arc, Mutex};
 
@@ -20,10 +21,12 @@ pub struct TrayState {
     pub action_tx: tokio::sync::mpsc::UnboundedSender<TrayAction>,
 }
 
+#[cfg(unix)]
 pub struct BoomboxTray {
     pub state: Arc<Mutex<TrayState>>,
 }
 
+#[cfg(unix)]
 impl Tray for BoomboxTray {
     fn id(&self) -> String {
         "org.omarchy.boombox".into()
@@ -142,7 +145,13 @@ impl Tray for BoomboxTray {
     }
 }
 
+#[cfg(unix)]
 pub async fn spawn_tray(state: Arc<Mutex<TrayState>>) -> Option<Handle<BoomboxTray>> {
     let tray = BoomboxTray { state };
     tray.spawn().await.ok()
+}
+
+#[cfg(not(unix))]
+pub async fn spawn_tray(_state: Arc<Mutex<TrayState>>) -> Option<()> {
+    None
 }

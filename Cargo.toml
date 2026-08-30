@@ -35,6 +35,11 @@ unicode-width = "0.1"
 regex = "1.10"
 rand = "0.8"
 lofty = "0.25.1"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+
+[target.'cfg(unix)'.dependencies]
 ksni = "0.3.6"
 libc = "0.2"
-image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+
+[target.'cfg(windows)'.dependencies]
+uds_windows = "1.2"

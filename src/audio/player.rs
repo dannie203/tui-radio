@@ -1,6 +1,11 @@
+#[cfg(unix)]
+use std::os::unix::net::UnixStream;
+
+#[cfg(windows)]
+use uds_windows::UnixStream;
+
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -8,7 +13,11 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+#[cfg(unix)]
 pub const MPV_SOCKET: &str = "/tmp/boombox-rs-mpv.sock";
+
+#[cfg(windows)]
+pub const MPV_SOCKET: &str = r"\\.\pipe\boombox-rs-mpv";
 
 #[derive(Debug, Clone, Default)]
 pub struct PlayerMetadata {

@@ -21,27 +21,30 @@ use crossterm::{
 use ratatui::{backend::CrosstermBackend, Terminal};
 use state::store::AppState;
 use state::types::*;
-use std::fs::OpenOptions;
-use std::os::unix::io::AsRawFd;
-use std::os::unix::process::CommandExt;
 use std::sync::{Arc, Mutex};
 use std::{io, time::Duration};
-use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc;
 use ui::layout::render_ui;
 use ui::tray::{spawn_tray, TrayAction, TrayState};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 0. Kernel-level flock for single-instance protection
-    let lock_file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open("/tmp/boombox-rs.lock")?;
-    let lock_res = unsafe { libc::flock(lock_file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-    if lock_res != 0 {
-        return Ok(());
+    // 0. Kernel-level flock for single-instance protection (Unix)
+    #[cfg(unix)]
+    {
+        use std::fs::OpenOptions;
+        use std::os::unix::io::AsRawFd;
+        if let Ok(lock_file) = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open("/tmp/boombox-rs.lock")
+        {
+            let lock_res = unsafe { libc::flock(lock_file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+            if lock_res != 0 {
+                return Ok(());
+            }
+        }
     }
 
     // 1. Terminal setup
@@ -52,8 +55,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     // 2. Setup Unix Signals for Instant Hot-Reload (SIGUSR1 / SIGHUP)
-    let mut sigusr1 = signal(SignalKind::user_defined1())?;
-    let mut sighup = signal(SignalKind::hangup())?;
+    #[cfg(unix)]
+    let mut sigusr1 = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::user_defined1())?;
+    #[cfg(unix)]
+    let mut sighup = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup())?;
 
     // 3. Initialize App Engine & Async Channels
     let mut state = AppState::new();
@@ -84,7 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         is_recording: false,
         action_tx: tray_action_tx.clone(),
     }));
-    let tray_handle = spawn_tray(Arc::clone(&tray_state)).await;
+    let _tray_handle = spawn_tray(Arc::clone(&tray_state)).await;
 
     let mut running = true;
     let mut should_hot_reload = false;
@@ -139,7 +144,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     while running {
         frame_count = frame_count.wrapping_add(1);
 
-        // Check for SIGUSR1 / SIGHUP Hot-Reload Signal
+        // Check for SIGUSR1 / SIGHUP Hot-Reload Signal (Unix)
+        #[cfg(unix)]
         tokio::select! {
             _ = sigusr1.recv() => {
                 should_hot_reload = true;
@@ -282,7 +288,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ts.artist = cur_artist.to_string();
                 ts.is_playing = state.is_playing;
                 ts.is_recording = state.is_recording;
-                if let Some(ref h) = tray_handle {
+                #[cfg(unix)]
+                if let Some(ref h) = _tray_handle {
                     let handle_clone = h.clone();
                     tokio::spawn(async move {
                         let _ = handle_clone.update(|_| {}).await;
@@ -890,7 +897,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if should_hot_reload {
         let exe = std::env::current_exe()?;
         let args: Vec<String> = std::env::args().skip(1).collect();
-        let _ = std::process::Command::new(exe).args(args).exec();
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            let _ = std::process::Command::new(exe).args(args).exec();
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = std::process::Command::new(exe).args(args).spawn();
+            std::process::exit(0);
+        }
     }
 
     println!("📼 Boombox-rs terminated cleanly.");
