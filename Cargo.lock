@@ -83,7 +83,7 @@ checksum = "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da"
 
 [[package]]
 name = "boombox-rs"
-version = "3.8.0"
+version = "3.8.1"
 dependencies = [
  "crossterm",
  "dirs",

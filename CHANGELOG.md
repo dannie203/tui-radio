@@ -5,6 +5,21 @@ All notable changes to the **BOOMBOX-RS** project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.1] - 2026-08-30
+
+### Added
+- Universal online keyword search across YouTube, SoundCloud, and Spotify with platform prefixes (`yt:`, `sc:`, `sp:`).
+- Deep search filtering in local crates with automatic flat-view switching and full track/album metadata matching.
+- Process identity and thread naming for performance monitors (`btop`, `htop`, `ps`) via Linux `prctl(PR_SET_NAME)`.
+- Middle-click play/pause and mouse wheel volume scroll controls on system tray icon.
+
+### Fixed
+- Delayed tray icon removal by explicitly unregistering StatusNotifierItem via D-Bus on application teardown.
+- Fallback placeholder icons in desktop tray menu by binding local hicolor theme paths.
+- Search filter persistence issue when clearing input or pressing Escape.
+
+---
+
 ## [3.8.0] - 2026-08-30
 
 ### Added
