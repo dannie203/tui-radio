@@ -82,6 +82,13 @@ pub fn all_presets() -> [EqPresetData; 7] {
     ]
 }
 
+pub const ISO_FREQUENCIES: [f32; 32] = [
+    20.0, 25.0, 31.5, 40.0, 50.0, 63.0, 80.0, 100.0,
+    125.0, 160.0, 200.0, 250.0, 315.0, 400.0, 500.0, 630.0,
+    800.0, 1000.0, 1250.0, 1600.0, 2000.0, 2500.0, 3150.0, 4000.0,
+    5000.0, 6300.0, 8000.0, 10000.0, 12500.0, 16000.0, 18000.0, 20000.0,
+];
+
 pub fn get_preset(id: EqPreset) -> EqPresetData {
     all_presets()
         .into_iter()
@@ -91,6 +98,69 @@ pub fn get_preset(id: EqPreset) -> EqPresetData {
 
 pub fn preset_gains(id: EqPreset) -> [f32; 32] {
     get_preset(id).gains
+}
+
+/// Builds an FFmpeg `firequalizer` audio filter string for MPV real-time DSP.
+pub fn build_mpv_af_string(
+    preset: EqPreset,
+    bass_boost: bool,
+    dolby: crate::state::types::DolbyMode,
+) -> String {
+    let base_gains = preset_gains(preset);
+    let mut combined = base_gains;
+
+    if bass_boost {
+        // Add punchy Mega Bass analog curve (+7.5dB sub, tapering to 0 at 250Hz)
+        let bass_tapers = [7.5, 7.5, 7.0, 6.5, 5.5, 4.5, 3.0, 2.0, 1.0, 0.5, 0.0];
+        for (i, &b) in bass_tapers.iter().enumerate() {
+            if i < combined.len() {
+                combined[i] += b;
+            }
+        }
+    }
+
+    match dolby {
+        crate::state::types::DolbyMode::DolbyB => {
+            // High-hiss cut above 5kHz
+            for i in 24..32 {
+                combined[i] -= 3.0;
+            }
+        }
+        crate::state::types::DolbyMode::DolbyC => {
+            // Wide filter above 2.5kHz
+            for i in 21..32 {
+                combined[i] -= 5.0;
+            }
+        }
+        crate::state::types::DolbyMode::DolbyS => {
+            // Studio master tape warm curve
+            for i in 0..8 {
+                combined[i] += 1.0;
+            }
+            for i in 24..32 {
+                combined[i] -= 2.0;
+            }
+        }
+        crate::state::types::DolbyMode::Off => {}
+    }
+
+    // Check if flat 0dB everywhere
+    let is_flat = combined.iter().all(|&g| g.abs() < 0.05);
+    if is_flat {
+        return String::new();
+    }
+
+    // Build firequalizer gain_entry string
+    let mut entries = String::new();
+    for (i, &freq) in ISO_FREQUENCIES.iter().enumerate() {
+        let gain = combined[i].clamp(-24.0, 18.0);
+        if !entries.is_empty() {
+            entries.push(';');
+        }
+        entries.push_str(&format!("entry({:.1},{:.1})", freq, gain));
+    }
+
+    format!("lavfi=[firequalizer=gain_entry='{}']", entries)
 }
 
 /// Converts a 32-band dB gain curve into a linear multiplier for the spectrum.

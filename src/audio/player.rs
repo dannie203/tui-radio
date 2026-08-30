@@ -41,6 +41,7 @@ pub struct MpvPlayer {
     pub status: Arc<Mutex<PlayerStatus>>,
     running: Arc<AtomicBool>,
     master_volume: Arc<Mutex<u32>>,
+    current_af: Arc<Mutex<String>>,
 }
 
 impl MpvPlayer {
@@ -70,7 +71,7 @@ impl MpvPlayer {
         }));
         let running_arc = Arc::new(AtomicBool::new(true));
 
-        let mut player = Self {
+        let player = Self {
             socket_path: socket_path.clone(),
             process: child,
             stream: stream_arc,
@@ -78,6 +79,7 @@ impl MpvPlayer {
             status: status_arc,
             running: running_arc,
             master_volume: Arc::new(Mutex::new(80)),
+            current_af: Arc::new(Mutex::new(String::new())),
         };
 
         // Retry connection up to 50 times (1.5 seconds) until MPV is listening
@@ -256,6 +258,15 @@ impl MpvPlayer {
         }
     }
 
+    pub fn apply_audio_filter(&self, af_str: &str) {
+        *self.current_af.lock().unwrap() = af_str.to_string();
+        if af_str.is_empty() {
+            self.send_json_command(serde_json::json!(["set_property", "af", ""]));
+        } else {
+            self.send_json_command(serde_json::json!(["set_property", "af", af_str]));
+        }
+    }
+
     pub fn play(&self, url: &str) {
         {
             let mut st = self.status.lock().unwrap();
@@ -265,6 +276,10 @@ impl MpvPlayer {
         }
         let vol = *self.master_volume.lock().unwrap();
         self.send_json_command(serde_json::json!(["set_property", "volume", vol]));
+        let af = self.current_af.lock().unwrap().clone();
+        if !af.is_empty() {
+            self.send_json_command(serde_json::json!(["set_property", "af", af]));
+        }
         self.send_json_command(serde_json::json!(["loadfile", url, "replace"]));
         self.send_json_command(serde_json::json!(["set_property", "pause", false]));
     }

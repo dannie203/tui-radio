@@ -58,6 +58,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 3. Initialize App Engine & Async Channels
     let mut state = AppState::new();
     let player = MpvPlayer::new();
+    let initial_af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+    player.apply_audio_filter(&initial_af);
+
     let recorder = StreamRecorder::new();
     let capture = AudioCaptureEngine::new();
     let mut visualizer = VisualizerEngine::new(1024);
@@ -498,17 +501,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             state.cycle_selected_setting(1);
                             let (att, rel) = state.visualizer_speed.alphas();
                             visualizer.set_ballistics(att, rel);
+                            let af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+                            player.apply_audio_filter(&af);
                         }
                         KeyCode::Left | KeyCode::Char('h') => {
                             state.cycle_selected_setting(-1);
                             let (att, rel) = state.visualizer_speed.alphas();
                             visualizer.set_ballistics(att, rel);
+                            let af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+                            player.apply_audio_filter(&af);
                         }
                         KeyCode::Char('[') => {
                             state.cycle_selected_setting(-1);
+                            let af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+                            player.apply_audio_filter(&af);
                         }
                         KeyCode::Char(']') => {
                             state.cycle_selected_setting(1);
+                            let af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+                            player.apply_audio_filter(&af);
                         }
                         _ => {}
                     },
@@ -730,14 +741,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 } else {
                                     "MEGA BASS: Flat Disabled".to_string()
                                 };
+                                let af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+                                player.apply_audio_filter(&af);
                             }
                             KeyCode::Char('d') => {
                                 state.dolby_mode = state.dolby_mode.cycle();
                                 state.status_message = format!("Dolby Filter: {}", state.dolby_mode.label());
+                                let af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+                                player.apply_audio_filter(&af);
                             }
                             KeyCode::Char('e') => {
                                 state.eq_preset = state.eq_preset.cycle();
                                 state.status_message = format!("EQ Profile: {}", state.eq_preset.label());
+                                let af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+                                player.apply_audio_filter(&af);
                             }
                             KeyCode::Char('t') => {
                                 state.cycle_theme();
