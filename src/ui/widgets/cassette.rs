@@ -44,10 +44,10 @@ pub fn render_cassette_deck(f: &mut Frame, area: Rect, state: &AppState, theme: 
 
     let title_a = track_a
         .map(|t| t.title.as_str())
-        .unwrap_or("STANDBY / NO TAPE");
+        .unwrap_or("EMPTY / NO TAPE");
     let title_b = track_b
         .map(|t| t.title.as_str())
-        .unwrap_or("STANDBY / NO TAPE");
+        .unwrap_or("EMPTY / NO TAPE");
 
     // Neural Profiles for Deck A & Deck B
     let prof_a = track_a.and_then(|t| state.neural_engine.get_profile(&t.url));
@@ -60,7 +60,7 @@ pub fn render_cassette_deck(f: &mut Frame, area: Rect, state: &AppState, theme: 
     let bpm_b = prof_b.as_ref().map(|p| format!("{:.1}", p.bpm)).unwrap_or_else(|| "--".to_string());
 
     // Harmonic check between Deck A and Deck B
-    let is_harmonic = if key_a != "--" && key_b != "--" {
+    let is_harmonic = if track_a.is_some() && track_b.is_some() && key_a != "--" && key_b != "--" {
         crate::audio::neural::NeuralEngine::is_harmonic_match(key_a, key_b)
     } else {
         false
@@ -152,7 +152,9 @@ pub fn render_cassette_deck(f: &mut Frame, area: Rect, state: &AppState, theme: 
     ]);
 
     // Line 3: Deck Info (Key, BPM, Volume) & Harmonic Match Indicator
-    let harmonic_str = if is_harmonic {
+    let harmonic_str = if track_a.is_none() || track_b.is_none() {
+        "STANDBY"
+    } else if is_harmonic {
         "HARMONIC MATCH ✓"
     } else if is_xfading {
         "TEMPO SYNC"
