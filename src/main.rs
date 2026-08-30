@@ -47,7 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. Terminal setup
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen, crossterm::terminal::SetTitle("BOOMBOX RX-505"))?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -191,9 +191,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 TrayAction::ToggleWindow => {
-                    tokio::spawn(async {
-                        let _ = tokio::process::Command::new("/home/aki/.local/bin/boombox-toggle").output().await;
-                    });
+                    tokio::spawn(focus_or_raise_window());
                 }
                 TrayAction::Reload => {
                     should_hot_reload = true;
@@ -831,4 +829,98 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("📼 Boombox-rs terminated cleanly.");
     std::process::exit(0);
+}
+
+/// Dispatches Hyprland commands to instantly raise/focus the Boombox window
+async fn focus_or_raise_window() {
+    let my_pid = std::process::id();
+    let ppid = std::fs::read_to_string(format!("/proc/{}/stat", my_pid))
+        .ok()
+        .and_then(|stat| {
+            let parts: Vec<&str> = stat.split_whitespace().collect();
+            parts.get(3).and_then(|p| p.parse::<u32>().ok())
+        })
+        .unwrap_or(0);
+
+    let output = tokio::process::Command::new("hyprctl")
+        .args(["clients", "-j"])
+        .output()
+        .await;
+
+    let clients_json = match output {
+        Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout).to_string(),
+        _ => return,
+    };
+
+    let Ok(clients) = serde_json::from_str::<serde_json::Value>(&clients_json) else {
+        return;
+    };
+
+    let Some(client_list) = clients.as_array() else {
+        return;
+    };
+
+    let mut target_addr = None;
+    let mut target_ws = None;
+
+    for c in client_list {
+        let pid = c.get("pid").and_then(|p| p.as_u64()).unwrap_or(0) as u32;
+        let class = c.get("class").and_then(|s| s.as_str()).unwrap_or("");
+        let title = c.get("title").and_then(|s| s.as_str()).unwrap_or("");
+        let initial_class = c.get("initialClass").and_then(|s| s.as_str()).unwrap_or("");
+        let initial_title = c.get("initialTitle").and_then(|s| s.as_str()).unwrap_or("");
+
+        let is_match = pid == my_pid
+            || (ppid > 0 && pid == ppid)
+            || class.to_lowercase().contains("boombox")
+            || initial_class.to_lowercase().contains("boombox")
+            || title.contains("BOOMBOX")
+            || initial_title.contains("BOOMBOX");
+
+        if is_match {
+            target_addr = c.get("address").and_then(|a| a.as_str()).map(|s| s.to_string());
+            target_ws = c.get("workspace").and_then(|w| w.get("name").or_else(|| w.get("id"))).and_then(|v| v.as_str().map(|s| s.to_string()).or_else(|| v.as_i64().map(|n| n.to_string())));
+            break;
+        }
+    }
+
+    let Some(addr) = target_addr else {
+        let _ = tokio::process::Command::new("/home/aki/.local/bin/boombox-toggle").output().await;
+        return;
+    };
+
+    let ws_output = tokio::process::Command::new("hyprctl")
+        .args(["activeworkspace", "-j"])
+        .output()
+        .await;
+
+    let cur_ws = if let Ok(out) = ws_output {
+        if let Ok(val) = serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(&out.stdout)) {
+            val.get("name").or_else(|| val.get("id")).and_then(|v| v.as_str().map(|s| s.to_string()).or_else(|| v.as_i64().map(|n| n.to_string()))).unwrap_or_else(|| "1".to_string())
+        } else {
+            "1".to_string()
+        }
+    } else {
+        "1".to_string()
+    };
+
+    if target_ws.as_deref() != Some(&cur_ws) || target_ws.as_deref().unwrap_or("").starts_with("special:") {
+        let _ = tokio::process::Command::new("hyprctl")
+            .args(["dispatch", &format!("hl.dsp.window.move({{ workspace = '{}', window = 'address:{}' }})", cur_ws, addr)])
+            .output()
+            .await;
+        let _ = tokio::process::Command::new("hyprctl")
+            .args(["dispatch", "movetoworkspace", &format!("{},address:{}", cur_ws, addr)])
+            .output()
+            .await;
+    }
+
+    let _ = tokio::process::Command::new("hyprctl")
+        .args(["dispatch", &format!("hl.dsp.focus({{ window = 'address:{}' }})", addr)])
+        .output()
+        .await;
+    let _ = tokio::process::Command::new("hyprctl")
+        .args(["dispatch", "focuswindow", &format!("address:{}", addr)])
+        .output()
+        .await;
 }
