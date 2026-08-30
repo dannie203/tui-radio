@@ -3,6 +3,24 @@
 All notable changes to the **BOOMBOX-RS** Rust port will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.0] - 2026-08-30
+
+### Added
+- Real-time 2D dual-beam CRT phosphor oscilloscope waveform renderer with reticle grid and hardware telemetry.
+- Dynamic responsive layout auto-scaling for right pane based on terminal viewport height and width.
+- Full vertical space filling for 32-band ISO equalizer spectrum and stereo VU meters.
+- Bidirectional navigation support for audio presets and hardware modes.
+
+### Changed
+- Phosphor monitor expanded dynamically from fixed height to viewport-proportional sizing.
+- Progress bar and audio telemetry labels now scale horizontally up to 80 columns on wide viewports.
+
+### Fixed
+- Line clipping issue where system status and recording indicators were hidden on compact viewports.
+- Unrendered vertical blank space at the bottom of the visualizer on high-resolution displays.
+
+---
+
 ## [3.7.0] - 2026-08-30
 
 ### 🚀 Pure-Rust Lightweight Hi-Fi Refactor

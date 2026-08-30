@@ -1,8 +1,8 @@
 [package]
 name = "boombox-rs"
-version = "3.7.0"
+version = "3.8.0"
 edition = "2021"
-authors = ["Nguyễn Trần Duy Hưng <contact@omarchy.org>"]
+authors = ["Nguyễn Trần Duy Hưng <hung23012@gmail.com>"]
 description = "A retro cyberpunk cassette boombox music player and radio explorer in pure Rust"
 license = "GPL-3.0-or-later"
 
