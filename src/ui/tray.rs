@@ -1,5 +1,5 @@
 #[cfg(unix)]
-use ksni::{menu::*, Handle, ToolTip, Tray, TrayMethods};
+use ksni::{menu::*, Handle, Orientation, ToolTip, Tray, TrayMethods};
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone)]
@@ -7,6 +7,8 @@ pub enum TrayAction {
     TogglePlay,
     NextTrack,
     PrevTrack,
+    VolumeUp,
+    VolumeDown,
     ToggleWindow,
     Reload,
     Quit,
@@ -16,6 +18,7 @@ pub enum TrayAction {
 pub struct TrayState {
     pub title: String,
     pub artist: String,
+    pub volume: u32,
     pub is_playing: bool,
     pub is_recording: bool,
     pub action_tx: tokio::sync::mpsc::UnboundedSender<TrayAction>,
@@ -35,9 +38,9 @@ impl Tray for BoomboxTray {
     fn title(&self) -> String {
         let st = self.state.lock().unwrap();
         if st.is_playing {
-            format!("Boombox: {} - {}", st.title, st.artist)
+            format!("{} — {}", st.title, st.artist)
         } else {
-            "Boombox Hi-Fi Studio".into()
+            "Boombox RX-505".into()
         }
     }
 
@@ -48,18 +51,18 @@ impl Tray for BoomboxTray {
         } else if st.is_playing {
             "media-playback-start".into()
         } else {
-            "audio-x-generic".into()
+            "media-playback-pause".into()
         }
     }
 
     fn tool_tip(&self) -> ToolTip {
         let st = self.state.lock().unwrap();
         ToolTip {
-            title: "Boombox Hi-Fi Studio".into(),
+            title: "BOOMBOX RX-505".into(),
             description: if st.is_playing {
-                format!("▶ Now Playing: {}\nBy: {}", st.title, st.artist)
+                format!("▶ Now Playing: {}\nBy: {}\nVol: {}%", st.title, st.artist, st.volume)
             } else {
-                "⏹ Standby / Paused".into()
+                format!("⏸ Standby / Paused\nVol: {}%", st.volume)
             },
             icon_name: "audio-x-generic".into(),
             icon_pixmap: Vec::new(),
@@ -71,22 +74,36 @@ impl Tray for BoomboxTray {
         let _ = st.action_tx.send(TrayAction::ToggleWindow);
     }
 
+    fn secondary_activate(&mut self, _x: i32, _y: i32) {
+        let st = self.state.lock().unwrap();
+        let _ = st.action_tx.send(TrayAction::TogglePlay);
+    }
+
+    fn scroll(&mut self, delta: i32, _orientation: Orientation) {
+        let st = self.state.lock().unwrap();
+        if delta > 0 {
+            let _ = st.action_tx.send(TrayAction::VolumeUp);
+        } else if delta < 0 {
+            let _ = st.action_tx.send(TrayAction::VolumeDown);
+        }
+    }
+
     fn menu(&self) -> Vec<MenuItem<Self>> {
-        let (is_playing, title, artist) = {
+        let (is_playing, title, artist, volume) = {
             let st = self.state.lock().unwrap();
-            (st.is_playing, st.title.clone(), st.artist.clone())
+            (st.is_playing, st.title.clone(), st.artist.clone(), st.volume)
         };
 
         vec![
             StandardItem {
-                label: format!("🎵 {} — {}", title, artist),
+                label: format!("{} — {} (Vol: {}%)", title, artist, volume),
                 enabled: false,
                 ..Default::default()
             }
             .into(),
             MenuItem::Separator,
             StandardItem {
-                label: if is_playing { "⏸ Pause".into() } else { "▶ Play".into() },
+                label: if is_playing { "Pause".into() } else { "Play".into() },
                 activate: Box::new(|this: &mut Self| {
                     let st = this.state.lock().unwrap();
                     let _ = st.action_tx.send(TrayAction::TogglePlay);
@@ -95,7 +112,7 @@ impl Tray for BoomboxTray {
             }
             .into(),
             StandardItem {
-                label: "⏭ Next Track".into(),
+                label: "Next Track".into(),
                 activate: Box::new(|this: &mut Self| {
                     let st = this.state.lock().unwrap();
                     let _ = st.action_tx.send(TrayAction::NextTrack);
@@ -104,7 +121,7 @@ impl Tray for BoomboxTray {
             }
             .into(),
             StandardItem {
-                label: "⏮ Previous Track".into(),
+                label: "Previous Track".into(),
                 activate: Box::new(|this: &mut Self| {
                     let st = this.state.lock().unwrap();
                     let _ = st.action_tx.send(TrayAction::PrevTrack);
@@ -114,7 +131,7 @@ impl Tray for BoomboxTray {
             .into(),
             MenuItem::Separator,
             StandardItem {
-                label: "🎛️ Show / Focus Boombox (Super+M)".into(),
+                label: "Show / Hide Window (Super+M)".into(),
                 activate: Box::new(|this: &mut Self| {
                     let st = this.state.lock().unwrap();
                     let _ = st.action_tx.send(TrayAction::ToggleWindow);
@@ -123,7 +140,7 @@ impl Tray for BoomboxTray {
             }
             .into(),
             StandardItem {
-                label: "⚡ Hot-Reload App".into(),
+                label: "Hot-Reload App (F5)".into(),
                 activate: Box::new(|this: &mut Self| {
                     let st = this.state.lock().unwrap();
                     let _ = st.action_tx.send(TrayAction::Reload);
@@ -133,7 +150,7 @@ impl Tray for BoomboxTray {
             .into(),
             MenuItem::Separator,
             StandardItem {
-                label: "🛑 Quit Boombox".into(),
+                label: "Quit Boombox".into(),
                 activate: Box::new(|this: &mut Self| {
                     let st = this.state.lock().unwrap();
                     let _ = st.action_tx.send(TrayAction::Quit);
