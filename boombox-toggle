@@ -4,37 +4,42 @@
 ACTIVE_ADDR=$(hyprctl activewindow -j 2>/dev/null | jq -r '.address // empty')
 CURRENT_WS=$(hyprctl activeworkspace -j 2>/dev/null | jq -r '.name // .id // "1"')
 
+# Collect PIDs related to boombox-rs
+BOOMBOX_PIDS=$(pgrep -x boombox-rs 2>/dev/null)
+PARENT_PIDS=""
+for p in $BOOMBOX_PIDS; do
+  pp=$(awk '{print $4}' "/proc/$p/stat" 2>/dev/null)
+  if [[ -n "$pp" ]]; then
+    PARENT_PIDS="$PARENT_PIDS $pp"
+  fi
+done
+
 # Find existing boombox window address from Hyprland
-WINDOW_ADDR=$(hyprctl clients -j 2>/dev/null | jq -r '
+WINDOW_ADDR=$(hyprctl clients -j 2>/dev/null | jq -r --arg pids "$BOOMBOX_PIDS $PARENT_PIDS" '
   .[] | select(
-    ((.class // "") | test("^boombox$|^org.omarchy.boombox"; "i")) or
-    ((.initialClass // "") | test("^boombox$|^org.omarchy.boombox"; "i")) or
-    ((.title // "") | test("^BOOMBOX"; "i")) or
-    ((.initialTitle // "") | test("^BOOMBOX"; "i"))
+    ((.class // "") | test("boombox"; "i")) or
+    ((.initialClass // "") | test("boombox"; "i")) or
+    ((.title // "") | test("BOOMBOX"; "i")) or
+    ((.initialTitle // "") | test("BOOMBOX"; "i")) or
+    ($pids | split(" ") | index((.pid // 0 | tostring)))
   ) | .address
 ' | head -n1)
 
-WINDOW_WS=$(hyprctl clients -j 2>/dev/null | jq -r --arg addr "$WINDOW_ADDR" '.[] | select(.address == $addr) | .workspace.name // empty')
+WINDOW_WS=$(hyprctl clients -j 2>/dev/null | jq -r --arg addr "$WINDOW_ADDR" '.[] | select(.address == $addr) | .workspace.name // .workspace.id // empty')
 
 if [[ -n "$WINDOW_ADDR" && "$WINDOW_ADDR" != "null" ]]; then
   if [[ "$ACTIVE_ADDR" == "$WINDOW_ADDR" ]]; then
     # Active -> toggle/minimize to special scratchpad
-    hyprctl dispatch "hl.dsp.window.move({ workspace = 'special:scratchpad', window = 'address:$WINDOW_ADDR', follow = false })" >/dev/null 2>&1
+    hyprctl dispatch "hl.dsp.window.move({ workspace = 'special:scratchpad', window = 'address:$WINDOW_ADDR', follow = false })" >/dev/null 2>&1 || hyprctl dispatch movetoworkspacesilent "special:scratchpad,address:$WINDOW_ADDR" >/dev/null 2>&1
   else
     # Inactive or on another workspace -> bring to current workspace & focus
     if [[ "$WINDOW_WS" != "$CURRENT_WS" || "$WINDOW_WS" == special:* ]]; then
-      hyprctl dispatch "hl.dsp.window.move({ workspace = '$CURRENT_WS', window = 'address:$WINDOW_ADDR' })" >/dev/null 2>&1
+      hyprctl dispatch "hl.dsp.window.move({ workspace = '$CURRENT_WS', window = 'address:$WINDOW_ADDR' })" >/dev/null 2>&1 || hyprctl dispatch movetoworkspace "$CURRENT_WS,address:$WINDOW_ADDR" >/dev/null 2>&1
     fi
-    hyprctl dispatch "hl.dsp.focus({ window = 'address:$WINDOW_ADDR' })" >/dev/null 2>&1
+    hyprctl dispatch "hl.dsp.focus({ window = 'address:$WINDOW_ADDR' })" >/dev/null 2>&1 || hyprctl dispatch focuswindow "address:$WINDOW_ADDR" >/dev/null 2>&1
   fi
 else
-  # Window not running -> ensure any orphan headless process is killed and lock cleared
-  if pgrep -x boombox-rs >/dev/null 2>&1; then
-    pkill -x boombox-rs 2>/dev/null
-    sleep 0.1
-  fi
-  rm -f /tmp/boombox-rs.lock 2>/dev/null
-
+  # Window not running -> launch boombox in terminal
   BIN_CMD="/home/aki/.local/bin/boombox-rs"
   if command -v foot >/dev/null 2>&1; then
     exec foot --app-id=org.omarchy.boombox --title="BOOMBOX RX-505" "$BIN_CMD"
