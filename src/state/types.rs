@@ -278,6 +278,15 @@ impl DolbyMode {
             DolbyMode::DolbyS => "DOLBY-S (Studio Master)",
         }
     }
+
+    pub fn short_label(&self) -> &'static str {
+        match self {
+            DolbyMode::Off => "DOLBY OFF",
+            DolbyMode::DolbyB => "DOLBY-B",
+            DolbyMode::DolbyC => "DOLBY-C",
+            DolbyMode::DolbyS => "DOLBY-S",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -301,6 +310,14 @@ impl TapeType {
             TapeType::TypeI => "Type-I Normal Fe",
             TapeType::TypeII => "Type-II CrO2 High Bias",
             TapeType::TypeIV => "Type-IV Metal Hi-End",
+        }
+    }
+
+    pub fn short_label(&self) -> &'static str {
+        match self {
+            TapeType::TypeI => "TYPE-I (Fe)",
+            TapeType::TypeII => "TYPE-II (CrO2)",
+            TapeType::TypeIV => "TYPE-IV (Metal)",
         }
     }
 }

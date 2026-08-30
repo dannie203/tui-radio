@@ -8,8 +8,8 @@ use ratatui::{
     Frame,
 };
 
-const SPOOL_FRAMES_LEFT: [&str; 4] = ["( | )", "(/ )", "(- )", "(\\ )"];
-const SPOOL_FRAMES_RIGHT: [&str; 4] = ["(\\ )", "( | )", "(/ )", "(- )"];
+const SPOOL_FRAMES_LEFT: [&str; 4] = ["( | )", "( / )", "( - )", "( \\ )"];
+const SPOOL_FRAMES_RIGHT: [&str; 4] = ["( \\ )", "( | )", "( / )", "( - )"];
 
 pub fn render_cassette_deck(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
     let frame = state.telemetry.spool_frame;
@@ -34,9 +34,11 @@ pub fn render_cassette_deck(f: &mut Frame, area: Rect, state: &AppState, theme: 
         .unwrap_or("STANDBY / NO TAPE LOADED");
 
     let width = area.width as usize;
-    let max_tape_width = (width.saturating_sub(28)).clamp(16, 50);
-    let label_display = if tape_title.len() > max_tape_width {
-        format!("{:<width$}...", &tape_title[..max_tape_width.saturating_sub(3)], width = max_tape_width)
+    let max_tape_width = width.saturating_sub(58).clamp(16, 48);
+    let label_chars: Vec<char> = tape_title.chars().collect();
+    let label_display = if label_chars.len() > max_tape_width {
+        let clip: String = label_chars[..max_tape_width.saturating_sub(3)].iter().collect();
+        format!("{:<width$}...", clip, width = max_tape_width.saturating_sub(3))
     } else {
         format!("{:<width$}", tape_title, width = max_tape_width)
     };
@@ -75,8 +77,8 @@ pub fn render_cassette_deck(f: &mut Frame, area: Rect, state: &AppState, theme: 
         Span::styled(format!("[ {} ]", label_display), Style::default().fg(theme.cream).bg(theme.bg_dark).add_modifier(Modifier::BOLD)),
         Span::styled(" ══", Style::default().fg(theme.border_dim)),
         Span::styled(format!(" {} ", spool_r), Style::default().fg(theme.amber).add_modifier(Modifier::BOLD)),
-        Span::styled(format!("  [{}]", state.dolby_mode.label()), Style::default().fg(theme.cyan_dolby).add_modifier(Modifier::BOLD)),
-        Span::styled(format!(" [{}]", state.tape_type.label()), Style::default().fg(theme.gold).add_modifier(Modifier::BOLD)),
+        Span::styled(format!("  [{}]", state.dolby_mode.short_label()), Style::default().fg(theme.cyan_dolby).add_modifier(Modifier::BOLD)),
+        Span::styled(format!(" [{}]", state.tape_type.short_label()), Style::default().fg(theme.gold).add_modifier(Modifier::BOLD)),
         Span::styled(format!(" [{}]", state.stereo_mode.label()), Style::default().fg(theme.cyan_dolby)),
     ]);
 
