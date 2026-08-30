@@ -14,15 +14,16 @@ const SPOOL_FRAMES_RIGHT: [&str; 4] = ["( \\ )", "( | )", "( / )", "( - )"];
 pub fn render_cassette_deck(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
     let frame = state.telemetry.spool_frame;
     let is_playing = state.is_playing && !state.is_paused;
+    let spool_idx = (frame / 10) % 4;
 
     let spool_l = if is_playing {
-        SPOOL_FRAMES_LEFT[frame % 4]
+        SPOOL_FRAMES_LEFT[spool_idx]
     } else {
         "( | )"
     };
 
     let spool_r = if is_playing {
-        SPOOL_FRAMES_RIGHT[frame % 4]
+        SPOOL_FRAMES_RIGHT[spool_idx]
     } else {
         "( | )"
     };

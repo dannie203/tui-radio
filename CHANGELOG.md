@@ -5,6 +5,13 @@ All notable changes to the **BOOMBOX-RS** project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.5] - 2026-08-31
+
+### Changed
+- **Cassette Spool Animation Speed**: Calibrated cassette tape spool rotation to a realistic vintage speed (~90 RPM / 6 FPS tick) for a relaxing and smooth visual experience.
+
+---
+
 ## [3.8.4] - 2026-08-31
 
 ### Added
