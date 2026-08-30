@@ -184,16 +184,3 @@ fn parse_plain_lyrics(plain: &str) -> Vec<SyncedLyricLine> {
     }
     lines
 }
-
-pub fn scramble_text(text: &str, tick: usize) -> String {
-    let mut out = String::with_capacity(text.len());
-    for (idx, ch) in text.chars().enumerate() {
-        if ch.is_whitespace() {
-            out.push(' ');
-        } else {
-            let rnd_idx = (tick + idx * 13 + (ch as usize)) % MATRIX_CHARS.len();
-            out.push(MATRIX_CHARS[rnd_idx]);
-        }
-    }
-    out
-}

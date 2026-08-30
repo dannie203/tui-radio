@@ -121,13 +121,52 @@ impl MpvPlayer {
             ("audio-params/samplerate", 8),
             ("audio-params/channel-count", 9),
             ("audio-bitrate", 10),
+            ("audio-params/format", 11),
         ];
 
         for (prop, id) in props {
-            self.send_json_command(serde_json::json!(["observe_property", id, prop]));
+            self.send_json_command_raw(serde_json::json!(["observe_property", id, prop]));
         }
         let vol = *self.master_volume.lock().unwrap();
-        self.send_json_command(serde_json::json!(["set_property", "volume", vol]));
+        self.send_json_command_raw(serde_json::json!(["set_property", "volume", vol]));
+    }
+
+    fn reconnect(&self) {
+        let socket_path = self.socket_path.clone();
+        if Path::new(&socket_path).exists() {
+            let _ = fs::remove_file(&socket_path);
+        }
+
+        let _ = Command::new("mpv")
+            .arg("--no-video")
+            .arg("--idle=yes")
+            .arg(format!("--input-ipc-server={}", socket_path))
+            .arg("--really-quiet")
+            .arg("--audio-display=no")
+            .arg("--gapless-audio=yes")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn();
+
+        for _ in 0..50 {
+            thread::sleep(Duration::from_millis(30));
+            if let Ok(s) = UnixStream::connect(&socket_path) {
+                let _ = s.set_nonblocking(false);
+                if let Ok(reader_stream) = s.try_clone() {
+                    if let Ok(mut guard) = self.stream.lock() {
+                        *guard = Some(s);
+                    }
+                    self.spawn_reader_thread(reader_stream);
+                    self.observe_properties();
+                    let af = self.current_af.lock().unwrap().clone();
+                    if !af.is_empty() {
+                        self.send_json_command_raw(serde_json::json!(["set_property", "af", af]));
+                    }
+                    break;
+                }
+            }
+        }
     }
 
     fn spawn_reader_thread(&self, stream: UnixStream) {
@@ -214,6 +253,17 @@ impl MpvPlayer {
                                                 st.metadata.channels = Some(if ch == 2 { "Stereo".to_string()} else { format!("{} Ch", ch) });
                                             }
                                         }
+                                        "audio-params/format" => {
+                                            if let Some(fmt) = data.and_then(|d| d.as_str()) {
+                                                if fmt.contains("16") {
+                                                    st.metadata.bit_depth = Some(16);
+                                                } else if fmt.contains("24") {
+                                                    st.metadata.bit_depth = Some(24);
+                                                } else if fmt.contains("32") {
+                                                    st.metadata.bit_depth = Some(32);
+                                                }
+                                            }
+                                        }
                                         "audio-bitrate" => {
                                             if let Some(br) = data.and_then(|d| d.as_f64()) {
                                                 st.metadata.bitrate = Some((br / 1000.0).round() as u32);
@@ -245,6 +295,13 @@ impl MpvPlayer {
     }
 
     pub fn send_json_command(&self, cmd: serde_json::Value) {
+        if !self.send_json_command_raw(cmd.clone()) {
+            self.reconnect();
+            let _ = self.send_json_command_raw(cmd);
+        }
+    }
+
+    fn send_json_command_raw(&self, cmd: serde_json::Value) -> bool {
         if let Ok(mut guard) = self.stream.lock() {
             if let Some(ref mut s) = *guard {
                 let id = self.request_id.fetch_add(1, Ordering::SeqCst);
@@ -258,10 +315,12 @@ impl MpvPlayer {
                 };
                 let mut cmd_str = payload.to_string();
                 cmd_str.push('\n');
-                let _ = s.write_all(cmd_str.as_bytes());
-                let _ = s.flush();
+                if s.write_all(cmd_str.as_bytes()).is_ok() && s.flush().is_ok() {
+                    return true;
+                }
             }
         }
+        false
     }
 
     pub fn apply_audio_filter(&self, af_str: &str) {

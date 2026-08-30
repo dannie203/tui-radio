@@ -133,10 +133,6 @@ impl VisualizerSpeed {
         VisualizerSpeed::SmoothLiquid,
     ];
 
-    pub fn cycle(&self) -> Self {
-        self.cycle_dir(1)
-    }
-
     pub fn cycle_dir(&self, delta: i32) -> Self {
         let idx = VisualizerSpeed::ALL.iter().position(|v| v == self).unwrap_or(0);
         let next = (idx as i32 + delta).rem_euclid(VisualizerSpeed::ALL.len() as i32) as usize;
@@ -183,10 +179,6 @@ impl SpectrumColorMode {
         SpectrumColorMode::AmberVintage,
         SpectrumColorMode::ThemeAccent,
     ];
-
-    pub fn cycle(&self) -> Self {
-        self.cycle_dir(1)
-    }
 
     pub fn cycle_dir(&self, delta: i32) -> Self {
         let idx = SpectrumColorMode::ALL.iter().position(|m| m == self).unwrap_or(0);
@@ -248,10 +240,6 @@ impl StereoMode {
         StereoMode::Mono,
         StereoMode::Wide3D,
     ];
-
-    pub fn cycle(&self) -> Self {
-        self.cycle_dir(1)
-    }
 
     pub fn cycle_dir(&self, delta: i32) -> Self {
         let idx = StereoMode::ALL.iter().position(|m| m == self).unwrap_or(0);
@@ -326,10 +314,6 @@ impl TapeType {
         TapeType::TypeII,
         TapeType::TypeIV,
     ];
-
-    pub fn cycle(&self) -> Self {
-        self.cycle_dir(1)
-    }
 
     pub fn cycle_dir(&self, delta: i32) -> Self {
         let idx = TapeType::ALL.iter().position(|m| m == self).unwrap_or(0);
@@ -447,10 +431,6 @@ impl RecordFormat {
         RecordFormat::Flac,
         RecordFormat::M4a,
     ];
-
-    pub fn cycle(&self) -> Self {
-        self.cycle_dir(1)
-    }
 
     pub fn cycle_dir(&self, delta: i32) -> Self {
         let idx = RecordFormat::ALL.iter().position(|r| r == self).unwrap_or(0);

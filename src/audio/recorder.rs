@@ -7,15 +7,12 @@ use tokio::process::Command;
 
 #[derive(Debug, Clone)]
 pub struct RecordJob {
-    pub url: String,
     pub title: String,
     pub artist: String,
-    pub format: RecordFormat,
     pub output_path: Option<PathBuf>,
 }
 
 struct ActiveJob {
-    url: String,
     job: RecordJob,
     child: tokio::process::Child,
     cancelled: bool,
@@ -70,10 +67,6 @@ impl StreamRecorder {
 
     pub fn is_recording(&self) -> bool {
         self.is_recording.load(Ordering::Relaxed)
-    }
-
-    pub fn active_count(&self) -> usize {
-        self.jobs.lock().unwrap().len()
     }
 
     pub fn current_jobs(&self) -> Vec<RecordJob> {
@@ -147,7 +140,7 @@ impl StreamRecorder {
         let title = item.title.clone();
         let artist = item.artist.clone();
 
-        {
+        let child_to_kill = {
             let mut jobs = self.jobs.lock().unwrap();
             let key = if jobs.contains_key(&url) {
                 Some(url.clone())
@@ -157,17 +150,24 @@ impl StreamRecorder {
                 None
             };
             if let Some(k) = key {
-                if let Some(a) = jobs.get_mut(&k) {
+                if let Some(mut a) = jobs.remove(&k) {
                     a.cancelled = true;
-                    let _ = a.child.kill().await;
+                    if jobs.is_empty() {
+                        self.is_recording.store(false, Ordering::Relaxed);
+                    }
+                    Some(a.child)
+                } else {
+                    None
                 }
-                jobs.remove(&k);
-                send_notification("⏹️ Tape Recording Cancelled", "Recording was stopped and discarded.");
-                if jobs.is_empty() {
-                    self.is_recording.store(false, Ordering::Relaxed);
-                }
-                return Ok(false);
+            } else {
+                None
             }
+        };
+
+        if let Some(mut child) = child_to_kill {
+            let _ = child.kill().await;
+            send_notification("⏹️ Tape Recording Cancelled", "Recording was stopped and discarded.");
+            return Ok(false);
         }
 
         send_notification(
@@ -206,6 +206,7 @@ impl StreamRecorder {
                 "--embed-metadata",
                 "-o",
                 &output_template.to_string_lossy().to_string(),
+                "--",
                 &clean_url,
             ]);
             c
@@ -244,17 +245,14 @@ impl StreamRecorder {
         };
 
         let job = RecordJob {
-            url: url.clone(),
             title,
             artist,
-            format,
             output_path: if is_yt_source { None } else { Some(dir.join(format!("{} - {}.{}", clean_artist, clean_title, format.ext()))) },
         };
 
         self.jobs.lock().unwrap().insert(
             url.clone(),
             ActiveJob {
-                url: url.clone(),
                 job,
                 child,
                 cancelled: false,
@@ -265,29 +263,33 @@ impl StreamRecorder {
     }
 
     pub async fn cancel(&self, url: Option<&str>) -> bool {
-        let mut jobs = self.jobs.lock().unwrap();
-        if let Some(u) = url {
-            if let Some(a) = jobs.get_mut(u) {
-                a.cancelled = true;
-                let _ = a.child.kill().await;
-            }
-            let removed = jobs.remove(u).is_some();
-            if removed {
-                send_notification("⏹️ Tape Recording Cancelled", "Recording was stopped and discarded.");
-            }
-            if jobs.is_empty() {
+        let children_to_kill = {
+            let mut jobs = self.jobs.lock().unwrap();
+            if let Some(u) = url {
+                if let Some(mut a) = jobs.remove(u) {
+                    a.cancelled = true;
+                    if jobs.is_empty() {
+                        self.is_recording.store(false, Ordering::Relaxed);
+                    }
+                    vec![a.child]
+                } else {
+                    Vec::new()
+                }
+            } else {
+                let mut list = Vec::new();
+                for (_, mut a) in jobs.drain() {
+                    a.cancelled = true;
+                    list.push(a.child);
+                }
                 self.is_recording.store(false, Ordering::Relaxed);
+                list
             }
-            return removed;
-        }
+        };
 
-        if !jobs.is_empty() {
-            for (_, a) in jobs.iter_mut() {
-                a.cancelled = true;
-                let _ = a.child.kill().await;
+        if !children_to_kill.is_empty() {
+            for mut child in children_to_kill {
+                let _ = child.kill().await;
             }
-            jobs.clear();
-            self.is_recording.store(false, Ordering::Relaxed);
             send_notification("⏹️ Tape Recording Cancelled", "Recording was stopped and discarded.");
             return true;
         }

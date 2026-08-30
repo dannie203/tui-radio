@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 mod api;
 mod audio;
 mod state;
@@ -49,10 +47,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 1. Terminal setup
+    // 1. Terminal setup with RAII Drop Guard (guarantees teardown on any error/panic)
+    struct TerminalGuard;
+    impl Drop for TerminalGuard {
+        fn drop(&mut self) {
+            let _ = disable_raw_mode();
+            let mut stdout = io::stdout();
+            let _ = execute!(stdout, LeaveAlternateScreen, crossterm::cursor::Show);
+        }
+    }
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, crossterm::terminal::SetTitle("BOOMBOX RX-505"))?;
+    let _terminal_guard = TerminalGuard;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -141,6 +149,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     };
 
+    // Consolidated helper to initiate track playback, sync UI, reset history flags, and dispatch background lyrics/artwork
+    let dispatch_play_track = |state: &mut AppState,
+                               player: &MpvPlayer,
+                               item: MediaItem,
+                               lyrics_tx: &mpsc::UnboundedSender<(String, Vec<SyncedLyricLine>)>,
+                               artwork_tx: &mpsc::UnboundedSender<(String, Option<api::artwork::ArtworkHalfblocks>)>,
+                               status_prefix: Option<&str>| {
+        player.play(&item.url);
+        let title = item.title.clone();
+        let artist = item.artist.clone();
+        let format_badge = item.format.as_deref().unwrap_or("AUDIO");
+        let local_path = if !item.is_radio && !item.is_youtube && !item.url.starts_with("http") {
+            Some(item.url.clone())
+        } else {
+            None
+        };
+        state.current_track = Some(item.clone());
+        state.track_recorded_to_history = false;
+        state.status_message = format!("{} ▶ {}", status_prefix.unwrap_or("Playing"), title);
+        state.lyrics.clear();
+        state.lyrics_loading = true;
+        state.current_artwork = None;
+        state.artwork_loading = true;
+        dispatch_lyrics(title.clone(), artist.clone(), local_path, item.id.clone(), lyrics_tx.clone());
+        dispatch_artwork(title.clone(), artist.clone(), Some(item.url.clone()), item.id.clone(), artwork_tx.clone());
+        send_track_notification(&title, &artist, format_badge);
+    };
+
     // Initial Live Radio fetch in background
     dispatch_radio_genre(state.genre_filter, radio_tx.clone());
 
@@ -170,40 +206,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 TrayAction::NextTrack => {
                     if let Some(item) = state.get_next_track() {
-                        player.play(&item.url);
-                        state.current_track = Some(item.clone());
-                        state.status_message = format!("Playing: {}", item.title);
-                        state.lyrics.clear();
-                        state.lyrics_loading = true;
-                        state.current_artwork = None;
-                        state.artwork_loading = true;
-                        let local_path = if !item.is_radio && !item.is_youtube && !item.url.starts_with("http") {
-                            Some(item.url.clone())
-                        } else {
-                            None
-                        };
-                        dispatch_lyrics(item.title.clone(), item.artist.clone(), local_path.clone(), item.id.clone(), lyrics_tx.clone());
-                        dispatch_artwork(item.title.clone(), item.artist.clone(), Some(item.url.clone()), item.id.clone(), artwork_tx.clone());
-                        send_track_notification(&item.title, &item.artist, item.format.as_deref().unwrap_or("AUDIO"));
+                        dispatch_play_track(&mut state, &player, item, &lyrics_tx, &artwork_tx, Some("Tray ▶"));
                     }
                 }
                 TrayAction::PrevTrack => {
                     if let Some(item) = state.get_prev_track() {
-                        player.play(&item.url);
-                        state.current_track = Some(item.clone());
-                        state.status_message = format!("Playing: {}", item.title);
-                        state.lyrics.clear();
-                        state.lyrics_loading = true;
-                        state.current_artwork = None;
-                        state.artwork_loading = true;
-                        let local_path = if !item.is_radio && !item.is_youtube && !item.url.starts_with("http") {
-                            Some(item.url.clone())
-                        } else {
-                            None
-                        };
-                        dispatch_lyrics(item.title.clone(), item.artist.clone(), local_path.clone(), item.id.clone(), lyrics_tx.clone());
-                        dispatch_artwork(item.title.clone(), item.artist.clone(), Some(item.url.clone()), item.id.clone(), artwork_tx.clone());
-                        send_track_notification(&item.title, &item.artist, item.format.as_deref().unwrap_or("AUDIO"));
+                        dispatch_play_track(&mut state, &player, item, &lyrics_tx, &artwork_tx, Some("Tray ◀"));
                     }
                 }
                 TrayAction::VolumeUp => {
@@ -266,6 +274,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         if let Some(ref ch) = status.metadata.channels {
             state.telemetry.audio_channels = ch.clone();
+        }
+        if let Some(ref cur) = state.current_track {
+            state.telemetry.is_live = cur.is_radio || (status.duration == 0.0 && state.is_playing);
+        } else {
+            state.telemetry.is_live = false;
         }
 
         // Live ICY Radio Metadata Sync
@@ -366,27 +379,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Auto-advance when track finishes (natural EOF reached)
         if is_eof {
             if let Some(next) = state.get_next_track() {
-                player.play(&next.url);
-                state.current_track = Some(next.clone());
-                state.track_recorded_to_history = false;
-                state.status_message = format!("Auto-Advance ▶ {}", next.title);
-                state.lyrics.clear();
-                state.lyrics_loading = true;
-                state.current_artwork = None;
-                state.artwork_loading = true;
-
-                let local_path = if !next.is_radio && !next.is_youtube && !next.url.starts_with("http") {
-                    Some(next.url.clone())
-                } else {
-                    None
-                };
-                dispatch_lyrics(next.title.clone(), next.artist.clone(), local_path, next.id.clone(), lyrics_tx.clone());
-                dispatch_artwork(next.title.clone(), next.artist.clone(), Some(next.url.clone()), next.id.clone(), artwork_tx.clone());
-                send_track_notification(&next.title, &next.artist, next.format.as_deref().unwrap_or("FLAC"));
+                let is_yt = next.is_youtube;
+                let seed_url = next.url.clone();
+                dispatch_play_track(&mut state, &player, next, &lyrics_tx, &artwork_tx, Some("Auto-Advance"));
 
                 // Streaming Autoplay: Prefetch related tracks if queue is low
-                if state.autoplay && state.repeat_mode == RepeatMode::Off && next.is_youtube && state.queue.len() <= 1 {
-                    let seed_url = next.url.clone();
+                if state.autoplay && state.repeat_mode == RepeatMode::Off && is_yt && state.queue.len() <= 1 {
                     let atx = autoplay_tx.clone();
                     tokio::spawn(async move {
                         let mix = api::stream::fetch_youtube_radio_mix(&seed_url).await;
@@ -501,17 +499,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let url = state.input_buffer.trim().to_string();
                             if !url.is_empty() {
                                 let (label, tracks) = api::stream::resolve_stream_queue(&url).await;
-                                if let Some(first) = tracks.first() {
-                                    let first_title = first.title.clone();
-                                    player.play(&first.url);
-                                    state.current_track = Some(first.clone());
-                                    state.lyrics.clear();
-                                    state.lyrics_loading = true;
-                                    state.current_artwork = None;
-                                    state.artwork_loading = true;
-                                    dispatch_lyrics(first.title.clone(), first.artist.clone(), None, first.id.clone(), lyrics_tx.clone());
-                                    dispatch_artwork(first.title.clone(), first.artist.clone(), Some(first.url.clone()), first.id.clone(), artwork_tx.clone());
-                                    send_track_notification(&first.title, &first.artist, first.format.as_deref().unwrap_or("STREAM"));
+                                if let Some(first) = tracks.first().cloned() {
+                                    dispatch_play_track(&mut state, &player, first, &lyrics_tx, &artwork_tx, Some(&format!("Stream ({})", label)));
 
                                     state.youtube_results = tracks.clone();
                                     state.mode = AppMode::YoutubeMusic;
@@ -522,7 +511,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             state.queue.push(t);
                                         }
                                     }
-                                    state.status_message = format!("▶ Playing ({}) — {}", label, first_title);
                                 } else {
                                     state.status_message = format!("No results found for: {}", url);
                                 }
@@ -690,22 +678,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         KeyCode::Enter => {
                             if let Some(entry) = state.filtered_history.get(state.selected_history_idx).cloned() {
                                 let item = crate::state::history::history_to_media_item(&entry);
-                                player.play(&item.url);
-                                state.current_track = Some(item.clone());
-                                state.track_recorded_to_history = false;
-                                state.status_message = format!("Playing from History: {}", item.title);
-                                state.lyrics.clear();
-                                state.lyrics_loading = true;
-                                state.current_artwork = None;
-                                state.artwork_loading = true;
-                                let local_path = if !item.is_radio && !item.is_youtube && !item.url.starts_with("http") {
-                                    Some(item.url.clone())
-                                } else {
-                                    None
-                                };
-                                dispatch_lyrics(item.title.clone(), item.artist.clone(), local_path, item.id.clone(), lyrics_tx.clone());
-                                dispatch_artwork(item.title.clone(), item.artist.clone(), Some(item.url.clone()), item.id.clone(), artwork_tx.clone());
-                                send_track_notification(&item.title, &item.artist, item.format.as_deref().unwrap_or("AUDIO"));
+                                dispatch_play_track(&mut state, &player, item, &lyrics_tx, &artwork_tx, Some("History"));
                                 state.active_modal = ModalType::None;
                             }
                         }
@@ -758,42 +731,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             KeyCode::Char('n') => {
                                 if let Some(item) = state.get_next_track() {
-                                    player.play(&item.url);
-                                    state.current_track = Some(item.clone());
-                                    state.status_message = format!("Playing: {}", item.title);
-                                    state.lyrics.clear();
-                                    state.lyrics_loading = true;
-                                    state.current_artwork = None;
-                                    state.artwork_loading = true;
-
-                                    let local_path = if !item.is_radio && !item.is_youtube && !item.url.starts_with("http") {
-                                        Some(item.url.clone())
-                                    } else {
-                                        None
-                                    };
-                                    dispatch_lyrics(item.title.clone(), item.artist.clone(), local_path.clone(), item.id.clone(), lyrics_tx.clone());
-                                    dispatch_artwork(item.title.clone(), item.artist.clone(), Some(item.url.clone()), item.id.clone(), artwork_tx.clone());
-                                    send_track_notification(&item.title, &item.artist, item.format.as_deref().unwrap_or("AUDIO"));
+                                    dispatch_play_track(&mut state, &player, item, &lyrics_tx, &artwork_tx, None);
                                 }
                             }
                             KeyCode::Char('p') => {
                                 if let Some(item) = state.get_prev_track() {
-                                    player.play(&item.url);
-                                    state.current_track = Some(item.clone());
-                                    state.status_message = format!("Playing: {}", item.title);
-                                    state.lyrics.clear();
-                                    state.lyrics_loading = true;
-                                    state.current_artwork = None;
-                                    state.artwork_loading = true;
-
-                                    let local_path = if !item.is_radio && !item.is_youtube && !item.url.starts_with("http") {
-                                        Some(item.url.clone())
-                                    } else {
-                                        None
-                                    };
-                                    dispatch_lyrics(item.title.clone(), item.artist.clone(), local_path.clone(), item.id.clone(), lyrics_tx.clone());
-                                    dispatch_artwork(item.title.clone(), item.artist.clone(), Some(item.url.clone()), item.id.clone(), artwork_tx.clone());
-                                    send_track_notification(&item.title, &item.artist, item.format.as_deref().unwrap_or("AUDIO"));
+                                    dispatch_play_track(&mut state, &player, item, &lyrics_tx, &artwork_tx, None);
                                 }
                             }
                             KeyCode::Char('+') | KeyCode::Char('=') => {
@@ -857,22 +800,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             KeyCode::Down | KeyCode::Char('j') => state.move_selection(1),
                             KeyCode::Enter => {
                                 if let Some(track) = state.drill_down() {
-                                    player.play(&track.url);
-                                    state.current_track = Some(track.clone());
-                                    state.status_message = format!("Playing: {}", track.title);
-                                    state.lyrics.clear();
-                                    state.lyrics_loading = true;
-                                    state.current_artwork = None;
-                                    state.artwork_loading = true;
-
-                                    let local_path = if !track.is_radio && !track.is_youtube && !track.url.starts_with("http") {
-                                        Some(track.url.clone())
-                                    } else {
-                                        None
-                                    };
-                                    dispatch_lyrics(track.title.clone(), track.artist.clone(), local_path.clone(), track.id.clone(), lyrics_tx.clone());
-                                    dispatch_artwork(track.title.clone(), track.artist.clone(), Some(track.url.clone()), track.id.clone(), artwork_tx.clone());
-                                    send_track_notification(&track.title, &track.artist, track.format.as_deref().unwrap_or("MASTER"));
+                                    dispatch_play_track(&mut state, &player, track, &lyrics_tx, &artwork_tx, None);
                                 }
                             }
                             KeyCode::Backspace => {
@@ -1061,7 +989,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Dispatches window toggle to raise, focus, or minimize the Boombox window
 async fn focus_or_raise_window() {
-    let _ = tokio::process::Command::new("/home/aki/.local/bin/boombox-toggle")
+    let toggle_bin = dirs::home_dir()
+        .map(|h| h.join(".local/bin/boombox-toggle"))
+        .filter(|p| p.exists())
+        .unwrap_or_else(|| std::path::PathBuf::from("boombox-toggle"));
+
+    let _ = tokio::process::Command::new(toggle_bin)
         .output()
         .await;
 }

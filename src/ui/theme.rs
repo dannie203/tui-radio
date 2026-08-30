@@ -215,7 +215,3 @@ pub fn get_themes() -> Vec<Theme> {
     ]);
     list
 }
-
-pub fn get_default_theme() -> Theme {
-    detect_system_theme().unwrap_or_else(|| get_themes()[0].clone())
-}

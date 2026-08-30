@@ -1,8 +1,6 @@
 use crate::audio::capture::LiveAudioData;
 use std::time::Instant;
 
-pub const NUM_BANDS: usize = 32;
-
 /// Standard ISO 266 / IEC 61260 1/3-Octave Nominal Center Frequencies (20Hz - 20kHz)
 pub const ISO_32_BANDS: [f32; 32] = [
     20.0, 25.0, 31.5, 40.0, 50.0, 63.0, 80.0, 100.0,

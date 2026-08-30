@@ -265,7 +265,8 @@ pub fn render_monitor(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme
         Block::default()
             .title(" 📟 CRT PHOSPHOR MONITOR & OSCILLOSCOPE ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme.border_lcd)),
+            .border_style(Style::default().fg(theme.border_lcd))
+            .style(Style::default().bg(theme.bg_lcd)),
     );
 
     f.render_widget(monitor, area);

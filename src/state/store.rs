@@ -521,6 +521,7 @@ impl AppState {
         }
 
         self.filtered_radio = stations;
+        self.filter_history(query);
         self.selected_index = 0;
     }
 
@@ -534,11 +535,6 @@ impl AppState {
     pub fn current_theme(&self) -> Theme {
         let themes = get_themes();
         themes[self.theme_index % themes.len()].clone()
-    }
-
-    pub fn cycle_record_format(&mut self) {
-        self.record_format = self.record_format.cycle();
-        self.status_message = format!("Rec Format: {}", self.record_format.label());
     }
 
     pub fn selected_mixtape(&self) -> Option<&Mixtape> {

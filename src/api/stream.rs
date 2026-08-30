@@ -316,19 +316,6 @@ pub async fn resolve_stream_queue(input: &str) -> (String, Vec<MediaItem>) {
     (label, tracks)
 }
 
-pub async fn enqueue_stream_url(
-    input: &str,
-    queue: &mut Vec<MediaItem>,
-) -> String {
-    let (label, tracks) = resolve_stream_queue(input).await;
-    for t in tracks {
-        if !queue.iter().any(|q| q.id == t.id) {
-            queue.push(t);
-        }
-    }
-    label
-}
-
 pub async fn resolve_stream_item(input: &str) -> MediaItem {
     let trimmed = input.trim();
     let source = source_name(trimmed);

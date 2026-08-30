@@ -102,8 +102,17 @@ pub fn render_browser(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme
         .highlight_symbol("❯ ");
 
     let mut list_state = ListState::default();
-    if state.get_active_list_len() > 0 {
-        list_state.select(Some(state.selected_index));
+    let total = state.get_active_list_len();
+    if total > 0 {
+        let sel = state.selected_index.min(total - 1);
+        let visible_height = area.height.saturating_sub(2) as usize;
+        let offset = if visible_height > 0 && sel >= visible_height {
+            sel - visible_height + 1
+        } else {
+            0
+        };
+        *list_state.offset_mut() = offset;
+        list_state.select(Some(sel));
     }
 
     f.render_stateful_widget(list_widget, area, &mut list_state);
