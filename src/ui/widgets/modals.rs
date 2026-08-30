@@ -245,6 +245,18 @@ fn render_settings_modal(f: &mut Frame, area: Rect, state: &AppState, theme: &Th
     }
 
     lines.push(Line::from(""));
+    if let Some(ref update) = state.available_update {
+        lines.push(Line::from(vec![
+            Span::styled(" 🌟 [UPDATE AVAILABLE] ", Style::default().fg(theme.gold).add_modifier(Modifier::BOLD)),
+            Span::styled(format!("v{} is ready! (Current: v{}) • Visit: {}", update.latest_version, update.current_version, update.release_url), Style::default().fg(theme.green_phosphor).add_modifier(Modifier::BOLD)),
+        ]));
+    } else {
+        lines.push(Line::from(vec![
+            Span::styled(" ✔ [UP TO DATE] ", Style::default().fg(theme.green_phosphor).add_modifier(Modifier::BOLD)),
+            Span::styled(format!("Boombox RX-505 v{} (Official Latest)", env!("CARGO_PKG_VERSION")), Style::default().fg(theme.muted)),
+        ]));
+    }
+    lines.push(Line::from(""));
     lines.push(Line::from(vec![Span::styled("─── CONTROLS ───────────────────────────────────────────────────────────", Style::default().fg(theme.gold))]));
     lines.push(Line::from(vec![
         Span::styled(" [↑ / ↓] ", Style::default().fg(theme.amber).add_modifier(Modifier::BOLD)),

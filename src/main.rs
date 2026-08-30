@@ -91,6 +91,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (radio_tx, mut radio_rx) = mpsc::unbounded_channel::<(GenreFilter, Vec<MediaItem>)>();
     let (tray_action_tx, mut tray_action_rx) = mpsc::unbounded_channel::<TrayAction>();
     let (autoplay_tx, mut autoplay_rx) = mpsc::unbounded_channel::<Vec<MediaItem>>();
+    let (update_tx, mut update_rx) = mpsc::unbounded_channel::<api::updater::UpdateInfo>();
+
+    // Spawn Background Update Checker (Non-blocking with 4s timeout)
+    let utx = update_tx.clone();
+    tokio::spawn(async move {
+        if let Some(info) = api::updater::check_for_updates().await {
+            let _ = utx.send(info);
+        }
+    });
 
     // 4. Initialize SNI StatusNotifierItem Tray Icon with AppMenu
     let tray_state = Arc::new(Mutex::new(TrayState {
@@ -369,6 +378,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             state.status_message = format!("⚡ Autoplay: Queued {} recommended tracks", count);
+        }
+
+        // Poll Async GitHub Update Receiver
+        while let Ok(info) = update_rx.try_recv() {
+            let ver = info.latest_version.clone();
+            state.status_message = format!("🌟 New update available: v{} (Press 'o' or visit GitHub)", ver);
+            state.available_update = Some(info);
+            if state.notifications_enabled {
+                tokio::spawn(async move {
+                    let _ = tokio::process::Command::new("notify-send")
+                        .arg("-a")
+                        .arg("Boombox Audio")
+                        .arg("-i")
+                        .arg("software-update-available")
+                        .arg("🎉 Boombox Update Available!")
+                        .arg(format!("Phiên bản mới v{} đã có sẵn trên GitHub!", ver))
+                        .output()
+                        .await;
+                });
+            }
         }
 
         // Record history after 15 seconds of playback

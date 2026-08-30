@@ -10,21 +10,37 @@ use ratatui::{
 };
 
 pub fn render_header(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
+    let (brand_spans, brand_len) = if let Some(ref update) = state.available_update {
+        (
+            vec![
+                Span::styled(" ▶ ", Style::default().fg(theme.amber).add_modifier(Modifier::BOLD)),
+                Span::styled("RX-505", Style::default().fg(theme.amber_bright).add_modifier(Modifier::BOLD)),
+                Span::styled(format!(" [🌟 v{}]", update.latest_version), Style::default().fg(theme.gold).add_modifier(Modifier::BOLD)),
+            ],
+            24u16,
+        )
+    } else {
+        (
+            vec![
+                Span::styled(" ▶ ", Style::default().fg(theme.amber).add_modifier(Modifier::BOLD)),
+                Span::styled("BOOMBOX RX-505", Style::default().fg(theme.amber_bright).add_modifier(Modifier::BOLD)),
+            ],
+            22u16,
+        )
+    };
+
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(22), // Title / Brand
-            Constraint::Min(45),    // Mode Tabs
-            Constraint::Length(35), // Soundstage & DSP Badges
+            Constraint::Length(brand_len), // Title / Brand / Update Badge
+            Constraint::Min(45),           // Mode Tabs
+            Constraint::Length(35),        // Soundstage & DSP Badges
         ])
         .split(area);
 
     // 1. Title / Brand
-    let brand = Paragraph::new(Line::from(vec![
-        Span::styled(" ▶ ", Style::default().fg(theme.amber).add_modifier(Modifier::BOLD)),
-        Span::styled("BOOMBOX RX-505", Style::default().fg(theme.amber_bright).add_modifier(Modifier::BOLD)),
-    ]))
-    .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.border_dim)));
+    let brand = Paragraph::new(Line::from(brand_spans))
+        .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.border_dim)));
     f.render_widget(brand, chunks[0]);
 
     // 2. Mode Tabs (1-4)

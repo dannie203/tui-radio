@@ -60,6 +60,7 @@ pub struct AppState {
     pub filtered_history: Vec<HistoryEntry>,
     pub selected_history_idx: usize,
     pub track_recorded_to_history: bool,
+    pub available_update: Option<crate::api::updater::UpdateInfo>,
 }
 
 impl AppState {
@@ -132,6 +133,7 @@ impl AppState {
             history,
             selected_history_idx: 0,
             track_recorded_to_history: false,
+            available_update: None,
         }
     }
 
