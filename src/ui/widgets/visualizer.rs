@@ -33,7 +33,7 @@ pub fn render_visualizer(f: &mut Frame, area: Rect, state: &AppState, theme: &Th
     let box_width = area.width as usize;
 
     // 1. Dual VU Meters (L/R) with perfectly aligned dB Scale Header
-    let vu_width = box_width.saturating_sub(26).clamp(28, 80);
+    let vu_width = box_width.saturating_sub(26).clamp(28, 120);
     let scale_str = generate_vu_scale(vu_width);
 
     lines.push(Line::from(vec![
@@ -62,8 +62,8 @@ pub fn render_visualizer(f: &mut Frame, area: Rect, state: &AppState, theme: &Th
     };
     let spacing = " ".repeat(slot_width - band_width);
 
-    // Calculate vertical height for EQ (fill remaining box height)
-    let eq_height = (area.height as usize).saturating_sub(8).clamp(5, 14);
+    // Dynamically fill all available vertical height for EQ
+    let eq_height = (area.height as usize).saturating_sub(8).max(4);
 
     let now_sec = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

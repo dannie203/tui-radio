@@ -134,11 +134,13 @@ impl VisualizerSpeed {
     ];
 
     pub fn cycle(&self) -> Self {
-        match self {
-            VisualizerSpeed::UltraSnappy => VisualizerSpeed::Standard,
-            VisualizerSpeed::Standard => VisualizerSpeed::SmoothLiquid,
-            VisualizerSpeed::SmoothLiquid => VisualizerSpeed::UltraSnappy,
-        }
+        self.cycle_dir(1)
+    }
+
+    pub fn cycle_dir(&self, delta: i32) -> Self {
+        let idx = VisualizerSpeed::ALL.iter().position(|v| v == self).unwrap_or(0);
+        let next = (idx as i32 + delta).rem_euclid(VisualizerSpeed::ALL.len() as i32) as usize;
+        VisualizerSpeed::ALL[next]
     }
 
     pub fn label(&self) -> &'static str {
@@ -183,8 +185,13 @@ impl SpectrumColorMode {
     ];
 
     pub fn cycle(&self) -> Self {
+        self.cycle_dir(1)
+    }
+
+    pub fn cycle_dir(&self, delta: i32) -> Self {
         let idx = SpectrumColorMode::ALL.iter().position(|m| m == self).unwrap_or(0);
-        SpectrumColorMode::ALL[(idx + 1) % SpectrumColorMode::ALL.len()]
+        let next = (idx as i32 + delta).rem_euclid(SpectrumColorMode::ALL.len() as i32) as usize;
+        SpectrumColorMode::ALL[next]
     }
 
     pub fn label(&self) -> &'static str {
@@ -235,12 +242,20 @@ pub enum StereoMode {
 }
 
 impl StereoMode {
+    pub const ALL: [StereoMode; 3] = [
+        StereoMode::Stereo,
+        StereoMode::Mono,
+        StereoMode::Wide3D,
+    ];
+
     pub fn cycle(&self) -> Self {
-        match self {
-            StereoMode::Stereo => StereoMode::Mono,
-            StereoMode::Mono => StereoMode::Wide3D,
-            StereoMode::Wide3D => StereoMode::Stereo,
-        }
+        self.cycle_dir(1)
+    }
+
+    pub fn cycle_dir(&self, delta: i32) -> Self {
+        let idx = StereoMode::ALL.iter().position(|m| m == self).unwrap_or(0);
+        let next = (idx as i32 + delta).rem_euclid(StereoMode::ALL.len() as i32) as usize;
+        StereoMode::ALL[next]
     }
 
     pub fn label(&self) -> &'static str {
@@ -261,13 +276,21 @@ pub enum DolbyMode {
 }
 
 impl DolbyMode {
+    pub const ALL: [DolbyMode; 4] = [
+        DolbyMode::Off,
+        DolbyMode::DolbyB,
+        DolbyMode::DolbyC,
+        DolbyMode::DolbyS,
+    ];
+
     pub fn cycle(&self) -> Self {
-        match self {
-            DolbyMode::Off => DolbyMode::DolbyB,
-            DolbyMode::DolbyB => DolbyMode::DolbyC,
-            DolbyMode::DolbyC => DolbyMode::DolbyS,
-            DolbyMode::DolbyS => DolbyMode::Off,
-        }
+        self.cycle_dir(1)
+    }
+
+    pub fn cycle_dir(&self, delta: i32) -> Self {
+        let idx = DolbyMode::ALL.iter().position(|m| m == self).unwrap_or(0);
+        let next = (idx as i32 + delta).rem_euclid(DolbyMode::ALL.len() as i32) as usize;
+        DolbyMode::ALL[next]
     }
 
     pub fn label(&self) -> &'static str {
@@ -297,12 +320,20 @@ pub enum TapeType {
 }
 
 impl TapeType {
+    pub const ALL: [TapeType; 3] = [
+        TapeType::TypeI,
+        TapeType::TypeII,
+        TapeType::TypeIV,
+    ];
+
     pub fn cycle(&self) -> Self {
-        match self {
-            TapeType::TypeI => TapeType::TypeII,
-            TapeType::TypeII => TapeType::TypeIV,
-            TapeType::TypeIV => TapeType::TypeI,
-        }
+        self.cycle_dir(1)
+    }
+
+    pub fn cycle_dir(&self, delta: i32) -> Self {
+        let idx = TapeType::ALL.iter().position(|m| m == self).unwrap_or(0);
+        let next = (idx as i32 + delta).rem_euclid(TapeType::ALL.len() as i32) as usize;
+        TapeType::ALL[next]
     }
 
     pub fn label(&self) -> &'static str {
@@ -330,12 +361,20 @@ pub enum RepeatMode {
 }
 
 impl RepeatMode {
+    pub const ALL: [RepeatMode; 3] = [
+        RepeatMode::Off,
+        RepeatMode::All,
+        RepeatMode::One,
+    ];
+
     pub fn cycle(&self) -> Self {
-        match self {
-            RepeatMode::Off => RepeatMode::All,
-            RepeatMode::All => RepeatMode::One,
-            RepeatMode::One => RepeatMode::Off,
-        }
+        self.cycle_dir(1)
+    }
+
+    pub fn cycle_dir(&self, delta: i32) -> Self {
+        let idx = RepeatMode::ALL.iter().position(|m| m == self).unwrap_or(0);
+        let next = (idx as i32 + delta).rem_euclid(RepeatMode::ALL.len() as i32) as usize;
+        RepeatMode::ALL[next]
     }
 
     pub fn label(&self) -> &'static str {
@@ -370,8 +409,13 @@ impl EqPreset {
     ];
 
     pub fn cycle(&self) -> Self {
+        self.cycle_dir(1)
+    }
+
+    pub fn cycle_dir(&self, delta: i32) -> Self {
         let idx = EqPreset::ALL.iter().position(|e| e == self).unwrap_or(0);
-        EqPreset::ALL[(idx + 1) % EqPreset::ALL.len()]
+        let next = (idx as i32 + delta).rem_euclid(EqPreset::ALL.len() as i32) as usize;
+        EqPreset::ALL[next]
     }
 
     pub fn label(&self) -> &'static str {
@@ -396,13 +440,21 @@ pub enum RecordFormat {
 }
 
 impl RecordFormat {
+    pub const ALL: [RecordFormat; 4] = [
+        RecordFormat::Opus,
+        RecordFormat::Mp3,
+        RecordFormat::Flac,
+        RecordFormat::M4a,
+    ];
+
     pub fn cycle(&self) -> Self {
-        match self {
-            RecordFormat::Opus => RecordFormat::Mp3,
-            RecordFormat::Mp3 => RecordFormat::Flac,
-            RecordFormat::Flac => RecordFormat::M4a,
-            RecordFormat::M4a => RecordFormat::Opus,
-        }
+        self.cycle_dir(1)
+    }
+
+    pub fn cycle_dir(&self, delta: i32) -> Self {
+        let idx = RecordFormat::ALL.iter().position(|r| r == self).unwrap_or(0);
+        let next = (idx as i32 + delta).rem_euclid(RecordFormat::ALL.len() as i32) as usize;
+        RecordFormat::ALL[next]
     }
 
     pub fn label(&self) -> &'static str {

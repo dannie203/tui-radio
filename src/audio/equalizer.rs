@@ -1,4 +1,4 @@
-use crate::state::types::EqPreset;
+use crate::state::types::{DolbyMode, EqPreset, StereoMode, TapeType};
 
 pub const NUM_BANDS: usize = 32;
 
@@ -100,12 +100,13 @@ pub fn preset_gains(id: EqPreset) -> [f32; 32] {
     get_preset(id).gains
 }
 
-/// Builds an FFmpeg `firequalizer` audio filter string for MPV real-time DSP.
-pub fn build_mpv_af_string(
+/// Computes the combined 32-band EQ gain profile including Preset, Mega Bass, Dolby NR, and Tape Bias.
+pub fn compute_total_gains(
     preset: EqPreset,
     bass_boost: bool,
-    dolby: crate::state::types::DolbyMode,
-) -> String {
+    dolby: DolbyMode,
+    tape: TapeType,
+) -> [f32; 32] {
     let base_gains = preset_gains(preset);
     let mut combined = base_gains;
 
@@ -120,19 +121,19 @@ pub fn build_mpv_af_string(
     }
 
     match dolby {
-        crate::state::types::DolbyMode::DolbyB => {
+        DolbyMode::DolbyB => {
             // High-hiss cut above 5kHz
             for i in 24..32 {
                 combined[i] -= 3.0;
             }
         }
-        crate::state::types::DolbyMode::DolbyC => {
+        DolbyMode::DolbyC => {
             // Wide filter above 2.5kHz
             for i in 21..32 {
                 combined[i] -= 5.0;
             }
         }
-        crate::state::types::DolbyMode::DolbyS => {
+        DolbyMode::DolbyS => {
             // Studio master tape warm curve
             for i in 0..8 {
                 combined[i] += 1.0;
@@ -141,26 +142,80 @@ pub fn build_mpv_af_string(
                 combined[i] -= 2.0;
             }
         }
-        crate::state::types::DolbyMode::Off => {}
+        DolbyMode::Off => {}
     }
 
-    // Check if flat 0dB everywhere
-    let is_flat = combined.iter().all(|&g| g.abs() < 0.05);
-    if is_flat {
-        return String::new();
-    }
-
-    // Build firequalizer gain_entry string
-    let mut entries = String::new();
-    for (i, &freq) in ISO_FREQUENCIES.iter().enumerate() {
-        let gain = combined[i].clamp(-24.0, 18.0);
-        if !entries.is_empty() {
-            entries.push(';');
+    match tape {
+        TapeType::TypeI => {
+            // Normal Fe: warm low-mids, gentle tape high roll-off
+            for i in 6..14 {
+                combined[i] += 1.5;
+            }
+            for i in 28..32 {
+                combined[i] -= 1.5;
+            }
         }
-        entries.push_str(&format!("entry({:.1},{:.1})", freq, gain));
+        TapeType::TypeII => {
+            // Chrome CrO2: 70µs high-bias crispness
+            for i in 25..31 {
+                combined[i] += 2.0;
+            }
+        }
+        TapeType::TypeIV => {
+            // Metal: extended hi-res spectrum punch
+            for i in 0..6 {
+                combined[i] += 1.0;
+            }
+            for i in 27..32 {
+                combined[i] += 1.2;
+            }
+        }
     }
 
-    format!("lavfi=[firequalizer=gain_entry='{}']", entries)
+    combined
+}
+
+/// Builds an FFmpeg / MPV audio filter string for real-time DSP (Equalizer, Stereo Soundstage, Tape, Dolby).
+pub fn build_mpv_af_string(
+    preset: EqPreset,
+    bass_boost: bool,
+    dolby: DolbyMode,
+    stereo: StereoMode,
+    tape: TapeType,
+) -> String {
+    let combined = compute_total_gains(preset, bass_boost, dolby, tape);
+    let mut lavfi_filters = Vec::new();
+
+    // 1. Equalizer Filter (firequalizer)
+    let is_flat = combined.iter().all(|&g| g.abs() < 0.05);
+    if !is_flat {
+        let mut entries = String::new();
+        for (i, &freq) in ISO_FREQUENCIES.iter().enumerate() {
+            let gain = combined[i].clamp(-24.0, 18.0);
+            if !entries.is_empty() {
+                entries.push(';');
+            }
+            entries.push_str(&format!("entry({:.1},{:.1})", freq, gain));
+        }
+        lavfi_filters.push(format!("firequalizer=gain_entry='{}'", entries));
+    }
+
+    // 2. Soundstage / Spatial Stereo Filter
+    match stereo {
+        StereoMode::Mono => {
+            lavfi_filters.push("pan=mono|c0=0.5*c0+0.5*c1".to_string());
+        }
+        StereoMode::Wide3D => {
+            lavfi_filters.push("extrastereo=m=2.2".to_string());
+        }
+        StereoMode::Stereo => {}
+    }
+
+    if lavfi_filters.is_empty() {
+        String::new()
+    } else {
+        format!("lavfi=[{}]", lavfi_filters.join(","))
+    }
 }
 
 /// Converts a 32-band dB gain curve into a linear multiplier for the spectrum.

@@ -55,13 +55,24 @@ pub fn render_ui(f: &mut Frame, state: &AppState, theme: &Theme) {
             render_artwork(f, workspace_chunks[1], state, theme);
         }
         ActiveView::Deck => {
-            // Split Right Pane: Cassette Bay (5), Phosphor Monitor (8), Visualizer (Fill)
+            // Dynamically scale Right Pane: Cassette Bay (5), Phosphor Monitor & Oscilloscope, Visualizer
+            let right_h = workspace_chunks[1].height;
+            let monitor_len = if right_h < 22 {
+                9 // Minimum height to fit 7 metadata lines + borders
+            } else if right_h < 30 {
+                12 // Standard terminal: 7 lines metadata + 3 lines CRT Oscilloscope
+            } else {
+                // Large/Tall terminal: give ~38% height to CRT Monitor & Oscilloscope
+                let scaled = ((right_h as f32) * 0.38).round() as u16;
+                scaled.clamp(13, 24)
+            };
+
             let right_chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
-                    Constraint::Length(5), // Classic Hi-Fi Cassette Bay (3 lines content + borders)
-                    Constraint::Length(8), // Phosphor LCD Monitor (6 lines content + borders)
-                    Constraint::Min(8),    // Dual VU + 32-Band Visualizer
+                    Constraint::Length(5),           // Classic Hi-Fi Cassette Bay
+                    Constraint::Length(monitor_len), // CRT Phosphor Monitor & Oscilloscope
+                    Constraint::Min(8),              // Dual VU + 32-Band Visualizer (takes all remainder!)
                 ])
                 .split(workspace_chunks[1]);
 

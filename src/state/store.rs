@@ -186,24 +186,22 @@ impl AppState {
 
     pub fn cycle_selected_setting(&mut self, delta: i32) {
         match self.settings_selected_idx {
-            0 => self.cycle_theme(),
-            1 => self.stereo_mode = self.stereo_mode.cycle(),
-            2 => self.dolby_mode = self.dolby_mode.cycle(),
-            3 => self.tape_type = self.tape_type.cycle(),
-            4 => self.eq_preset = self.eq_preset.cycle(),
+            0 => self.cycle_theme(delta),
+            1 => self.stereo_mode = self.stereo_mode.cycle_dir(delta),
+            2 => self.dolby_mode = self.dolby_mode.cycle_dir(delta),
+            3 => self.tape_type = self.tape_type.cycle_dir(delta),
+            4 => self.eq_preset = self.eq_preset.cycle_dir(delta),
             5 => self.bass_boost = !self.bass_boost,
-            6 => self.spectrum_color_mode = self.spectrum_color_mode.cycle(),
-            7 => self.visualizer_speed = self.visualizer_speed.cycle(),
-            8 => self.record_format = self.record_format.cycle(),
+            6 => self.spectrum_color_mode = self.spectrum_color_mode.cycle_dir(delta),
+            7 => self.visualizer_speed = self.visualizer_speed.cycle_dir(delta),
+            8 => self.record_format = self.record_format.cycle_dir(delta),
             9 => self.lyrics_offset = (self.lyrics_offset + (delta as f64 * 0.25)).clamp(-10.0, 10.0),
             10 => self.matrix_scramble = !self.matrix_scramble,
             11 => {
-                self.volume_step = match self.volume_step {
-                    1 => 2,
-                    2 => 5,
-                    5 => 10,
-                    _ => 1,
-                };
+                const STEPS: [u32; 4] = [1, 2, 5, 10];
+                let idx = STEPS.iter().position(|&s| s == self.volume_step).unwrap_or(2);
+                let next = (idx as i32 + delta).rem_euclid(STEPS.len() as i32) as usize;
+                self.volume_step = STEPS[next];
             }
             _ => {}
         }
@@ -493,9 +491,10 @@ impl AppState {
         self.selected_index = 0;
     }
 
-    pub fn cycle_theme(&mut self) {
+    pub fn cycle_theme(&mut self, delta: i32) {
         let themes = get_themes();
-        self.theme_index = (self.theme_index + 1) % themes.len();
+        let count = themes.len() as i32;
+        self.theme_index = (self.theme_index as i32 + delta).rem_euclid(count) as usize;
         self.status_message = format!("Theme: {}", themes[self.theme_index].name);
     }
 
@@ -564,5 +563,80 @@ impl AppState {
                 }
             }
         }
+    }
+
+    pub fn save_config(&self) {
+        let theme_id = self.current_theme().id;
+        let cfg = AppConfig {
+            general: crate::state::config::GeneralConfig {
+                music_dir: Some("~/Music".to_string()),
+                default_mode: Some(match self.mode {
+                    AppMode::RadioStations => "radio".to_string(),
+                    AppMode::Queue => "queue".to_string(),
+                    AppMode::YoutubeMusic => "youtube".to_string(),
+                    AppMode::LocalTracks => "local".to_string(),
+                }),
+                volume_step: self.volume_step,
+                notifications: self.notifications_enabled,
+                auto_save_session: true,
+            },
+            audio: crate::state::config::AudioConfig {
+                default_volume: self.volume,
+                stereo_mode: match self.stereo_mode {
+                    StereoMode::Mono => "mono".to_string(),
+                    StereoMode::Wide3D => "wide3d".to_string(),
+                    StereoMode::Stereo => "stereo".to_string(),
+                },
+                dolby_mode: match self.dolby_mode {
+                    DolbyMode::Off => "off".to_string(),
+                    DolbyMode::DolbyB => "dolby_b".to_string(),
+                    DolbyMode::DolbyC => "dolby_c".to_string(),
+                    DolbyMode::DolbyS => "dolby_s".to_string(),
+                },
+                tape_type: match self.tape_type {
+                    TapeType::TypeI => "type_i".to_string(),
+                    TapeType::TypeII => "type_ii".to_string(),
+                    TapeType::TypeIV => "type_iv".to_string(),
+                },
+                eq_preset: match self.eq_preset {
+                    EqPreset::Flat => "flat".to_string(),
+                    EqPreset::MegaBass => "megabass".to_string(),
+                    EqPreset::VocalClear => "vocal".to_string(),
+                    EqPreset::RockPunch => "rock".to_string(),
+                    EqPreset::LofiWarmth => "lofi".to_string(),
+                    EqPreset::CyberSynth => "cyberpunk".to_string(),
+                    EqPreset::ClubEdm => "club".to_string(),
+                },
+                bass_boost: self.bass_boost,
+                record_format: match self.record_format {
+                    RecordFormat::Opus => "opus".to_string(),
+                    RecordFormat::Mp3 => "mp3".to_string(),
+                    RecordFormat::Flac => "flac".to_string(),
+                    RecordFormat::M4a => "m4a".to_string(),
+                },
+            },
+            ui: crate::state::config::UiConfig {
+                theme: theme_id.to_string(),
+                visualizer_speed: match self.visualizer_speed {
+                    VisualizerSpeed::UltraSnappy => "snappy".to_string(),
+                    VisualizerSpeed::Standard => "standard".to_string(),
+                    VisualizerSpeed::SmoothLiquid => "liquid".to_string(),
+                },
+                spectrum_color_mode: match self.spectrum_color_mode {
+                    SpectrumColorMode::RgbCycle => "rgb_cycle".to_string(),
+                    SpectrumColorMode::ChromaRainbow => "static_iso".to_string(),
+                    SpectrumColorMode::VerticalGradient => "gradient".to_string(),
+                    SpectrumColorMode::CyberpunkNeon => "cyberpunk".to_string(),
+                    SpectrumColorMode::FireAndIce => "fire_ice".to_string(),
+                    SpectrumColorMode::MatrixPhosphor => "matrix".to_string(),
+                    SpectrumColorMode::AmberVintage => "amber".to_string(),
+                    SpectrumColorMode::ThemeAccent => "theme".to_string(),
+                },
+                spectrum_custom_color: self.spectrum_custom_color.clone(),
+                matrix_scramble: self.matrix_scramble,
+                lyrics_offset: self.lyrics_offset,
+            },
+        };
+        let _ = cfg.save();
     }
 }

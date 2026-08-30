@@ -58,7 +58,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 3. Initialize App Engine & Async Channels
     let mut state = AppState::new();
     let player = MpvPlayer::new();
-    let initial_af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+    let initial_af = audio::equalizer::build_mpv_af_string(
+        state.eq_preset,
+        state.bass_boost,
+        state.dolby_mode,
+        state.stereo_mode,
+        state.tape_type,
+    );
     player.apply_audio_filter(&initial_af);
 
     let recorder = StreamRecorder::new();
@@ -337,7 +343,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // B. Update Visualizer Spectrum with REAL-TIME PCM AUDIO OUTPUT
-        let eq_gains = audio::equalizer::preset_gains(state.eq_preset);
+        let eq_gains = audio::equalizer::compute_total_gains(
+            state.eq_preset,
+            state.bass_boost,
+            state.dolby_mode,
+            state.tape_type,
+        );
         let (bands, peaks, vu_l, vu_r, peak_l, peak_r) = visualizer.update_with_live_audio(
             &live_audio,
             state.is_playing,
@@ -486,6 +497,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ModalType::Settings => match key.code {
                         KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('o') => {
                             state.active_modal = ModalType::None;
+                            state.save_config();
                         }
                         KeyCode::Up | KeyCode::Char('k') => {
                             state.move_settings_selection(-1);
@@ -497,25 +509,57 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             state.cycle_selected_setting(1);
                             let (att, rel) = state.visualizer_speed.alphas();
                             visualizer.set_ballistics(att, rel);
-                            let af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+                            let af = audio::equalizer::build_mpv_af_string(
+                                state.eq_preset,
+                                state.bass_boost,
+                                state.dolby_mode,
+                                state.stereo_mode,
+                                state.tape_type,
+                            );
                             player.apply_audio_filter(&af);
+                            state.save_config();
                         }
                         KeyCode::Left | KeyCode::Char('h') => {
                             state.cycle_selected_setting(-1);
                             let (att, rel) = state.visualizer_speed.alphas();
                             visualizer.set_ballistics(att, rel);
-                            let af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+                            let af = audio::equalizer::build_mpv_af_string(
+                                state.eq_preset,
+                                state.bass_boost,
+                                state.dolby_mode,
+                                state.stereo_mode,
+                                state.tape_type,
+                            );
                             player.apply_audio_filter(&af);
+                            state.save_config();
                         }
                         KeyCode::Char('[') => {
                             state.cycle_selected_setting(-1);
-                            let af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+                            let (att, rel) = state.visualizer_speed.alphas();
+                            visualizer.set_ballistics(att, rel);
+                            let af = audio::equalizer::build_mpv_af_string(
+                                state.eq_preset,
+                                state.bass_boost,
+                                state.dolby_mode,
+                                state.stereo_mode,
+                                state.tape_type,
+                            );
                             player.apply_audio_filter(&af);
+                            state.save_config();
                         }
                         KeyCode::Char(']') => {
                             state.cycle_selected_setting(1);
-                            let af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+                            let (att, rel) = state.visualizer_speed.alphas();
+                            visualizer.set_ballistics(att, rel);
+                            let af = audio::equalizer::build_mpv_af_string(
+                                state.eq_preset,
+                                state.bass_boost,
+                                state.dolby_mode,
+                                state.stereo_mode,
+                                state.tape_type,
+                            );
                             player.apply_audio_filter(&af);
+                            state.save_config();
                         }
                         _ => {}
                     },
@@ -737,23 +781,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 } else {
                                     "MEGA BASS: Flat Disabled".to_string()
                                 };
-                                let af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+                                let af = audio::equalizer::build_mpv_af_string(
+                                    state.eq_preset,
+                                    state.bass_boost,
+                                    state.dolby_mode,
+                                    state.stereo_mode,
+                                    state.tape_type,
+                                );
                                 player.apply_audio_filter(&af);
+                                state.save_config();
                             }
                             KeyCode::Char('d') => {
                                 state.dolby_mode = state.dolby_mode.cycle();
                                 state.status_message = format!("Dolby Filter: {}", state.dolby_mode.label());
-                                let af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+                                let af = audio::equalizer::build_mpv_af_string(
+                                    state.eq_preset,
+                                    state.bass_boost,
+                                    state.dolby_mode,
+                                    state.stereo_mode,
+                                    state.tape_type,
+                                );
                                 player.apply_audio_filter(&af);
+                                state.save_config();
                             }
                             KeyCode::Char('e') => {
                                 state.eq_preset = state.eq_preset.cycle();
                                 state.status_message = format!("EQ Profile: {}", state.eq_preset.label());
-                                let af = audio::equalizer::build_mpv_af_string(state.eq_preset, state.bass_boost, state.dolby_mode);
+                                let af = audio::equalizer::build_mpv_af_string(
+                                    state.eq_preset,
+                                    state.bass_boost,
+                                    state.dolby_mode,
+                                    state.stereo_mode,
+                                    state.tape_type,
+                                );
                                 player.apply_audio_filter(&af);
+                                state.save_config();
                             }
                             KeyCode::Char('t') => {
-                                state.cycle_theme();
+                                state.cycle_theme(1);
+                                state.save_config();
                             }
                             KeyCode::Char('r') => {
                                 state.repeat_mode = state.repeat_mode.cycle();
