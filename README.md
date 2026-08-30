@@ -69,21 +69,31 @@
 
 ---
 
-## ⚡ Quick Installation (1-Line Automated)
+## 📦 Installation Options
 
-### Linux & macOS
+### 🪟 Windows
 
-```bash
-curl -sSL https://raw.githubusercontent.com/dannie203/tui-radio/main/install.sh | bash
-```
-*Automatically downloads the latest release, installs the `boombox` binary to `~/.local/bin`, installs desktop entry and HiColor icons, and cleans up temp files.*
+* **Option 1: Windows Installer Package (`.msi`) — (Recommended)**
+  * Download [**`Boombox-3.8.2-x86_64.msi`**](https://github.com/dannie203/tui-radio/releases/latest/download/Boombox-3.8.2-x86_64.msi).
+  * Double-click to install. It automatically configures PATH, creates Desktop & Start Menu shortcuts, and registers cleanly in Windows Settings / Control Panel.
+* **Option 2: 1-Line PowerShell Installer**
+  ```powershell
+  irm https://raw.githubusercontent.com/dannie203/tui-radio/main/install.ps1 | iex
+  ```
+* **Option 3: Portable Archive (`.zip`)**
+  * Download [**`boombox-rs-windows-x86_64.zip`**](https://github.com/dannie203/tui-radio/releases/latest/download/boombox-rs-windows-x86_64.zip), extract and run `boombox-rs.exe` anywhere.
 
-### Windows (PowerShell)
+---
 
-```powershell
-irm https://raw.githubusercontent.com/dannie203/tui-radio/main/install.ps1 | iex
-```
-*Automatically installs to `%LOCALAPPDATA%\Programs\Boombox`, adds to PATH, creates Desktop & Start Menu shortcuts, and cleans up all temporary setup files.*
+### 🐧 Linux & macOS
+
+* **Option 1: 1-Line Automated Script**
+  ```bash
+  curl -sSL https://raw.githubusercontent.com/dannie203/tui-radio/main/install.sh | bash
+  ```
+  *Automatically downloads latest release, installs `boombox` to `~/.local/bin`, installs desktop entry and HiColor icons.*
+* **Option 2: Manual Binary (`.tar.gz`)**
+  * Download [**`boombox-rs-linux-x86_64.tar.gz`**](https://github.com/dannie203/tui-radio/releases/latest/download/boombox-rs-linux-x86_64.tar.gz), extract and copy `boombox-rs` to your `$PATH`.*
 
 ---
 

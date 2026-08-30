@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="Boombox RX-505"
+           Language="1033"
+           Version="3.8.2"
+           Manufacturer="Dannie Nguyen"
+           UpgradeCode="A4C5B980-60A1-40D9-9238-6627C1717316">
+
+    <Package Description="Boombox RX-505 Retro Cyberpunk Music Player &amp; Radio"
+             Comments="A high-performance cyberpunk retro cassette boombox and worldwide radio explorer in pure Rust."
+             Manufacturer="Dannie Nguyen"
+             InstallerVersion="200"
+             Compressed="yes" />
+
+    <Media Id="1" Cabinet="boombox.cab" EmbedCab="yes" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="Boombox">
+          <Component Id="MainExecutable" Guid="E2479B0A-256A-4E38-9218-12D66EF673E1" Win64="yes">
+            <File Id="BoomboxExe"
+                  Name="boombox-rs.exe"
+                  Source="/home/aki/Windows/boombox-rs.exe"
+                  KeyPath="yes">
+              <Shortcut Id="DesktopShortcut"
+                        Directory="DesktopFolder"
+                        Name="Boombox RX-505"
+                        WorkingDirectory="INSTALLDIR"
+                        Advertise="yes" />
+              <Shortcut Id="StartMenuShortcut"
+                        Directory="ProgramMenuDir"
+                        Name="Boombox RX-505"
+                        WorkingDirectory="INSTALLDIR"
+                        Advertise="yes" />
+            </File>
+            <Environment Id="PATH"
+                         Name="PATH"
+                         Value="[INSTALLDIR]"
+                         Permanent="no"
+                         Part="last"
+                         Action="set"
+                         System="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ProgramMenuDir" Name="Boombox">
+          <Component Id="ProgramMenuDirComp" Guid="73E5B108-96B1-477F-92C5-9A926FE1B619">
+            <RemoveFolder Id="RemoveProgramMenuDir" On="uninstall" />
+            <RegistryValue Root="HKCU"
+                           Key="Software\DannieNguyen\Boombox"
+                           Name="installed"
+                           Type="integer"
+                           Value="1"
+                           KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+
+      <Directory Id="DesktopFolder" Name="Desktop" />
+    </Directory>
+
+    <Feature Id="Complete" Title="Boombox RX-505" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="ProgramMenuDirComp" />
+    </Feature>
+
+  </Product>
+</Wix>
