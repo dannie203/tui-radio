@@ -408,6 +408,32 @@ impl AppState {
         None
     }
 
+    pub fn peek_next_track(&self) -> Option<MediaItem> {
+        if !self.queue.is_empty() {
+            let cur_id = self.current_track.as_ref().map(|t| &t.id);
+            let cur_idx = self.queue.iter().position(|t| Some(&t.id) == cur_id).unwrap_or(0);
+            if cur_idx + 1 < self.queue.len() {
+                return self.queue.get(cur_idx + 1).cloned();
+            } else if self.repeat_mode == RepeatMode::All {
+                return self.queue.first().cloned();
+            }
+        }
+
+        let list = self.get_active_list();
+        if !list.is_empty() {
+            let cur_id = self.current_track.as_ref().map(|t| &t.id);
+            let cur_idx = list.iter().position(|t| Some(&t.id) == cur_id).unwrap_or(self.selected_index);
+            if cur_idx + 1 < list.len() {
+                return list.get(cur_idx + 1).cloned();
+            } else if self.repeat_mode == RepeatMode::All {
+                return list.first().cloned();
+            } else {
+                return list.first().cloned();
+            }
+        }
+        None
+    }
+
     pub fn record_history(&mut self, track_id: &str) {
         if self.played_history.iter().any(|id| id == track_id) {
             return;
