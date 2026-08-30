@@ -5,6 +5,13 @@ All notable changes to the **BOOMBOX-RS** project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.4] - 2026-08-31
+
+### Added
+- **In-App Background Update Notification**: Automatic non-blocking GitHub release checker with header brand badges, real-time statusline alerts, desktop notifications, and Settings dashboard integration.
+
+---
+
 ## [3.8.3] - 2026-08-31
 
 ### Fixed
