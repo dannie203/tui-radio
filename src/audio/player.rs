@@ -54,10 +54,8 @@ impl MpvPlayer {
             .arg("--no-video")
             .arg("--idle=yes")
             .arg(format!("--input-ipc-server={}", socket_path))
-            .arg("--no-terminal")
-            .arg("--msg-level=all=no")
+            .arg("--really-quiet")
             .arg("--audio-display=no")
-            .arg("--audio-pitch-correction=yes")
             .arg("--gapless-audio=yes")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -65,16 +63,7 @@ impl MpvPlayer {
             .spawn()
             .ok();
 
-        // Wait up to 500ms for MPV IPC socket to be ready
-        for _ in 0..25 {
-            if Path::new(&socket_path).exists() {
-                break;
-            }
-            thread::sleep(Duration::from_millis(20));
-        }
-
-        let unix_stream = UnixStream::connect(&socket_path).ok();
-        let stream_arc = Arc::new(Mutex::new(unix_stream));
+        let stream_arc = Arc::new(Mutex::new(None));
         let status_arc = Arc::new(Mutex::new(PlayerStatus {
             volume: 80,
             ..Default::default()
@@ -82,7 +71,7 @@ impl MpvPlayer {
         let running_arc = Arc::new(AtomicBool::new(true));
 
         let mut player = Self {
-            socket_path,
+            socket_path: socket_path.clone(),
             process: child,
             stream: stream_arc,
             request_id: AtomicU64::new(1),
@@ -91,8 +80,20 @@ impl MpvPlayer {
             master_volume: Arc::new(Mutex::new(80)),
         };
 
-        player.observe_properties();
-        player.spawn_reader_thread();
+        // Retry connection up to 50 times (1.5 seconds) until MPV is listening
+        for _ in 0..50 {
+            thread::sleep(Duration::from_millis(30));
+            if let Ok(s) = UnixStream::connect(&socket_path) {
+                let _ = s.set_nonblocking(false);
+                if let Ok(reader_stream) = s.try_clone() {
+                    *player.stream.lock().unwrap() = Some(s);
+                    player.spawn_reader_thread(reader_stream);
+                    player.observe_properties();
+                    break;
+                }
+            }
+        }
+
         player
     }
 
@@ -112,26 +113,18 @@ impl MpvPlayer {
         ];
 
         for (prop, id) in props {
-            self.send_json_command(serde_json::json!({
-                "command": ["observe_property", id, prop],
-                "request_id": id
-            }));
+            self.send_json_command(serde_json::json!(["observe_property", id, prop]));
         }
+        let vol = *self.master_volume.lock().unwrap();
+        self.send_json_command(serde_json::json!(["set_property", "volume", vol]));
     }
 
-    fn spawn_reader_thread(&mut self) {
-        let stream_clone = Arc::clone(&self.stream);
+    fn spawn_reader_thread(&self, stream: UnixStream) {
         let status_clone = Arc::clone(&self.status);
         let running_clone = Arc::clone(&self.running);
 
         thread::spawn(move || {
-            let socket_stream = {
-                let guard = stream_clone.lock().unwrap();
-                guard.as_ref().and_then(|s| s.try_clone().ok())
-            };
-
-            let Some(socket_stream) = socket_stream else { return; };
-            let mut reader = BufReader::new(socket_stream);
+            let mut reader = BufReader::new(stream);
             let mut line = String::new();
 
             while running_clone.load(Ordering::Relaxed) {
@@ -243,17 +236,33 @@ impl MpvPlayer {
         });
     }
 
-    pub fn send_json_command(&self, json_val: serde_json::Value) {
+    pub fn send_json_command(&self, cmd: serde_json::Value) {
         if let Ok(mut guard) = self.stream.lock() {
             if let Some(ref mut s) = *guard {
-                let mut cmd_str = json_val.to_string();
+                let id = self.request_id.fetch_add(1, Ordering::SeqCst);
+                let payload = if cmd.is_array() {
+                    serde_json::json!({
+                        "command": cmd,
+                        "request_id": id
+                    })
+                } else {
+                    cmd
+                };
+                let mut cmd_str = payload.to_string();
                 cmd_str.push('\n');
                 let _ = s.write_all(cmd_str.as_bytes());
+                let _ = s.flush();
             }
         }
     }
 
     pub fn play(&self, url: &str) {
+        {
+            let mut st = self.status.lock().unwrap();
+            st.is_playing = true;
+            st.is_paused = false;
+            st.time_pos = 0.0;
+        }
         let vol = *self.master_volume.lock().unwrap();
         self.send_json_command(serde_json::json!(["set_property", "volume", vol]));
         self.send_json_command(serde_json::json!(["loadfile", url, "replace"]));
@@ -270,6 +279,7 @@ impl MpvPlayer {
         self.send_json_command(serde_json::json!(["stop"]));
         let mut st = self.status.lock().unwrap();
         st.is_playing = false;
+        st.is_paused = false;
         st.time_pos = 0.0;
     }
 
