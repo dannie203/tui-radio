@@ -232,6 +232,7 @@ pub enum ModalType {
     Search,
     Settings,
     Mixtape,
+    History,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -548,6 +549,19 @@ impl Default for AudioTelemetry {
             is_live: false,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HistoryEntry {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    pub album: Option<String>,
+    pub url: String,
+    pub source: String,
+    pub duration: f64,
+    pub last_played: u64,
+    pub play_count: u32,
 }
 
 

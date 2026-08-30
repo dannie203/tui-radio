@@ -434,3 +434,106 @@ pub async fn resolve_stream_item(input: &str) -> MediaItem {
         bit_depth: Some(16),
     }
 }
+
+pub fn extract_youtube_id(url: &str) -> Option<String> {
+    let trimmed = url.trim();
+    if trimmed.len() == 11 && !trimmed.contains('/') && !trimmed.contains('?') && !trimmed.contains('&') {
+        return Some(trimmed.to_string());
+    }
+    if let Some(pos) = trimmed.find("v=") {
+        let after = &trimmed[pos + 2..];
+        let id: String = after.chars().take_while(|c| *c != '&' && *c != '#' && *c != '/').collect();
+        if id.len() == 11 {
+            return Some(id);
+        }
+    }
+    if let Some(pos) = trimmed.find("youtu.be/") {
+        let after = &trimmed[pos + 9..];
+        let id: String = after.chars().take_while(|c| *c != '?' && *c != '&' && *c != '#' && *c != '/').collect();
+        if id.len() == 11 {
+            return Some(id);
+        }
+    }
+    if let Some(pos) = trimmed.find("/shorts/") {
+        let after = &trimmed[pos + 8..];
+        let id: String = after.chars().take_while(|c| *c != '?' && *c != '&' && *c != '#' && *c != '/').collect();
+        if id.len() == 11 {
+            return Some(id);
+        }
+    }
+    None
+}
+
+pub async fn fetch_youtube_radio_mix(video_id_or_url: &str) -> Vec<MediaItem> {
+    let video_id = match extract_youtube_id(video_id_or_url) {
+        Some(id) => id,
+        None => return Vec::new(),
+    };
+
+    let mix_url = format!("https://www.youtube.com/watch?v={}&list=RD{}", video_id, video_id);
+    let mut cmd = Command::new("yt-dlp");
+    cmd.args(["--flat-playlist", "-J", "--no-warnings"])
+        .arg("--")
+        .arg(&mix_url)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+
+    let output = match cmd.output().await {
+        Ok(o) => o,
+        Err(_) => return Vec::new(),
+    };
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let collection: StreamCollection = match serde_json::from_str(&text) {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
+
+    let entries = match collection.entries {
+        Some(e) if !e.is_empty() => e,
+        _ => return Vec::new(),
+    };
+
+    let mut tracks = Vec::new();
+    for (i, entry) in entries.into_iter().enumerate() {
+        let id = entry.id.unwrap_or_default();
+        if id == video_id {
+            continue;
+        }
+        let title = entry.title.unwrap_or_else(|| "YouTube Track".to_string());
+        let url = entry
+            .webpage_url
+            .filter(|u| !u.is_empty())
+            .or_else(|| entry.url.filter(|u| !u.is_empty()))
+            .unwrap_or_else(|| {
+                if id.is_empty() {
+                    String::new()
+                } else {
+                    format!("https://www.youtube.com/watch?v={}", id)
+                }
+            });
+        if url.is_empty() {
+            continue;
+        }
+        let artist = entry.channel.unwrap_or_else(|| "YouTube Audio".to_string());
+        let media = MediaItem {
+            id: format!("yt_mix_{}_{}", id, i),
+            title,
+            artist,
+            album: Some("YouTube Music Mix".to_string()),
+            url,
+            duration: entry.duration.unwrap_or(0.0),
+            format: Some("OPUS".to_string()),
+            bitrate: Some(192),
+            is_radio: false,
+            is_youtube: true,
+            is_favorite: false,
+            file_size: None,
+            track_no: Some((i + 1) as u32),
+            sample_rate: Some(48000),
+            bit_depth: Some(16),
+        };
+        tracks.push(media);
+    }
+    tracks
+}

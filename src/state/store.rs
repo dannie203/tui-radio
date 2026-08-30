@@ -55,6 +55,11 @@ pub struct AppState {
     pub settings_selected_idx: usize,
     pub theme_index: usize,
     pub telemetry: AudioTelemetry,
+    pub autoplay: bool,
+    pub history: Vec<HistoryEntry>,
+    pub filtered_history: Vec<HistoryEntry>,
+    pub selected_history_idx: usize,
+    pub track_recorded_to_history: bool,
 }
 
 impl AppState {
@@ -64,6 +69,7 @@ impl AppState {
         let (local_tracks, local_albums) = scan_local_library(Some(&music_dir));
         let radio = get_curated_stations();
         let mixtapes = load_mixtapes();
+        let history = crate::state::history::load_history();
 
         let themes = get_themes();
         let theme_index = themes
@@ -121,6 +127,11 @@ impl AppState {
             settings_selected_idx: 0,
             theme_index,
             telemetry: AudioTelemetry::default(),
+            autoplay: cfg.general.autoplay,
+            filtered_history: history.clone(),
+            history,
+            selected_history_idx: 0,
+            track_recorded_to_history: false,
         }
     }
 
@@ -179,7 +190,7 @@ impl AppState {
     }
 
     pub fn move_settings_selection(&mut self, delta: i32) {
-        const SETTINGS_COUNT: usize = 12;
+        const SETTINGS_COUNT: usize = 13;
         let new_idx = (self.settings_selected_idx as i32 + delta).rem_euclid(SETTINGS_COUNT as i32);
         self.settings_selected_idx = new_idx as usize;
     }
@@ -202,6 +213,10 @@ impl AppState {
                 let idx = STEPS.iter().position(|&s| s == self.volume_step).unwrap_or(2);
                 let next = (idx as i32 + delta).rem_euclid(STEPS.len() as i32) as usize;
                 self.volume_step = STEPS[next];
+            }
+            12 => {
+                self.autoplay = !self.autoplay;
+                self.status_message = format!("Streaming Autoplay: {}", if self.autoplay { "ON" } else { "OFF" });
             }
             _ => {}
         }
@@ -597,6 +612,7 @@ impl AppState {
                 volume_step: self.volume_step,
                 notifications: self.notifications_enabled,
                 auto_save_session: true,
+                autoplay: self.autoplay,
             },
             audio: crate::state::config::AudioConfig {
                 default_volume: self.volume,
@@ -656,5 +672,56 @@ impl AppState {
             },
         };
         let _ = cfg.save();
+    }
+
+    pub fn record_history_if_eligible(&mut self, elapsed_secs: f64) {
+        if !self.track_recorded_to_history && elapsed_secs >= 15.0 {
+            if let Some(track) = &self.current_track {
+                crate::state::history::record_history_entry(&mut self.history, track);
+                self.filtered_history = self.history.clone();
+                self.track_recorded_to_history = true;
+            }
+        }
+    }
+
+    pub fn filter_history(&mut self, query: &str) {
+        let q = query.trim().to_lowercase();
+        if q.is_empty() {
+            self.filtered_history = self.history.clone();
+        } else {
+            self.filtered_history = self
+                .history
+                .iter()
+                .filter(|h| {
+                    h.title.to_lowercase().contains(&q)
+                        || h.artist.to_lowercase().contains(&q)
+                        || h.album.as_deref().unwrap_or("").to_lowercase().contains(&q)
+                })
+                .cloned()
+                .collect();
+        }
+        self.selected_history_idx = 0;
+    }
+
+    pub fn clear_history(&mut self) {
+        self.history.clear();
+        self.filtered_history.clear();
+        self.selected_history_idx = 0;
+        crate::state::history::save_history(&self.history);
+        self.status_message = "Playback history cleared".to_string();
+    }
+
+    pub fn remove_selected_history(&mut self) {
+        if !self.filtered_history.is_empty() && self.selected_history_idx < self.filtered_history.len() {
+            let removed = self.filtered_history.remove(self.selected_history_idx);
+            if let Some(pos) = self.history.iter().position(|h| h.id == removed.id && h.url == removed.url) {
+                self.history.remove(pos);
+            }
+            if self.selected_history_idx >= self.filtered_history.len() && !self.filtered_history.is_empty() {
+                self.selected_history_idx = self.filtered_history.len() - 1;
+            }
+            crate::state::history::save_history(&self.history);
+            self.status_message = format!("Removed '{}' from history", removed.title);
+        }
     }
 }

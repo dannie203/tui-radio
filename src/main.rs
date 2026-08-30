@@ -82,6 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (artwork_tx, mut artwork_rx) = mpsc::unbounded_channel::<(String, Option<api::artwork::ArtworkHalfblocks>)>();
     let (radio_tx, mut radio_rx) = mpsc::unbounded_channel::<(GenreFilter, Vec<MediaItem>)>();
     let (tray_action_tx, mut tray_action_rx) = mpsc::unbounded_channel::<TrayAction>();
+    let (autoplay_tx, mut autoplay_rx) = mpsc::unbounded_channel::<Vec<MediaItem>>();
 
     // 4. Initialize SNI StatusNotifierItem Tray Icon with AppMenu
     let tray_state = Arc::new(Mutex::new(TrayState {
@@ -346,11 +347,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
+        // Poll Async Streaming Autoplay Receiver
+        while let Ok(items) = autoplay_rx.try_recv() {
+            let count = items.len();
+            for item in items {
+                if !state.queue.iter().any(|q| q.id == item.id) {
+                    state.queue.push(item);
+                }
+            }
+            state.status_message = format!("⚡ Autoplay: Queued {} recommended tracks", count);
+        }
+
+        // Record history after 15 seconds of playback
+        if state.is_playing {
+            state.record_history_if_eligible(state.telemetry.time_pos);
+        }
+
         // Auto-advance when track finishes (natural EOF reached)
         if is_eof {
             if let Some(next) = state.get_next_track() {
                 player.play(&next.url);
                 state.current_track = Some(next.clone());
+                state.track_recorded_to_history = false;
                 state.status_message = format!("Auto-Advance ▶ {}", next.title);
                 state.lyrics.clear();
                 state.lyrics_loading = true;
@@ -365,6 +383,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 dispatch_lyrics(next.title.clone(), next.artist.clone(), local_path, next.id.clone(), lyrics_tx.clone());
                 dispatch_artwork(next.title.clone(), next.artist.clone(), Some(next.url.clone()), next.id.clone(), artwork_tx.clone());
                 send_track_notification(&next.title, &next.artist, next.format.as_deref().unwrap_or("FLAC"));
+
+                // Streaming Autoplay: Prefetch related tracks if queue is low
+                if state.autoplay && state.repeat_mode == RepeatMode::Off && next.is_youtube && state.queue.len() <= 1 {
+                    let seed_url = next.url.clone();
+                    let atx = autoplay_tx.clone();
+                    tokio::spawn(async move {
+                        let mix = api::stream::fetch_youtube_radio_mix(&seed_url).await;
+                        if !mix.is_empty() {
+                            let _ = atx.send(mix);
+                        }
+                    });
+                }
+            } else if state.autoplay && state.repeat_mode == RepeatMode::Off {
+                // If queue is empty and current track was a YouTube track, fetch radio mix
+                if let Some(ref cur) = state.current_track {
+                    if cur.is_youtube {
+                        let seed_url = cur.url.clone();
+                        let atx = autoplay_tx.clone();
+                        tokio::spawn(async move {
+                            let mix = api::stream::fetch_youtube_radio_mix(&seed_url).await;
+                            if !mix.is_empty() {
+                                let _ = atx.send(mix);
+                            }
+                        });
+                    }
+                }
             }
         }
 
@@ -633,6 +677,66 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         KeyCode::Enter => {
                             state.add_current_track_to_mixtape();
+                        }
+                        _ => {}
+                    },
+                    ModalType::History => match key.code {
+                        KeyCode::Esc | KeyCode::Char('q') => {
+                            state.active_modal = ModalType::None;
+                        }
+                        KeyCode::Up | KeyCode::Char('k') => {
+                            if state.selected_history_idx > 0 {
+                                state.selected_history_idx -= 1;
+                            }
+                        }
+                        KeyCode::Down | KeyCode::Char('j') => {
+                            if !state.filtered_history.is_empty() && state.selected_history_idx + 1 < state.filtered_history.len() {
+                                state.selected_history_idx += 1;
+                            }
+                        }
+                        KeyCode::Enter => {
+                            if let Some(entry) = state.filtered_history.get(state.selected_history_idx).cloned() {
+                                let item = crate::state::history::history_to_media_item(&entry);
+                                player.play(&item.url);
+                                state.current_track = Some(item.clone());
+                                state.track_recorded_to_history = false;
+                                state.status_message = format!("Playing from History: {}", item.title);
+                                state.lyrics.clear();
+                                state.lyrics_loading = true;
+                                state.current_artwork = None;
+                                state.artwork_loading = true;
+                                let local_path = if !item.is_radio && !item.is_youtube && !item.url.starts_with("http") {
+                                    Some(item.url.clone())
+                                } else {
+                                    None
+                                };
+                                dispatch_lyrics(item.title.clone(), item.artist.clone(), local_path, item.id.clone(), lyrics_tx.clone());
+                                dispatch_artwork(item.title.clone(), item.artist.clone(), Some(item.url.clone()), item.id.clone(), artwork_tx.clone());
+                                send_track_notification(&item.title, &item.artist, item.format.as_deref().unwrap_or("AUDIO"));
+                                state.active_modal = ModalType::None;
+                            }
+                        }
+                        KeyCode::Char('a') => {
+                            if let Some(entry) = state.filtered_history.get(state.selected_history_idx).cloned() {
+                                let item = crate::state::history::history_to_media_item(&entry);
+                                state.add_item_to_queue(item);
+                            }
+                        }
+                        KeyCode::Char('m') => {
+                            if let Some(entry) = state.filtered_history.get(state.selected_history_idx).cloned() {
+                                let mut item = crate::state::history::history_to_media_item(&entry);
+                                item.is_favorite = true;
+                                if !state.favorites.iter().any(|f| f.id == item.id) {
+                                    state.favorites.push(item.clone());
+                                    state.status_message = format!("Saved '{}' to Favorites ★", item.title);
+                                }
+                            }
+                        }
+                        KeyCode::Char('x') => {
+                            state.remove_selected_history();
+                        }
+                        KeyCode::Char('c') => {
+                            state.clear_history();
                         }
                         _ => {}
                     },
@@ -906,6 +1010,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             KeyCode::Char('/') => {
                                 state.active_modal = ModalType::Search;
                                 state.input_buffer = state.search_query.clone();
+                            }
+                            KeyCode::Char('H') => {
+                                state.active_modal = ModalType::History;
+                                state.selected_history_idx = 0;
                             }
                             KeyCode::Char('o') => {
                                 state.active_modal = ModalType::Settings;

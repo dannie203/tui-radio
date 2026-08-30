@@ -17,6 +17,7 @@ pub fn render_modal(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) 
         ModalType::Search => render_search_modal(f, area, state, theme),
         ModalType::Settings => render_settings_modal(f, area, state, theme),
         ModalType::Mixtape => render_mixtape_modal(f, area, state, theme),
+        ModalType::History => render_history_modal(f, area, state, theme),
     }
 }
 
@@ -71,7 +72,8 @@ fn render_help_modal(f: &mut Frame, area: Rect, theme: &Theme) {
         Line::from(""),
         Line::from(vec![h("VIEWS & OVERLAYS")]),
         Line::from(vec![k("l"), d("Live Synced Karaoke Lyrics"), k("w"), d("Album Cover Artwork View")]),
-        Line::from(vec![k("u"), d("Stream URL (YouTube, Spotify, SoundCloud, etc.)")]),
+        Line::from(vec![k("H"), d("Playback History (Smart Deduplicated)"), k("M"), d("Mixtape Manager")]),
+        Line::from(vec![k("u"), d("Universal Stream Search (YouTube, Spotify, SoundCloud)")]),
         Line::from(vec![k("/"), d("Live Filter & Search"), k("?"), d("Toggle This Help Screen")]),
         Line::from(vec![k("F5"), d("Hot-Reload App & Config"), k("q"), d("Quit Application")]),
     ];
@@ -204,6 +206,7 @@ fn render_settings_modal(f: &mut Frame, area: Rect, state: &AppState, theme: &Th
         ("Lyrics Sync Timing", format!("◄ {} ►", offset_str), "Fine-tune karaoke timing (±0.25s)"),
         ("Matrix Scramble Text", if state.matrix_scramble { "ENABLED (Cyberpunk)".to_string() } else { "DISABLED (Plain Text)".to_string() }, "Upcoming lyrics decryption FX"),
         ("Volume Key Step", format!("±{}%", state.volume_step), "Volume delta on +/- keypress"),
+        ("Streaming Autoplay", if state.autoplay { "🟢 ENABLED (YouTube Mix)".to_string() } else { "⚪ DISABLED (Manual)".to_string() }, "Infinite stream recommendations"),
     ];
 
     let mut lines = Vec::new();
@@ -331,6 +334,113 @@ fn render_mixtape_modal(f: &mut Frame, area: Rect, state: &AppState, theme: &The
 
     let block = Block::default()
         .title(" 🥏 MIXTAPE & CUSTOM PLAYLIST MANAGER ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.amber));
+
+    let paragraph = Paragraph::new(lines).block(block);
+    f.render_widget(paragraph, popup_area);
+}
+
+fn truncate_history_str(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        s.to_string()
+    } else {
+        let truncated: String = s.chars().take(max_chars.saturating_sub(1)).collect();
+        format!("{}…", truncated)
+    }
+}
+
+fn render_history_modal(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
+    let popup_area = centered_rect(82, 85, area);
+    f.render_widget(Clear, popup_area);
+
+    let mut lines = Vec::new();
+    lines.push(Line::from(vec![
+        Span::styled(
+            format!("📜 RECENT PLAYBACK HISTORY ({} unique tracks) ", state.filtered_history.len()),
+            Style::default().fg(theme.gold).add_modifier(Modifier::BOLD),
+        ),
+    ]));
+    lines.push(Line::from(""));
+
+    if state.filtered_history.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "   (No playback history yet. Start playing any track!)",
+            Style::default().fg(theme.muted),
+        )));
+    } else {
+        let max_visible = 18;
+        let start_idx = if state.selected_history_idx >= max_visible {
+            state.selected_history_idx - max_visible + 1
+        } else {
+            0
+        };
+
+        for (i, item) in state.filtered_history.iter().skip(start_idx).take(max_visible).enumerate() {
+            let actual_idx = start_idx + i;
+            let is_selected = actual_idx == state.selected_history_idx;
+            let prefix = if is_selected { " ❯ " } else { "   " };
+            let prefix_style = if is_selected {
+                Style::default().fg(theme.amber_bright).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.muted)
+            };
+
+            let source_badge = match item.source.as_str() {
+                "Radio" => Span::styled("[RADIO] ", Style::default().fg(theme.cyan_dolby)),
+                "YouTube" => Span::styled("[YOUTUBE] ", Style::default().fg(theme.red_led)),
+                "SoundCloud" => Span::styled("[SOUNDCLOUD] ", Style::default().fg(theme.amber)),
+                "Web Stream" => Span::styled("[STREAM] ", Style::default().fg(theme.green_phosphor)),
+                _ => Span::styled("[LOCAL] ", Style::default().fg(theme.gold)),
+            };
+
+            let title_span = Span::styled(
+                format!("{:<32} ", truncate_history_str(&item.title, 30)),
+                if is_selected {
+                    Style::default().fg(theme.cream).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(theme.cream)
+                },
+            );
+
+            let artist_span = Span::styled(
+                format!("{:<20} ", truncate_history_str(&item.artist, 18)),
+                Style::default().fg(theme.muted),
+            );
+
+            let count_span = Span::styled(
+                format!("★ {:>2} plays", item.play_count),
+                Style::default().fg(theme.amber_bright).add_modifier(Modifier::BOLD),
+            );
+
+            lines.push(Line::from(vec![
+                Span::styled(prefix, prefix_style),
+                source_badge,
+                title_span,
+                artist_span,
+                count_span,
+            ]));
+        }
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![
+        Span::styled("[Enter] ", Style::default().fg(theme.amber).add_modifier(Modifier::BOLD)),
+        Span::styled("Play Track   ", Style::default().fg(theme.cream)),
+        Span::styled("[a] ", Style::default().fg(theme.green_phosphor).add_modifier(Modifier::BOLD)),
+        Span::styled("Add to Queue   ", Style::default().fg(theme.cream)),
+        Span::styled("[m] ", Style::default().fg(theme.gold).add_modifier(Modifier::BOLD)),
+        Span::styled("Favorite   ", Style::default().fg(theme.cream)),
+        Span::styled("[x] ", Style::default().fg(theme.red_led).add_modifier(Modifier::BOLD)),
+        Span::styled("Remove   ", Style::default().fg(theme.cream)),
+        Span::styled("[c] ", Style::default().fg(theme.red_led).add_modifier(Modifier::BOLD)),
+        Span::styled("Clear All   ", Style::default().fg(theme.cream)),
+        Span::styled("[Esc] ", Style::default().fg(theme.muted)),
+        Span::styled("Close", Style::default().fg(theme.muted)),
+    ]));
+
+    let block = Block::default()
+        .title(" 📜 PLAYBACK HISTORY (LOCAL PRIVACY-FIRST & SMART DEDUPLICATED) ")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.amber));
 

@@ -22,6 +22,12 @@ pub struct GeneralConfig {
     pub volume_step: u32,
     pub notifications: bool,
     pub auto_save_session: bool,
+    #[serde(default = "default_true")]
+    pub autoplay: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for GeneralConfig {
@@ -32,6 +38,7 @@ impl Default for GeneralConfig {
             volume_step: 5,
             notifications: true,
             auto_save_session: true,
+            autoplay: true,
         }
     }
 }
