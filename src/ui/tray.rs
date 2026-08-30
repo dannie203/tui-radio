@@ -111,7 +111,7 @@ impl Tray for BoomboxTray {
             .into(),
             MenuItem::Separator,
             StandardItem {
-                label: "🎛️ Show / Focus Boombox (Super+Shift+Alt+M)".into(),
+                label: "🎛️ Show / Focus Boombox (Super+M)".into(),
                 activate: Box::new(|this: &mut Self| {
                     let st = this.state.lock().unwrap();
                     let _ = st.action_tx.send(TrayAction::ToggleWindow);
