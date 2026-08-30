@@ -3,6 +3,20 @@
 All notable changes to the **BOOMBOX-RS** Rust port will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.0] - 2026-08-30
+
+### 🚀 Pure-Rust Lightweight Hi-Fi Refactor
+- **🦀 100% Pure-Rust Engine**:
+  - Completely purged experimental Neural Engine, Python venv, ONNX weights, and DJ automix complexity.
+  - Reduced background memory footprint and achieved instantaneous 0.01s boot time.
+- **📼 Restored Classic Retro RX-505 Cassette Deck**:
+  - Rebuilt the iconic single-bay cassette mechanism with spinning spools, Dolby B/C indicators, Tape bias formula, and transport LEDs.
+  - Restored clean 7-line Phosphor LCD Monitor layout.
+- **⚡ Single-Deck Rock-Solid MPV Controller**:
+  - Streamlined IPC control with automatic reconnection, native gapless audio playback, and pure random shuffle.
+
+---
+
 ## [3.6.0] - 2026-08-30
 
 ### 🚀 Added & Improved
