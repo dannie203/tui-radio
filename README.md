@@ -46,13 +46,14 @@
 | **`g`** | Cycle Genre | Filter radio stations by genre |
 | **`l`** | Lyrics View | Toggle synchronized karaoke lyrics view |
 | **`w`** | Artwork View | Toggle high-resolution album cover artwork view |
-| **`u`** | Stream URL | Open input prompt to load or expand URLs / playlists |
-| **`/`** | Search | Fuzzy search across tracks, artists, and stations |
+| **`H`** | History | Open smart playback history modal (deduplicated recency list) |
+| **`u`** | Stream Search | Universal stream URL resolver and online search (YouTube, SoundCloud, Spotify) |
+| **`/`** | Live Filter | Zero-latency in-memory filter across tracks, artists, stations, and history |
 | **`m`** | Favorite | Toggle star / favorite flag on selected track |
 | **`M`** | Mixtapes | Open mixtape playlist manager |
 | **`R`** | Record | Start recording audio stream to local library |
 | **`Ctrl+R`** | Cancel Record | Abort active recording |
-| **`o`** | Settings | Open settings dashboard |
+| **`o`** | Settings | Open settings dashboard (Autoplay, Equalizer, Dolby, Tape, Theme) |
 | **`F5`** | Hot-Reload | Reload configuration and theme without dropping playback |
 | **`?`** | Help | Show shortcut and reference modal |
 | **`q`** | Quit | Exit application |
@@ -68,33 +69,41 @@
 
 ---
 
-## Installation & Build
+## ⚡ Quick Installation (1-Line Automated)
+
+### Linux & macOS
+
+```bash
+curl -sSL https://raw.githubusercontent.com/dannie203/tui-radio/main/install.sh | bash
+```
+*Automatically downloads the latest release, installs the `boombox` binary to `~/.local/bin`, installs desktop entry and HiColor icons, and cleans up temp files.*
+
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/dannie203/tui-radio/main/install.ps1 | iex
+```
+*Automatically installs to `%LOCALAPPDATA%\Programs\Boombox`, adds to PATH, creates Desktop & Start Menu shortcuts, and cleans up all temporary setup files.*
+
+---
+
+## 🛠️ Build from Source
 
 ### Linux
 
 ```bash
-# Clone repository
 git clone https://github.com/dannie203/tui-radio.git
 cd tui-radio
-
-# Build release binary
 cargo build --release
-
-# Run
 ./target/release/boombox-rs
 ```
 
 ### Windows
 
 ```powershell
-# Clone repository
 git clone https://github.com/dannie203/tui-radio.git
 cd tui-radio
-
-# Build release binary
 cargo build --release
-
-# Run
 .\target\release\boombox-rs.exe
 ```
 
