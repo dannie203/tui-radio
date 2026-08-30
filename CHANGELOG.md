@@ -5,6 +5,19 @@ All notable changes to the **BOOMBOX-RS** project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.2] - 2026-08-30
+
+### Added
+- Streaming Autoplay engine powered by YouTube Algorithmic Radio Mix (`RD<VIDEO_ID>`) with background zero-delay prefetching.
+- Local privacy-first, zero-tracking playback history (`~/.config/boombox-tui/history.json`) with interactive modal (`Shift+H`).
+- Smart Upsert deduplication: tracks are recorded uniquely, refreshing `last_played_at` and incrementing `play_count`.
+- Dedicated Streaming Autoplay toggle in settings dashboard (`o`).
+
+### Changed
+- Clarified single-responsibility search architecture: `/` is dedicated exclusively to instant in-memory live filtering, while `u` handles universal external online streaming and search.
+
+---
+
 ## [3.8.1] - 2026-08-30
 
 ### Added

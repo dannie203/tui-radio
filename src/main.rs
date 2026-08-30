@@ -543,24 +543,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             state.active_modal = ModalType::None;
                             state.input_buffer.clear();
                             state.filter("");
-                            state.status_message = "Search filter cleared".to_string();
+                            state.status_message = "Live filter cleared".to_string();
                         }
                         KeyCode::Enter => {
                             let q = state.input_buffer.trim().to_string();
-                            if state.mode == AppMode::YoutubeMusic && !q.is_empty() {
-                                let (label, tracks) = api::stream::resolve_stream_queue(&q).await;
-                                state.youtube_results = tracks;
-                                state.selected_index = 0;
-                                state.status_message = format!("Online Search: {}", label);
-                            } else {
-                                state.filter(&q);
-                                state.status_message = if q.is_empty() {
-                                    "Search filter cleared".to_string()
-                                } else {
-                                    format!("Search: \"{}\" ({} results)", q, state.get_active_list_len())
-                                };
-                            }
+                            state.filter(&q);
                             state.active_modal = ModalType::None;
+                            state.status_message = if q.is_empty() {
+                                "Live filter cleared".to_string()
+                            } else {
+                                format!("Filter: \"{}\" ({} items)", q, state.get_active_list_len())
+                            };
                         }
                         KeyCode::Backspace => {
                             state.input_buffer.pop();
