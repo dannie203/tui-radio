@@ -2,52 +2,85 @@
 
 # Detect currently active window and workspace
 ACTIVE_ADDR=$(hyprctl activewindow -j 2>/dev/null | jq -r '.address // empty')
-CURRENT_WS=$(hyprctl activeworkspace -j 2>/dev/null | jq -r '.name // .id // "1"')
+CURRENT_WS=$(hyprctl activeworkspace -j 2>/dev/null | jq -r '.name // (.id | tostring) // "1"')
 
-# Collect PIDs related to boombox-rs
-BOOMBOX_PIDS=$(pgrep -x boombox-rs 2>/dev/null)
-PARENT_PIDS=""
-for p in $BOOMBOX_PIDS; do
-  pp=$(awk '{print $4}' "/proc/$p/stat" 2>/dev/null)
-  if [[ -n "$pp" ]]; then
-    PARENT_PIDS="$PARENT_PIDS $pp"
-  fi
-done
+# Boolean: is a boombox-rs process actually alive? (exact name match, not -f)
+BOOMBOX_RUNNING=false
+if pgrep -x boombox-rs >/dev/null 2>&1; then
+  BOOMBOX_RUNNING=true
+fi
 
-# Find existing boombox window address from Hyprland
-WINDOW_ADDR=$(hyprctl clients -j 2>/dev/null | jq -r --arg pids "$BOOMBOX_PIDS $PARENT_PIDS" '
-  .[] | select(
-    ((.class // "") | test("boombox"; "i")) or
-    ((.initialClass // "") | test("boombox"; "i")) or
-    ((.title // "") | test("BOOMBOX"; "i")) or
-    ((.initialTitle // "") | test("BOOMBOX"; "i")) or
-    ($pids | split(" ") | index((.pid // 0 | tostring)))
-  ) | .address
-' | head -n1)
+# Find the real boombox window in Hyprland.
+# Match ONLY: app-id org.omarchy.boombox, exact title "BOOMBOX RX-505",
+# or the parent terminal of a live boombox-rs process.
+CLIENTS_JSON=$(hyprctl clients -j 2>/dev/null)
 
-WINDOW_WS=$(hyprctl clients -j 2>/dev/null | jq -r --arg addr "$WINDOW_ADDR" '.[] | select(.address == $addr) | .workspace.name // .workspace.id // empty')
+WINDOW_INFO=$(echo "$CLIENTS_JSON" | jq -r --arg pids "$(pgrep -x boombox-rs | tr '\n' ' ')" '
+  ($pids | split(" ") | map(select(length > 0))) as $blist |
+  [ .[]? | . as $c | select(
+      (($c.class // "") == "org.omarchy.boombox") or
+      (($c.initialClass // "") == "org.omarchy.boombox") or
+      (($c.title // "") == "BOOMBOX RX-505") or
+      (($c.initialTitle // "") == "BOOMBOX RX-505") or
+      ($blist | index(($c.pid // 0 | tostring)))
+    ) | "\($c.address)\t\($c.workspace.name // ($c.workspace.id | tostring) // "")\t\($c.floating)\t\($c.fullscreen)"
+  ] | .[0] // empty
+')
 
-if [[ -n "$WINDOW_ADDR" && "$WINDOW_ADDR" != "null" ]]; then
-  if [[ "$ACTIVE_ADDR" == "$WINDOW_ADDR" ]]; then
-    # Active -> toggle/minimize to special scratchpad
-    hyprctl dispatch "hl.dsp.window.move({ workspace = 'special:scratchpad', window = 'address:$WINDOW_ADDR', follow = false })" >/dev/null 2>&1 || hyprctl dispatch movetoworkspacesilent "special:scratchpad,address:$WINDOW_ADDR" >/dev/null 2>&1
-  else
-    # Inactive or on another workspace -> bring to current workspace & focus
-    if [[ "$WINDOW_WS" != "$CURRENT_WS" || "$WINDOW_WS" == special:* ]]; then
-      hyprctl dispatch "hl.dsp.window.move({ workspace = '$CURRENT_WS', window = 'address:$WINDOW_ADDR' })" >/dev/null 2>&1 || hyprctl dispatch movetoworkspace "$CURRENT_WS,address:$WINDOW_ADDR" >/dev/null 2>&1
+WINDOW_ADDR=$(echo "$WINDOW_INFO" | cut -f1)
+WINDOW_WS=$(echo "$WINDOW_INFO" | cut -f2)
+WINDOW_FLOATING=$(echo "$WINDOW_INFO" | cut -f3)
+WINDOW_FULLSCREEN=$(echo "$WINDOW_INFO" | cut -f4)
+
+if [[ -z "$WINDOW_ADDR" || "$WINDOW_ADDR" == "null" ]]; then
+  # No mapped boombox window.
+  if [[ "$BOOMBOX_RUNNING" == false ]]; then
+    # No process at all -> launch once in a terminal.
+    BIN_CMD="/home/aki/.local/bin/boombox-rs"
+    if command -v foot >/dev/null 2>&1; then
+      exec foot --app-id=org.omarchy.boombox --title="BOOMBOX RX-505" "$BIN_CMD"
+    elif command -v alacritty >/dev/null 2>&1; then
+      exec alacritty --class org.omarchy.boombox,org.omarchy.boombox -T "BOOMBOX RX-505" -e "$BIN_CMD"
+    elif command -v ghostty >/dev/null 2>&1; then
+      exec ghostty --class=org.omarchy.boombox --title="BOOMBOX RX-505" -e "$BIN_CMD"
+    else
+      exec "$BIN_CMD"
     fi
-    hyprctl dispatch "hl.dsp.focus({ window = 'address:$WINDOW_ADDR' })" >/dev/null 2>&1 || hyprctl dispatch focuswindow "address:$WINDOW_ADDR" >/dev/null 2>&1
   fi
+  # Process alive but window not mapped yet -> do nothing (avoid a duplicate).
+  exit 0
+fi
+
+# Decide whether to SHOW the boombox or HIDE it.
+# Show when it is currently hidden (scratchpad / another workspace) or fullscreen;
+# a fullscreen boombox always needs to be restored to a tiled view, never hidden.
+NEED_SHOW=false
+if [[ "$WINDOW_FULLSCREEN" != "0" || "$WINDOW_WS" != "$CURRENT_WS" || "$WINDOW_WS" == special:* ]]; then
+  NEED_SHOW=true
+fi
+
+if [[ "$NEED_SHOW" == true ]]; then
+  # Bring it onto the current workspace beside whatever is already there (split).
+  if [[ "$WINDOW_WS" != "$CURRENT_WS" || "$WINDOW_WS" == special:* ]]; then
+    hyprctl dispatch "hl.dsp.window.move({ workspace = '$CURRENT_WS', window = 'address:$WINDOW_ADDR' })" >/dev/null 2>&1 || \
+      hyprctl dispatch movetoworkspace "$CURRENT_WS,address:$WINDOW_ADDR" >/dev/null 2>&1
+  fi
+
+  # Exit fullscreen / floating so it tiles beside the others instead of covering them.
+  if [[ "$WINDOW_FULLSCREEN" != "0" ]]; then
+    hyprctl dispatch "hl.dsp.window.fullscreen({ mode = 'fullscreen', window = 'address:$WINDOW_ADDR' })" >/dev/null 2>&1 || \
+      hyprctl dispatch fullscreen 0 "address:$WINDOW_ADDR" >/dev/null 2>&1
+  fi
+  if [[ "$WINDOW_FLOATING" == "true" ]]; then
+    hyprctl dispatch "hl.dsp.window.float({ action = 'toggle', window = 'address:$WINDOW_ADDR' })" >/dev/null 2>&1 || \
+      hyprctl dispatch togglefloating "address:$WINDOW_ADDR" >/dev/null 2>&1
+  fi
+
+  hyprctl dispatch "hl.dsp.focus({ window = 'address:$WINDOW_ADDR' })" >/dev/null 2>&1 || \
+    hyprctl dispatch focuswindow "address:$WINDOW_ADDR" >/dev/null 2>&1
 else
-  # Window not running -> launch boombox in terminal
-  BIN_CMD="/home/aki/.local/bin/boombox-rs"
-  if command -v foot >/dev/null 2>&1; then
-    exec foot --app-id=org.omarchy.boombox --title="BOOMBOX RX-505" "$BIN_CMD"
-  elif command -v alacritty >/dev/null 2>&1; then
-    exec alacritty --class org.omarchy.boombox,org.omarchy.boombox -T "BOOMBOX RX-505" -e "$BIN_CMD"
-  elif command -v ghostty >/dev/null 2>&1; then
-    exec ghostty --class=org.omarchy.boombox --title="BOOMBOX RX-505" -e "$BIN_CMD"
-  else
-    exec "$BIN_CMD"
-  fi
+  # Boombox is a normal tiled window on the current workspace and (probably)
+  # active / in view -> hide it back to the scratchpad.
+  hyprctl dispatch "hl.dsp.window.move({ workspace = 'special:scratchpad', window = 'address:$WINDOW_ADDR', follow = false })" >/dev/null 2>&1 || \
+    hyprctl dispatch movetoworkspacesilent "special:scratchpad,address:$WINDOW_ADDR" >/dev/null 2>&1
 fi
