@@ -5,6 +5,16 @@ All notable changes to the **BOOMBOX-RS** project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.6] - 2026-08-31
+
+### Fixed
+- **Boombox Toggle Window Behavior**: Rewrote `boombox-toggle` so `SUPER + M` (and the launcher icon) no longer impossible to trust. Previously it could spawn duplicate instances or leave the boombox fullscreen / floating, which covered the adjacent window instead of splitting beside it. The toggle now:
+  - Matches the real boombox window precisely (app-id `org.omarchy.boombox`, exact title `BOOMBOX RX-505`, or the parent terminal of a live process) so unrelated windows can never hijack it.
+  - Never spawns a duplicate instance when one is already running.
+  - Brings the boombox onto the current workspace as a normal tiled window — exiting fullscreen and floating as needed — so it splits beside whatever is already open instead of covering it. Hides to the scratchpad only when it is an ordinary tiled window in view.
+
+---
+
 ## [3.8.5] - 2026-08-31
 
 ### Changed
