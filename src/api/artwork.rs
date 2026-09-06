@@ -21,7 +21,7 @@ pub async fn fetch_artwork(
 
     if let Some(src) = source_url_or_path {
         // 1. Check if source is a YouTube / YouTube Music video or URL
-        if let Some(yt_id) = extract_youtube_id(src) {
+        if let Some(yt_id) = crate::api::stream::extract_youtube_id(src) {
             if let Some(blocks) = fetch_youtube_thumbnail(&client, &yt_id, width, height_chars).await {
                 return Some(blocks);
             }
@@ -71,7 +71,6 @@ pub async fn fetch_artwork(
                         "cover.jpg", "cover.png", "cover.jpeg", "cover.webp",
                         "folder.jpg", "folder.png", "folder.jpeg",
                         "artwork.jpg", "artwork.png", "front.jpg", "front.png",
-                        "Swag.jpg",
                     ] {
                         let img_path = parent.join(name);
                         if img_path.exists() {
@@ -118,31 +117,6 @@ pub async fn fetch_artwork(
         }
     }
 
-    None
-}
-
-fn extract_youtube_id(url: &str) -> Option<String> {
-    if let Some(pos) = url.find("v=") {
-        let after = &url[pos + 2..];
-        let id: String = after.chars().take_while(|c| c.is_alphanumeric() || *c == '-' || *c == '_').collect();
-        if id.len() == 11 {
-            return Some(id);
-        }
-    }
-    if let Some(pos) = url.find("youtu.be/") {
-        let after = &url[pos + 9..];
-        let id: String = after.chars().take_while(|c| c.is_alphanumeric() || *c == '-' || *c == '_').collect();
-        if id.len() == 11 {
-            return Some(id);
-        }
-    }
-    if let Some(pos) = url.find("embed/") {
-        let after = &url[pos + 6..];
-        let id: String = after.chars().take_while(|c| c.is_alphanumeric() || *c == '-' || *c == '_').collect();
-        if id.len() == 11 {
-            return Some(id);
-        }
-    }
     None
 }
 

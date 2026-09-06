@@ -1,5 +1,6 @@
 use crate::state::types::MediaItem;
 use serde::Deserialize;
+use std::net::IpAddr;
 use std::process::Stdio;
 use tokio::process::Command;
 
@@ -57,20 +58,23 @@ const KNOWN_PREFIXES: &[(&str, &str)] = &[
     ("dc:", "Deezer"),
 ];
 
-fn source_name(input: &str) -> Option<String> {
-    let trimmed = input
+fn strip_stream_prefixes(input: &str) -> &str {
+    input
         .trim()
         .trim_start_matches("ytdl://")
         .trim_start_matches("yt:")
         .trim_start_matches("sc:")
         .trim_start_matches("sp:")
-        .trim_start_matches("dc:");
+        .trim_start_matches("dc:")
+}
+
+fn source_name(input: &str) -> Option<String> {
     for (prefix, name) in KNOWN_PREFIXES {
         if input.trim().starts_with(prefix) {
             return Some(name.to_string());
         }
     }
-    let lower = trimmed.to_ascii_lowercase();
+    let lower = strip_stream_prefixes(input).to_ascii_lowercase();
     KNOWN_SOURCES
         .iter()
         .find(|(dom, _)| lower.contains(dom))
@@ -78,13 +82,7 @@ fn source_name(input: &str) -> Option<String> {
 }
 
 fn is_stream_url(input: &str) -> bool {
-    let trimmed = input
-        .trim()
-        .trim_start_matches("ytdl://")
-        .trim_start_matches("yt:")
-        .trim_start_matches("sc:")
-        .trim_start_matches("sp:")
-        .trim_start_matches("dc:");
+    let trimmed = strip_stream_prefixes(input);
     trimmed.starts_with("http://")
         || trimmed.starts_with("https://")
         || input.trim().starts_with("yt:")
@@ -131,7 +129,7 @@ fn is_search_query(input: &str) -> bool {
     if trimmed.is_empty() {
         return false;
     }
-    if trimmed.starts_with("http://") || trimmed.starts_with("https://") || trimmed.starts_with("ytdl://") {
+    if trimmed.contains("://") {
         return false;
     }
     true
@@ -159,6 +157,10 @@ fn build_search_target(input: &str) -> (String, String) {
 
 pub async fn resolve_stream_queue(input: &str) -> (String, Vec<MediaItem>) {
     let trimmed = input.trim().trim_start_matches("ytdl://");
+
+    if !is_search_query(trimmed) && !is_safe_stream_url(trimmed) {
+        return ("Blocked / Dangerous URL".to_string(), Vec::new());
+    }
 
     if is_search_query(trimmed) {
         let (source, search_cmd) = build_search_target(trimmed);
@@ -207,8 +209,8 @@ pub async fn resolve_stream_queue(input: &str) -> (String, Vec<MediaItem>) {
                             is_favorite: false,
                             file_size: None,
                             track_no: Some((i + 1) as u32),
-                            sample_rate: Some(48000),
-                            bit_depth: Some(16),
+                            sample_rate: None,
+                            bit_depth: None,
                         };
                         tracks.push(media);
                     }
@@ -227,18 +229,18 @@ pub async fn resolve_stream_queue(input: &str) -> (String, Vec<MediaItem>) {
 
     let fallback_single = || async {
         let item = resolve_stream_item(trimmed).await;
-        (format!("{} — 1 track", source), vec![item])
+        if item.url.is_empty() {
+            ("Blocked / Dangerous URL".to_string(), Vec::new())
+        } else {
+            (format!("{} — 1 track", source), vec![item])
+        }
     };
 
     if !is_stream || !is_collection {
         return fallback_single().await;
     }
 
-    let clean = trimmed
-        .trim_start_matches("yt:")
-        .trim_start_matches("sc:")
-        .trim_start_matches("sp:")
-        .trim_start_matches("dc:");
+    let clean = strip_stream_prefixes(trimmed);
 
     let mut cmd = Command::new("yt-dlp");
     cmd.args(["--flat-playlist", "-J", "--no-warnings"])
@@ -302,8 +304,8 @@ pub async fn resolve_stream_queue(input: &str) -> (String, Vec<MediaItem>) {
             is_favorite: false,
             file_size: None,
             track_no: Some((i + 1) as u32),
-            sample_rate: Some(48000),
-            bit_depth: Some(16),
+            sample_rate: None,
+            bit_depth: None,
         };
         tracks.push(media);
     }
@@ -318,6 +320,26 @@ pub async fn resolve_stream_queue(input: &str) -> (String, Vec<MediaItem>) {
 
 pub async fn resolve_stream_item(input: &str) -> MediaItem {
     let trimmed = input.trim();
+    if !is_search_query(trimmed) && !is_safe_stream_url(trimmed) {
+        return MediaItem {
+            id: format!("unsafe_{}", trimmed),
+            title: "Blocked / Dangerous Stream URL".to_string(),
+            artist: "Security Policy".to_string(),
+            album: None,
+            url: String::new(),
+            duration: 0.0,
+            format: None,
+            bitrate: None,
+            is_radio: false,
+            is_youtube: false,
+            is_favorite: false,
+            file_size: None,
+            track_no: None,
+            sample_rate: None,
+            bit_depth: None,
+        };
+    }
+
     let source = source_name(trimmed);
     let is_supported = source.is_some();
 
@@ -351,8 +373,8 @@ pub async fn resolve_stream_item(input: &str) -> MediaItem {
                         is_favorite: false,
                         file_size: None,
                         track_no: None,
-                        sample_rate: Some(44100),
-                        bit_depth: Some(16),
+                        sample_rate: None,
+                        bit_depth: None,
                     };
                 }
             }
@@ -372,8 +394,8 @@ pub async fn resolve_stream_item(input: &str) -> MediaItem {
             is_favorite: false,
             file_size: None,
             track_no: None,
-            sample_rate: Some(44100),
-            bit_depth: Some(16),
+            sample_rate: None,
+            bit_depth: None,
         };
     }
 
@@ -417,8 +439,8 @@ pub async fn resolve_stream_item(input: &str) -> MediaItem {
         is_favorite: false,
         file_size: None,
         track_no: None,
-        sample_rate: Some(48000),
-        bit_depth: Some(16),
+        sample_rate: None,
+        bit_depth: None,
     }
 }
 
@@ -443,6 +465,13 @@ pub fn extract_youtube_id(url: &str) -> Option<String> {
     }
     if let Some(pos) = trimmed.find("/shorts/") {
         let after = &trimmed[pos + 8..];
+        let id: String = after.chars().take_while(|c| *c != '?' && *c != '&' && *c != '#' && *c != '/').collect();
+        if id.len() == 11 {
+            return Some(id);
+        }
+    }
+    if let Some(pos) = trimmed.find("embed/") {
+        let after = &trimmed[pos + 6..];
         let id: String = after.chars().take_while(|c| *c != '?' && *c != '&' && *c != '#' && *c != '/').collect();
         if id.len() == 11 {
             return Some(id);
@@ -517,10 +546,149 @@ pub async fn fetch_youtube_radio_mix(video_id_or_url: &str) -> Vec<MediaItem> {
             is_favorite: false,
             file_size: None,
             track_no: Some((i + 1) as u32),
-            sample_rate: Some(48000),
-            bit_depth: Some(16),
+            sample_rate: None,
+            bit_depth: None,
         };
         tracks.push(media);
     }
     tracks
+}
+
+/// Validates whether a remote streaming URL uses a permitted protocol
+/// and prevents dangerous local file / cloud metadata access while fully
+/// supporting Home Servers, NAS, and LAN streams (Navidrome, Jellyfin, Icecast, Subsonic).
+pub fn is_safe_stream_url(url: &str) -> bool {
+    let trimmed = url.trim();
+    let lower = trimmed.to_lowercase();
+
+    // Block dangerous protocols (local file exposure, arbitrary network protocols)
+    if lower.starts_with("file://")
+        || lower.starts_with("gopher://")
+        || lower.starts_with("dict://")
+        || lower.starts_with("smb://")
+        || lower.starts_with("ftp://")
+    {
+        return false;
+    }
+
+    // Allowed service prefixes
+    if lower.starts_with("yt:")
+        || lower.starts_with("sc:")
+        || lower.starts_with("sp:")
+        || lower.starts_with("dc:")
+        || lower.starts_with("ytdl://")
+    {
+        return true;
+    }
+
+    // Must start with http:// or https://
+    if lower.starts_with("http://") || lower.starts_with("https://") {
+        let without_proto = if lower.starts_with("https://") {
+            &trimmed[8..]
+        } else {
+            &trimmed[7..]
+        };
+
+        // Extract host
+        let host_port = without_proto
+            .split('/')
+            .next()
+            .unwrap_or("")
+            .split('?')
+            .next()
+            .unwrap_or("");
+        let host = if host_port.starts_with('[') {
+            if let Some(end) = host_port.find(']') {
+                &host_port[1..end]
+            } else {
+                host_port
+            }
+        } else {
+            host_port.split(':').next().unwrap_or(host_port)
+        };
+
+        if host.is_empty() {
+            return false;
+        }
+
+        // Block AWS / GCP / Azure Cloud Metadata IP (169.254.169.254)
+        if host == "169.254.169.254" {
+            return false;
+        }
+        if let Ok(ip) = host.parse::<IpAddr>() {
+            if let IpAddr::V4(ipv4) = ip {
+                let o = ipv4.octets();
+                if o[0] == 169 && o[1] == 254 {
+                    return false;
+                }
+            }
+        }
+
+        // Note: Home servers & LAN IPs (192.168.x.x, 10.x.x.x, 172.16-31.x.x),
+        // mDNS domains (.local), and localhost (Jellyfin/Navidrome on local port)
+        // are explicitly allowed for self-hosted audio streaming.
+        return true;
+    }
+
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_safe_stream_url() {
+        // Valid Public URLs
+        assert!(is_safe_stream_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"));
+        assert!(is_safe_stream_url("https://soundcloud.com/artist/track"));
+        assert!(is_safe_stream_url("http://stream.radioparadise.com/mp3-192"));
+        assert!(is_safe_stream_url("yt:lofi hip hop"));
+        assert!(is_safe_stream_url("sc:chillhop"));
+        assert!(is_safe_stream_url("ytdl://https://youtu.be/dQw4w9WgXcQ"));
+
+        // Valid Home Server / NAS / LAN URLs (Navidrome, Jellyfin, Icecast)
+        assert!(is_safe_stream_url("http://192.168.1.100:4533/rest/stream"));
+        assert!(is_safe_stream_url("http://10.0.0.5:8000/live.mp3"));
+        assert!(is_safe_stream_url("http://172.16.1.20:8096/audio/stream"));
+        assert!(is_safe_stream_url("http://homeserver.local:4533/stream"));
+        assert!(is_safe_stream_url("http://localhost:4533/rest/stream"));
+        assert!(is_safe_stream_url("http://127.0.0.1:8000/stream.flac"));
+
+        // Dangerous schemes (file access / protocol injection)
+        assert!(!is_safe_stream_url("file:///etc/passwd"));
+        assert!(!is_safe_stream_url("gopher://127.0.0.1/"));
+        assert!(!is_safe_stream_url("dict://127.0.0.1:11211/"));
+        assert!(!is_safe_stream_url("smb://attacker/share"));
+
+        // Cloud metadata target (blocked to protect container/VPS environments)
+        assert!(!is_safe_stream_url("http://169.254.169.254/latest/meta-data/"));
+    }
+
+    #[test]
+    fn test_extract_youtube_id() {
+        assert_eq!(
+            extract_youtube_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+            Some("dQw4w9WgXcQ".to_string())
+        );
+        assert_eq!(
+            extract_youtube_id("https://youtu.be/dQw4w9WgXcQ?si=123"),
+            Some("dQw4w9WgXcQ".to_string())
+        );
+        assert_eq!(
+            extract_youtube_id("https://www.youtube.com/embed/dQw4w9WgXcQ"),
+            Some("dQw4w9WgXcQ".to_string())
+        );
+        assert_eq!(
+            extract_youtube_id("https://www.youtube.com/shorts/dQw4w9WgXcQ"),
+            Some("dQw4w9WgXcQ".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_resolve_stream_item_dangerous_url() {
+        let item = resolve_stream_item("file:///etc/passwd").await;
+        assert!(item.url.is_empty());
+        assert_eq!(item.id, "unsafe_file:///etc/passwd");
+    }
 }

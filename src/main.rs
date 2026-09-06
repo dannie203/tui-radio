@@ -1,7 +1,7 @@
-mod api;
-mod audio;
-mod state;
-mod ui;
+use boombox_rs::api;
+use boombox_rs::audio;
+use boombox_rs::state;
+use boombox_rs::ui;
 
 use api::artwork::fetch_artwork;
 use api::lyrics::fetch_lyrics;
@@ -28,24 +28,34 @@ use ui::tray::{spawn_tray, TrayAction, TrayState};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 0. Set process name & kernel-level flock for single-instance protection (Unix)
     #[cfg(unix)]
-    {
+    let _lock_file = {
         unsafe {
-            libc::prctl(libc::PR_SET_NAME, b"boombox-rs\0".as_ptr(), 0, 0, 0);
+            libc::prctl(libc::PR_SET_NAME, c"boombox-rs".as_ptr(), 0, 0, 0);
         }
         use std::fs::OpenOptions;
         use std::os::unix::io::AsRawFd;
-        if let Ok(lock_file) = OpenOptions::new()
+        let lock_path = std::env::var("XDG_RUNTIME_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"))
+            .join("boombox-rs.lock");
+
+        match OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(false)
-            .open("/tmp/boombox-rs.lock")
+            .open(&lock_path)
         {
-            let lock_res = unsafe { libc::flock(lock_file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-            if lock_res != 0 {
-                return Ok(());
+            Ok(file) => {
+                let lock_res = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+                if lock_res != 0 {
+                    focus_or_raise_window().await;
+                    return Ok(());
+                }
+                Some(file)
             }
+            Err(_) => None,
         }
-    }
+    };
 
     // 1. Terminal setup with RAII Drop Guard (guarantees teardown on any error/panic)
     struct TerminalGuard;
@@ -92,6 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (tray_action_tx, mut tray_action_rx) = mpsc::unbounded_channel::<TrayAction>();
     let (autoplay_tx, mut autoplay_rx) = mpsc::unbounded_channel::<Vec<MediaItem>>();
     let (update_tx, mut update_rx) = mpsc::unbounded_channel::<api::updater::UpdateInfo>();
+    let (stream_resolve_tx, mut stream_resolve_rx) = mpsc::unbounded_channel::<((String, Vec<MediaItem>), bool)>();
 
     // Spawn Background Update Checker (Non-blocking with 4s timeout)
     let utx = update_tx.clone();
@@ -107,14 +118,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         artist: "Boombox RX-505".into(),
         volume: state.volume,
         is_playing: false,
+        is_paused: false,
         is_recording: false,
         action_tx: tray_action_tx.clone(),
     }));
-    let _tray_handle = spawn_tray(Arc::clone(&tray_state)).await;
+    let _tray_guard = spawn_tray(Arc::clone(&tray_state)).await;
 
     let mut running = true;
     let mut should_hot_reload = false;
     let mut frame_count = 0usize;
+    let mut recording_start_time: Option<std::time::Instant> = None;
 
     // Helper closure to dispatch lyrics query
     let dispatch_lyrics = |title: String, artist: String, path: Option<String>, track_id: String, tx: mpsc::UnboundedSender<(String, Vec<SyncedLyricLine>)>| {
@@ -174,6 +187,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             None
         };
+        state.telemetry.audio_sample_rate = item.sample_rate.unwrap_or(0);
+        state.telemetry.audio_bit_depth = item.bit_depth.unwrap_or(0);
+        state.telemetry.audio_bitrate = item.bitrate.unwrap_or(0);
+        if let Some(ref fmt) = item.format {
+            state.telemetry.audio_codec = fmt.clone();
+        }
         state.current_track = Some(item.clone());
         state.track_recorded_to_history = false;
         state.status_message = format!("{} ▶ {}", status_prefix.unwrap_or("Playing"), title);
@@ -278,8 +297,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         if let Some(sr) = status.metadata.sample_rate {
             state.telemetry.audio_sample_rate = sr;
-        } else if live_audio.sample_rate > 0 {
-            state.telemetry.audio_sample_rate = live_audio.sample_rate;
         }
         if let Some(ref ch) = status.metadata.channels {
             state.telemetry.audio_channels = ch.clone();
@@ -316,22 +333,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Sync Tray State on Changes
         {
-            let mut ts = tray_state.lock().unwrap();
+            let mut ts = match tray_state.lock() {
+                Ok(g) => g,
+                Err(e) => e.into_inner(),
+            };
             let cur_title = state.current_track.as_ref().map(|t| t.title.as_str()).unwrap_or("Standby");
             let cur_artist = state.current_track.as_ref().map(|t| t.artist.as_str()).unwrap_or("Boombox RX-505");
             if ts.title != cur_title
                 || ts.artist != cur_artist
                 || ts.is_playing != state.is_playing
+                || ts.is_paused != state.is_paused
                 || ts.is_recording != state.is_recording
                 || ts.volume != state.volume
             {
                 ts.title = cur_title.to_string();
                 ts.artist = cur_artist.to_string();
                 ts.is_playing = state.is_playing;
+                ts.is_paused = state.is_paused;
                 ts.is_recording = state.is_recording;
                 ts.volume = state.volume;
                 #[cfg(unix)]
-                if let Some(ref h) = _tray_handle {
+                if let Some(ref h) = _tray_guard.0 {
                     let handle_clone = h.clone();
                     tokio::spawn(async move {
                         let _ = handle_clone.update(|_| {}).await;
@@ -400,6 +422,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
+        // Poll Async Stream Queue Resolver Receiver
+        while let Ok(((label, tracks), play_now)) = stream_resolve_rx.try_recv() {
+            if tracks.is_empty() {
+                state.status_message = format!("⚠️ No results found for stream: {}", label);
+            } else if play_now {
+                let first = tracks[0].clone();
+                dispatch_play_track(
+                    &mut state,
+                    &player,
+                    first,
+                    &lyrics_tx,
+                    &artwork_tx,
+                    Some(&format!("Stream ({})", label)),
+                );
+                state.youtube_results = tracks.clone();
+                state.mode = AppMode::YoutubeMusic;
+                state.selected_index = 0;
+                for t in tracks {
+                    if !state.queue.iter().any(|q| q.id == t.id) {
+                        state.queue.push(t);
+                    }
+                }
+            } else {
+                let count = tracks.len();
+                state.youtube_results = tracks.clone();
+                for t in tracks {
+                    if !state.queue.iter().any(|q| q.id == t.id) {
+                        state.queue.push(t);
+                    }
+                }
+                state.mode = AppMode::YoutubeMusic;
+                state.selected_index = 0;
+                state.status_message = format!("📥 Queued: {} ({} tracks)", label, count);
+            }
+        }
+
         // Record history after 15 seconds of playback
         if state.is_playing {
             state.record_history_if_eligible(state.telemetry.time_pos);
@@ -446,7 +504,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             state.dolby_mode,
             state.tape_type,
         );
-        let (bands, peaks, vu_l, vu_r, peak_l, peak_r) = visualizer.update_with_live_audio(
+        let (bands, peaks, vu_l, vu_r, peak_l, peak_r, wave_l, wave_r) = visualizer.update_with_live_audio(
             &live_audio,
             state.is_playing,
             state.is_paused,
@@ -459,6 +517,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         state.telemetry.vu_right = vu_r;
         state.telemetry.peak_left = peak_l;
         state.telemetry.peak_right = peak_r;
+        state.telemetry.wave_left = wave_l;
+        state.telemetry.wave_right = wave_r;
 
         // B2. Poll Tape Recorder & Sync Status
         for (title, ok) in recorder.poll() {
@@ -478,9 +538,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         state.is_recording = recorder.is_recording();
         if recorder.is_recording() {
-            state.recording_status = format!("🔴 REC {:.0}s", frame_count as f64 / 60.0);
-        } else if !recorder.current_jobs().is_empty() {
-            state.recording_status = "WAITING".to_string();
+            let start = recording_start_time.get_or_insert_with(std::time::Instant::now);
+            state.recording_status = format!("🔴 REC {:.0}s", start.elapsed().as_secs_f64());
+        } else {
+            recording_start_time = None;
+            if !recorder.current_jobs().is_empty() {
+                state.recording_status = "WAITING".to_string();
+            }
         }
 
         // C. Render Terminal UI Frame
@@ -509,17 +573,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         KeyCode::Char('a') if is_ctrl => {
                             let url = state.input_buffer.trim().to_string();
                             if !url.is_empty() {
-                                let (label, tracks) = api::stream::resolve_stream_queue(&url).await;
-                                let count = tracks.len();
-                                state.youtube_results = tracks.clone();
-                                for t in tracks {
-                                    if !state.queue.iter().any(|q| q.id == t.id) {
-                                        state.queue.push(t);
-                                    }
-                                }
-                                state.mode = AppMode::YoutubeMusic;
-                                state.selected_index = 0;
-                                state.status_message = format!("📥 Queued: {} ({} tracks)", label, count);
+                                state.status_message = format!("⏳ Resolving stream queue: {} ...", url);
+                                let tx = stream_resolve_tx.clone();
+                                tokio::spawn(async move {
+                                    let res = api::stream::resolve_stream_queue(&url).await;
+                                    let _ = tx.send((res, false));
+                                });
                             }
                             state.active_modal = ModalType::None;
                             state.input_buffer.clear();
@@ -527,22 +586,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         KeyCode::Enter => {
                             let url = state.input_buffer.trim().to_string();
                             if !url.is_empty() {
-                                let (label, tracks) = api::stream::resolve_stream_queue(&url).await;
-                                if let Some(first) = tracks.first().cloned() {
-                                    dispatch_play_track(&mut state, &player, first, &lyrics_tx, &artwork_tx, Some(&format!("Stream ({})", label)));
-
-                                    state.youtube_results = tracks.clone();
-                                    state.mode = AppMode::YoutubeMusic;
-                                    state.selected_index = 0;
-
-                                    for t in tracks {
-                                        if !state.queue.iter().any(|q| q.id == t.id) {
-                                            state.queue.push(t);
-                                        }
-                                    }
-                                } else {
-                                    state.status_message = format!("No results found for: {}", url);
-                                }
+                                state.status_message = format!("⏳ Loading stream: {} ...", url);
+                                let tx = stream_resolve_tx.clone();
+                                tokio::spawn(async move {
+                                    let res = api::stream::resolve_stream_queue(&url).await;
+                                    let _ = tx.send((res, true));
+                                });
                             }
                             state.active_modal = ModalType::None;
                             state.input_buffer.clear();
@@ -602,60 +651,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             state.move_settings_selection(1);
                         }
                         KeyCode::Enter | KeyCode::Char(' ') | KeyCode::Right | KeyCode::Char('l') => {
-                            state.cycle_selected_setting(1);
-                            let (att, rel) = state.visualizer_speed.alphas();
-                            visualizer.set_ballistics(att, rel);
-                            let af = audio::equalizer::build_mpv_af_string(
-                                state.eq_preset,
-                                state.bass_boost,
-                                state.dolby_mode,
-                                state.stereo_mode,
-                                state.tape_type,
-                            );
-                            player.apply_audio_filter(&af);
-                            state.save_config();
+                            apply_settings_change(&mut state, &mut visualizer, &player, 1);
                         }
                         KeyCode::Left | KeyCode::Char('h') => {
-                            state.cycle_selected_setting(-1);
-                            let (att, rel) = state.visualizer_speed.alphas();
-                            visualizer.set_ballistics(att, rel);
-                            let af = audio::equalizer::build_mpv_af_string(
-                                state.eq_preset,
-                                state.bass_boost,
-                                state.dolby_mode,
-                                state.stereo_mode,
-                                state.tape_type,
-                            );
-                            player.apply_audio_filter(&af);
-                            state.save_config();
+                            apply_settings_change(&mut state, &mut visualizer, &player, -1);
                         }
                         KeyCode::Char('[') => {
-                            state.cycle_selected_setting(-1);
-                            let (att, rel) = state.visualizer_speed.alphas();
-                            visualizer.set_ballistics(att, rel);
-                            let af = audio::equalizer::build_mpv_af_string(
-                                state.eq_preset,
-                                state.bass_boost,
-                                state.dolby_mode,
-                                state.stereo_mode,
-                                state.tape_type,
-                            );
-                            player.apply_audio_filter(&af);
-                            state.save_config();
+                            apply_settings_change(&mut state, &mut visualizer, &player, -1);
                         }
                         KeyCode::Char(']') => {
-                            state.cycle_selected_setting(1);
-                            let (att, rel) = state.visualizer_speed.alphas();
-                            visualizer.set_ballistics(att, rel);
-                            let af = audio::equalizer::build_mpv_af_string(
-                                state.eq_preset,
-                                state.bass_boost,
-                                state.dolby_mode,
-                                state.stereo_mode,
-                                state.tape_type,
-                            );
-                            player.apply_audio_filter(&af);
-                            state.save_config();
+                            apply_settings_change(&mut state, &mut visualizer, &player, 1);
                         }
                         _ => {}
                     },
@@ -991,10 +996,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     player.stop();
 
     // Cleanly unregister and shutdown the D-Bus StatusNotifierItem Tray immediately
-    #[cfg(unix)]
-    if let Some(ref h) = _tray_handle {
-        let _ = h.shutdown().await;
-    }
+    drop(_tray_guard);
 
     // 7. If Hot-Reload requested via SIGUSR1/SIGHUP/Tray, re-execute binary in-place!
     if should_hot_reload {
@@ -1026,4 +1028,26 @@ async fn focus_or_raise_window() {
     let _ = tokio::process::Command::new(toggle_bin)
         .output()
         .await;
+}
+
+/// Applies a settings change: cycles the selected setting, updates visualizer
+/// ballistics, rebuilds and applies the mpv audio filter, and persists config.
+fn apply_settings_change(
+    state: &mut AppState,
+    visualizer: &mut VisualizerEngine,
+    player: &MpvPlayer,
+    delta: i32,
+) {
+    state.cycle_selected_setting(delta);
+    let (att, rel) = state.visualizer_speed.alphas();
+    visualizer.set_ballistics(att, rel);
+    let af = audio::equalizer::build_mpv_af_string(
+        state.eq_preset,
+        state.bass_boost,
+        state.dolby_mode,
+        state.stereo_mode,
+        state.tape_type,
+    );
+    player.apply_audio_filter(&af);
+    state.save_config();
 }

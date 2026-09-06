@@ -3,6 +3,14 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+use std::sync::LazyLock;
+
+static LRC_TIME_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\](.*)").unwrap()
+});
+static LRC_OFFSET_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\[offset:\s*([+-]?\d+)\]").unwrap()
+});
 
 pub const MATRIX_CHARS: &[char] = &[
     'ｱ', 'ｲ', 'ｳ', 'ｴ', 'ｵ', 'ｶ', 'ｷ', 'ｸ', 'ｹ', 'ｺ', '0', '1', '2', '8', '9',
@@ -138,8 +146,8 @@ fn cache_lrc_if_local(file_path: Option<&str>, lrc: &str) {
 
 pub fn parse_lrc(content: &str) -> Vec<SyncedLyricLine> {
     let mut lines = Vec::new();
-    let time_re = Regex::new(r"\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\](.*)").unwrap();
-    let offset_re = Regex::new(r"(?i)\[offset:\s*([+-]?\d+)\]").unwrap();
+    let time_re = &*LRC_TIME_RE;
+    let offset_re = &*LRC_OFFSET_RE;
 
     let mut global_offset_secs: f64 = 0.0;
 

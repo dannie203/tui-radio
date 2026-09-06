@@ -2,7 +2,7 @@ use crate::state::types::{GenreFilter, MediaItem};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
-use std::path::Path;
+use std::path::PathBuf;
 
 const RADIO_SERVERS: &[&str] = &[
     "https://de1.api.radio-browser.info",
@@ -269,10 +269,19 @@ pub fn get_official_vietnam_stations() -> Vec<MediaItem> {
 pub fn get_curated_stations() -> Vec<MediaItem> {
     let mut items = get_official_vietnam_stations();
 
-    let fallback_paths = [
-        Path::new("data/fallback.json"),
-        
+    let mut fallback_paths: Vec<PathBuf> = vec![
+        PathBuf::from("data/fallback.json"),
     ];
+
+    // Also check relative to binary location (for installed builds)
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            fallback_paths.push(exe_dir.join("data/fallback.json"));
+        }
+    }
+
+    // Also check config dir
+    fallback_paths.push(crate::state::config::get_config_dir().join("fallback.json"));
 
     for path in fallback_paths {
         if path.exists() {

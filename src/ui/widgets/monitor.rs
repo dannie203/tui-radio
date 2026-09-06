@@ -46,18 +46,18 @@ pub fn render_monitor(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme
         "PCM".to_string()
     };
 
-    let sample_rate_val = if state.telemetry.audio_sample_rate > 0 {
-        state.telemetry.audio_sample_rate
-    } else if let Some(sr) = current.and_then(|t| t.sample_rate) {
+    let sample_rate_val = if let Some(sr) = current.and_then(|t| t.sample_rate) {
         sr
+    } else if state.telemetry.audio_sample_rate > 0 {
+        state.telemetry.audio_sample_rate
     } else {
         44100
     };
 
-    let bit_depth_val = if state.telemetry.audio_bit_depth > 0 {
-        state.telemetry.audio_bit_depth
-    } else if let Some(bd) = current.and_then(|t| t.bit_depth) {
+    let bit_depth_val = if let Some(bd) = current.and_then(|t| t.bit_depth) {
         bd
+    } else if state.telemetry.audio_bit_depth > 0 {
+        state.telemetry.audio_bit_depth
     } else {
         16
     };
@@ -280,7 +280,23 @@ pub fn render_monitor(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme
     f.render_widget(monitor, area);
 }
 
-/// Generates real-time 2D CRT Oscilloscope beam traces with reticle grid
+/// Helper to map 2x4 sub-pixel coordinates to Unicode Braille bitmask
+#[inline(always)]
+fn braille_bit(sub_x: usize, sub_y: usize) -> u8 {
+    match (sub_x, sub_y) {
+        (0, 0) => 0x01,
+        (0, 1) => 0x02,
+        (0, 2) => 0x04,
+        (0, 3) => 0x40,
+        (1, 0) => 0x08,
+        (1, 1) => 0x10,
+        (1, 2) => 0x20,
+        (1, 3) => 0x80,
+        _ => 0,
+    }
+}
+
+/// Generates real-time 2D CRT Oscilloscope beam traces with reticle grid using high-resolution sub-pixel Braille
 fn render_crt_oscilloscope_lines<'a>(
     width: usize,
     available_lines: usize,
@@ -293,35 +309,71 @@ fn render_crt_oscilloscope_lines<'a>(
     }
 
     let is_active = state.is_playing && !state.is_paused;
-    let t = state.telemetry.spool_frame as f32 * 0.26;
-    let vu_l = state.telemetry.vu_left;
-    let vu_r = state.telemetry.vu_right;
+    let wave_l = &state.telemetry.wave_left;
+    let wave_r = &state.telemetry.wave_right;
 
-    let b_low = (state.telemetry.eq_bands[0] + state.telemetry.eq_bands[1] + state.telemetry.eq_bands[2]) / 300.0;
-    let b_mid = (state.telemetry.eq_bands[8] + state.telemetry.eq_bands[10] + state.telemetry.eq_bands[12]) / 300.0;
-    let b_high = (state.telemetry.eq_bands[20] + state.telemetry.eq_bands[24]) / 200.0;
+    // Fast Schmitt-trigger rising zero-crossing detection on CH1 to stabilize the oscilloscope sweep
+    let mut trigger_idx = 0;
 
-    let amp_l = if is_active { (vu_l / 100.0).clamp(0.08, 1.0) } else { 0.04 };
-    let amp_r = if is_active { (vu_r / 100.0).clamp(0.08, 1.0) } else { 0.04 };
+    if is_active {
+        let mut peak_val = 0.0f32;
+        for &s in wave_l.iter().take(256) {
+            let a = s.abs();
+            if a > peak_val {
+                peak_val = a;
+            }
+        }
+
+        if peak_val > 0.02 {
+            let thresh = (peak_val * 0.12).clamp(0.008, 0.06);
+            for i in 1..250 {
+                if wave_l[i - 1] <= 0.0 && wave_l[i] > 0.0 && (wave_l[i] - wave_l[i - 1]) > thresh {
+                    trigger_idx = i;
+                    break;
+                }
+            }
+        }
+    }
 
     if available_lines == 1 {
-        // Compact 1-line phosphor wave trace
-        let wave_w = width.saturating_sub(42).clamp(16, 70);
-        let mut wave_chars = String::with_capacity(wave_w);
-        for x in 0..wave_w {
-            let val = if is_active {
-                ((x as f32 * 0.35 + t).sin() * 0.7 + (x as f32 * 0.7 - t * 1.5).cos() * 0.3) * amp_l
-            } else {
-                0.0
+        // Compact 1-line phosphor wave trace with 4x vertical Braille sub-pixels
+        let wave_w = width.saturating_sub(44).clamp(16, 70);
+        let w_dots = wave_w * 2;
+        let mut grid = vec![0u8; wave_w];
+        let mid_y = 1.5f32;
+        let amp = 1.4f32;
+
+        let max_samples = (512 - trigger_idx).saturating_sub(1);
+        let sample_step = (max_samples.min(w_dots * 2).max(w_dots)) as f32 / w_dots.max(1) as f32;
+        let mut prev_y: Option<usize> = None;
+
+        for x in 0..w_dots {
+            let s_idx = (trigger_idx + (x as f32 * sample_step) as usize).min(511);
+            let s = wave_l[s_idx];
+            let y = (mid_y - s * amp).round().clamp(0.0, 3.0) as usize;
+            let col = x / 2;
+            let sub_x = x % 2;
+
+            let (y_min, y_max) = match prev_y {
+                Some(p) => (p.min(y), p.max(y)),
+                None => (y, y),
             };
-            let ch = if val > 0.4 { "∿" } else if val < -0.4 { "∼" } else { "─" };
-            wave_chars.push_str(ch);
+            for sy in y_min..=y_max {
+                grid[col] |= braille_bit(sub_x, sy);
+            }
+            prev_y = Some(y);
+        }
+
+        let mut wave_chars = String::with_capacity(wave_w);
+        for &mask in &grid {
+            let ch = char::from_u32(0x2800 + mask as u32).unwrap_or('─');
+            wave_chars.push(ch);
         }
 
         lines.push(Line::from(vec![
             Span::styled(" SCOPE   : ", Style::default().fg(theme.muted)),
             Span::styled(wave_chars, Style::default().fg(theme.green_phosphor).add_modifier(Modifier::BOLD)),
-            Span::styled("  [CH-1/2 ANALOG BEAM • 50Hz]", Style::default().fg(theme.amber_bright)),
+            Span::styled("  [CH-1/2 REALTIME BEAM]", Style::default().fg(theme.amber_bright)),
         ]));
         return lines;
     }
@@ -340,73 +392,100 @@ fn render_crt_oscilloscope_lines<'a>(
     let wave_rows = available_lines.saturating_sub(1 + if has_footer { 1 } else { 0 });
 
     if wave_rows > 0 {
-        let mid_r = (wave_rows as f32 - 1.0) / 2.0;
         let plot_width = width.saturating_sub(2);
+        let w_dots = plot_width * 2;
+        let h_dots = wave_rows * 4;
+        let mid_y = (h_dots as f32 - 1.0) / 2.0;
+        let amp = mid_y * 0.94;
 
-        // Precompute waveform target rows for all columns
-        let mut target_l = Vec::with_capacity(plot_width);
-        let mut target_r = Vec::with_capacity(plot_width);
+        let mut grid_l = vec![vec![0u8; plot_width]; wave_rows];
+        let mut grid_r = vec![vec![0u8; plot_width]; wave_rows];
 
-        for x in 0..plot_width {
-            let x_f = x as f32;
-            let val_l = if is_active {
-                let w1 = (x_f * 0.11 + t).sin() * (0.60 + b_low * 0.40);
-                let w2 = (x_f * 0.25 - t * 1.3).sin() * (0.30 + b_mid * 0.35);
-                let w3 = (x_f * 0.55 + t * 2.1).cos() * (0.15 + b_high * 0.25);
-                ((w1 + w2 + w3) * amp_l).clamp(-1.0, 1.0)
-            } else {
-                ((x_f * 0.08 + t * 0.1).sin() * 0.05).clamp(-1.0, 1.0)
+        // Map horizontal dot space across waveform buffer
+        let max_display_samples = (512 - trigger_idx).saturating_sub(1);
+        let span_samples = (w_dots * 2).min(max_display_samples).max(w_dots);
+        let sample_step = span_samples as f32 / w_dots.max(1) as f32;
+
+        let mut prev_yl: Option<usize> = None;
+        let mut prev_yr: Option<usize> = None;
+
+        for x in 0..w_dots {
+            let s_idx = (trigger_idx + (x as f32 * sample_step) as usize).min(511);
+            let sl = wave_l[s_idx];
+            let sr = wave_r[s_idx];
+
+            let yl = (mid_y - sl * amp).round().clamp(0.0, (h_dots - 1) as f32) as usize;
+            let yr = (mid_y - sr * amp).round().clamp(0.0, (h_dots - 1) as f32) as usize;
+
+            let col = x / 2;
+            let sub_x = x % 2;
+
+            // Connect continuous vertical beam segments for Left channel
+            let (l_min, l_max) = match prev_yl {
+                Some(prev) => (prev.min(yl), prev.max(yl)),
+                None => (yl, yl),
             };
+            for y in l_min..=l_max {
+                let r = y / 4;
+                let sub_y = y % 4;
+                grid_l[r][col] |= braille_bit(sub_x, sub_y);
+            }
+            prev_yl = Some(yl);
 
-            let val_r = if is_active {
-                let w1 = (x_f * 0.13 - t * 0.95 + 1.2).sin() * (0.60 + b_low * 0.40);
-                let w2 = (x_f * 0.22 + t * 1.45).cos() * (0.30 + b_mid * 0.35);
-                let w3 = (x_f * 0.48 - t * 1.80).sin() * (0.15 + b_high * 0.25);
-                ((w1 + w2 + w3) * amp_r).clamp(-1.0, 1.0)
-            } else {
-                ((x_f * 0.08 - t * 0.1).cos() * 0.05).clamp(-1.0, 1.0)
+            // Connect continuous vertical beam segments for Right channel
+            let (r_min, r_max) = match prev_yr {
+                Some(prev) => (prev.min(yr), prev.max(yr)),
+                None => (yr, yr),
             };
-
-            let row_l = (mid_r - val_l * mid_r * 0.94).round().clamp(0.0, (wave_rows - 1) as f32) as usize;
-            let row_r = (mid_r - val_r * mid_r * 0.94).round().clamp(0.0, (wave_rows - 1) as f32) as usize;
-            target_l.push(row_l);
-            target_r.push(row_r);
+            for y in r_min..=r_max {
+                let r = y / 4;
+                let sub_y = y % 4;
+                grid_r[r][col] |= braille_bit(sub_x, sub_y);
+            }
+            prev_yr = Some(yr);
         }
 
-        // Render each row with grouped spans for high efficiency
+        let mid_row = (wave_rows - 1) / 2;
+
+        // Render each row with grouped spans for maximum TUI throughput
         for r in 0..wave_rows {
             let mut row_spans = vec![Span::raw(" ")];
-            let is_axis_row = r == mid_r.round() as usize;
+            let is_axis_row = r == mid_row;
 
             let mut current_text = String::new();
             let mut current_style: Option<Style> = None;
 
-            for x in 0..plot_width {
-                let hit_l = target_l[x] == r;
-                let hit_r = target_r[x] == r;
+            for c in 0..plot_width {
+                let mask_l = grid_l[r][c];
+                let mask_r = grid_r[r][c];
 
-                let (ch, style) = if hit_l && hit_r {
-                    ("━", Style::default().fg(theme.amber_bright).add_modifier(Modifier::BOLD))
-                } else if hit_l {
-                    ("─", Style::default().fg(theme.green_phosphor).add_modifier(Modifier::BOLD))
-                } else if hit_r {
-                    ("─", Style::default().fg(theme.cyan_dolby).add_modifier(Modifier::BOLD))
+                let (ch, style) = if mask_l > 0 && mask_r > 0 {
+                    let combined = mask_l | mask_r;
+                    let b_ch = char::from_u32(0x2800 + combined as u32).unwrap_or('━');
+                    (b_ch.to_string(), Style::default().fg(theme.amber_bright).add_modifier(Modifier::BOLD))
+                } else if mask_l > 0 {
+                    let b_ch = char::from_u32(0x2800 + mask_l as u32).unwrap_or('─');
+                    (b_ch.to_string(), Style::default().fg(theme.green_phosphor).add_modifier(Modifier::BOLD))
+                } else if mask_r > 0 {
+                    let b_ch = char::from_u32(0x2800 + mask_r as u32).unwrap_or('─');
+                    (b_ch.to_string(), Style::default().fg(theme.cyan_dolby).add_modifier(Modifier::BOLD))
                 } else if is_axis_row {
-                    if x % 10 == 0 {
-                        ("┼", Style::default().fg(theme.border_dim))
-                    } else if x % 2 == 0 {
-                        ("┄", Style::default().fg(theme.border_dim))
+                    let graticule = if c % 10 == 0 {
+                        "┼"
+                    } else if c % 2 == 0 {
+                        "┄"
                     } else {
-                        (" ", Style::default())
-                    }
-                } else if x % 10 == 0 {
-                    ("┆", Style::default().fg(theme.border_dim))
+                        " "
+                    };
+                    (graticule.to_string(), Style::default().fg(theme.border_dim))
+                } else if c % 10 == 0 {
+                    ("┆".to_string(), Style::default().fg(theme.border_dim))
                 } else {
-                    (" ", Style::default())
+                    (" ".to_string(), Style::default())
                 };
 
                 if Some(style) == current_style {
-                    current_text.push_str(ch);
+                    current_text.push_str(&ch);
                 } else {
                     if let Some(prev_style) = current_style {
                         if !current_text.is_empty() {
@@ -415,7 +494,7 @@ fn render_crt_oscilloscope_lines<'a>(
                         }
                     }
                     current_style = Some(style);
-                    current_text.push_str(ch);
+                    current_text.push_str(&ch);
                 }
             }
 
@@ -429,15 +508,23 @@ fn render_crt_oscilloscope_lines<'a>(
         }
     }
 
-    // Line Footer: CRT Scope Hardware Parameters & Telemetry
+    // Line Footer: CRT Scope Hardware Parameters & Fixed Telemetry Status
     if has_footer {
+        let (trig_str, trig_style) = if state.is_paused {
+            ("[TRIG: LOCKED]", Style::default().fg(theme.green_phosphor).add_modifier(Modifier::BOLD))
+        } else if state.is_playing {
+            ("[TRIG: AUTO SCAN]", Style::default().fg(theme.gold).add_modifier(Modifier::BOLD))
+        } else {
+            ("[TRIG: STANDBY]", Style::default().fg(theme.muted))
+        };
+
         lines.push(Line::from(vec![
             Span::styled(" [SWEEP: 50Hz] ", Style::default().fg(theme.muted)),
             Span::styled("[CH1: L-BEAM] ", Style::default().fg(theme.green_phosphor).add_modifier(Modifier::BOLD)),
             Span::styled("[CH2: R-BEAM] ", Style::default().fg(theme.cyan_dolby).add_modifier(Modifier::BOLD)),
             Span::styled("[0.5V/DIV] ", Style::default().fg(theme.chrome)),
             Span::styled("[TIME/DIV: 1.0ms] ", Style::default().fg(theme.amber_bright)),
-            Span::styled("[TRIG: AUTO SYNC]", Style::default().fg(theme.gold)),
+            Span::styled(trig_str, trig_style),
         ]));
     }
 

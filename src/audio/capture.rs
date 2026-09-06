@@ -14,6 +14,8 @@ pub struct LiveAudioData {
     pub raw_vu_right: f32,
     pub sample_rate: u32,
     pub last_update: Instant,
+    pub raw_wave_left: [f32; 512],
+    pub raw_wave_right: [f32; 512],
 }
 
 impl Default for LiveAudioData {
@@ -24,6 +26,8 @@ impl Default for LiveAudioData {
             raw_vu_right: 0.0,
             sample_rate: 48000,
             last_update: Instant::now(),
+            raw_wave_left: [0.0; 512],
+            raw_wave_right: [0.0; 512],
         }
     }
 }
@@ -52,7 +56,7 @@ impl AudioCaptureEngine {
     }
 
     pub fn get_live_data(&self) -> LiveAudioData {
-        self.data.lock().unwrap().clone()
+        self.data.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 
@@ -64,6 +68,29 @@ impl Drop for AudioCaptureEngine {
 
 /// Detects the active PipeWire / EasyEffects clock sample rate in real-time
 pub fn detect_pipewire_sample_rate() -> u32 {
+    // 1. Fast path: query PipeWire global settings metadata directly (<10ms)
+    if let Ok(output) = Command::new("pw-metadata")
+        .args(["-n", "settings", "0", "clock.rate"])
+        .output()
+    {
+        if let Ok(text) = String::from_utf8(output.stdout) {
+            for line in text.lines() {
+                if line.contains("clock.rate") {
+                    if let Some(pos) = line.find("value:'") {
+                        let sub = &line[pos + 7..];
+                        let digits: String = sub.chars().take_while(|c| c.is_ascii_digit()).collect();
+                        if let Ok(rate) = digits.parse::<u32>() {
+                            if (22050..=384000).contains(&rate) {
+                                return rate;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Fallback: pw-dump
     if let Ok(output) = Command::new("pw-dump").output() {
         if let Ok(text) = String::from_utf8(output.stdout) {
             if let Some(pos) = text.find("\"key\": \"clock.rate\"") {
@@ -212,13 +239,25 @@ fn run_capture_loop(data: Arc<Mutex<LiveAudioData>>, running: Arc<AtomicBool>) {
                                 raw_bands[b] = normalized;
                             }
 
-                            // 3. Store Live Telemetry
+                            // 3. Extract Real-Time PCM Audio Waveform for Oscilloscope
+                            let mut raw_wave_l = [0.0f32; 512];
+                            let mut raw_wave_r = [0.0f32; 512];
+                            let start_wave = fft_size.saturating_sub(512);
+                            for (w_idx, src_i) in (start_wave..fft_size).enumerate() {
+                                let offset = src_i * 4;
+                                raw_wave_l[w_idx] = i16::from_le_bytes([byte_buffer[offset], byte_buffer[offset + 1]]) as f32 / 32768.0;
+                                raw_wave_r[w_idx] = i16::from_le_bytes([byte_buffer[offset + 2], byte_buffer[offset + 3]]) as f32 / 32768.0;
+                            }
+
+                            // 4. Store Live Telemetry
                             if let Ok(mut guard) = data.lock() {
                                 guard.raw_bands = raw_bands;
                                 guard.raw_vu_left = raw_vu_l;
                                 guard.raw_vu_right = raw_vu_r;
                                 guard.sample_rate = current_sample_rate;
                                 guard.last_update = Instant::now();
+                                guard.raw_wave_left = raw_wave_l;
+                                guard.raw_wave_right = raw_wave_r;
                             }
                         }
                         Err(_) => break, // Pipe closed or buffer error, respawn

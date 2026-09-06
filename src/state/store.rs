@@ -61,6 +61,7 @@ pub struct AppState {
     pub selected_history_idx: usize,
     pub track_recorded_to_history: bool,
     pub available_update: Option<crate::api::updater::UpdateInfo>,
+    pub original_music_dir: Option<String>,
 }
 
 impl AppState {
@@ -134,6 +135,7 @@ impl AppState {
             selected_history_idx: 0,
             track_recorded_to_history: false,
             available_update: None,
+            original_music_dir: cfg.general.music_dir.clone(),
         }
     }
 
@@ -149,20 +151,18 @@ impl AppState {
         }
     }
 
-    pub fn get_active_list(&self) -> Vec<MediaItem> {
+    pub fn get_active_list(&self) -> &[MediaItem] {
         match self.mode {
             AppMode::LocalTracks => {
-                if self.local_view_level == LocalViewLevel::Tracks && !self.filtered_local.is_empty() {
-                    self.filtered_local.clone()
-                } else if self.local_view_level == LocalViewLevel::AllTracks && !self.filtered_local.is_empty() {
-                    self.filtered_local.clone()
+                if (self.local_view_level == LocalViewLevel::Tracks || self.local_view_level == LocalViewLevel::AllTracks) && !self.filtered_local.is_empty() {
+                    &self.filtered_local
                 } else {
-                    self.local_tracks.clone()
+                    &self.local_tracks
                 }
             }
-            AppMode::RadioStations => self.filtered_radio.clone(),
-            AppMode::Queue => self.queue.clone(),
-            AppMode::YoutubeMusic => self.youtube_results.clone(),
+            AppMode::RadioStations => &self.filtered_radio,
+            AppMode::Queue => &self.queue,
+            AppMode::YoutubeMusic => &self.youtube_results,
         }
     }
 
@@ -342,7 +342,7 @@ impl AppState {
         }
 
         let pool = if !self.queue.is_empty() {
-            self.queue.clone()
+            &self.queue
         } else {
             self.get_active_list()
         };
@@ -355,8 +355,8 @@ impl AppState {
             use rand::Rng;
             let mut rng = rand::thread_rng();
             let cur_id = self.current_track.as_ref().map(|t| &t.id);
-            let candidates: Vec<(usize, MediaItem)> = pool
-                .into_iter()
+            let candidates: Vec<(usize, &MediaItem)> = pool
+                .iter()
                 .enumerate()
                 .filter(|(_, t)| Some(&t.id) != cur_id)
                 .collect();
@@ -364,9 +364,10 @@ impl AppState {
                 return self.current_track.clone();
             }
             let pick = rng.gen_range(0..candidates.len());
-            let (idx, item) = &candidates[pick];
-            self.selected_index = *idx;
-            return Some(item.clone());
+            let (idx, item) = candidates[pick];
+            let next = item.clone();
+            self.selected_index = idx;
+            return Some(next);
         }
 
         if !self.queue.is_empty() {
@@ -382,17 +383,21 @@ impl AppState {
             return None;
         }
 
-        let list = self.get_active_list();
-        if !list.is_empty() {
-            let cur_id = self.current_track.as_ref().map(|t| &t.id);
-            let cur_idx = list.iter().position(|t| Some(&t.id) == cur_id).unwrap_or(self.selected_index);
-            if cur_idx + 1 < list.len() {
-                self.selected_index = cur_idx + 1;
-                return list.get(cur_idx + 1).cloned();
-            } else if self.repeat_mode == RepeatMode::All {
-                self.selected_index = 0;
-                return list.first().cloned();
-            }
+        let len = self.get_active_list_len();
+        if len == 0 {
+            return None;
+        }
+        let cur_id = self.current_track.as_ref().map(|t| &t.id);
+        let cur_idx = {
+            let list = self.get_active_list();
+            list.iter().position(|t| Some(&t.id) == cur_id).unwrap_or(self.selected_index)
+        };
+        if cur_idx + 1 < len {
+            self.selected_index = cur_idx + 1;
+            return self.get_active_list().get(cur_idx + 1).cloned();
+        } else if self.repeat_mode == RepeatMode::All {
+            self.selected_index = 0;
+            return self.get_active_list().first().cloned();
         }
         None
     }
@@ -408,17 +413,20 @@ impl AppState {
             return self.queue.first().cloned();
         }
 
-        let list = self.get_active_list();
-        if !list.is_empty() {
-            let cur_id = self.current_track.as_ref().map(|t| &t.id);
-            let cur_idx = list.iter().position(|t| Some(&t.id) == cur_id).unwrap_or(0);
-            if cur_idx > 0 {
-                self.selected_index = cur_idx - 1;
-                return list.get(cur_idx - 1).cloned();
-            }
-            return list.first().cloned();
+        let len = self.get_active_list_len();
+        if len == 0 {
+            return None;
         }
-        None
+        let cur_id = self.current_track.as_ref().map(|t| &t.id);
+        let cur_idx = {
+            let list = self.get_active_list();
+            list.iter().position(|t| Some(&t.id) == cur_id).unwrap_or(0)
+        };
+        if cur_idx > 0 {
+            self.selected_index = cur_idx - 1;
+            return self.get_active_list().get(cur_idx - 1).cloned();
+        }
+        self.get_active_list().first().cloned()
     }
 
     pub fn filter_local(&mut self, query: &str) {
@@ -595,7 +603,7 @@ impl AppState {
                 let removed = mt.tracks.pop();
                 save_mixtapes(&self.mixtapes);
                 if let Some(t) = removed {
-                    self.status_message = format!("Removed '{}' from Mixtape", t.title);
+                    self.status_message = format!("Removed last track '{}' from Mixtape", t.title);
                 }
             }
         }
@@ -605,7 +613,7 @@ impl AppState {
         let theme_id = self.current_theme().id;
         let cfg = AppConfig {
             general: crate::state::config::GeneralConfig {
-                music_dir: Some("~/Music".to_string()),
+                music_dir: self.original_music_dir.clone(),
                 default_mode: Some(match self.mode {
                     AppMode::RadioStations => "radio".to_string(),
                     AppMode::Queue => "queue".to_string(),

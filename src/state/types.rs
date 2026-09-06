@@ -346,6 +346,7 @@ pub enum RepeatMode {
 }
 
 impl RepeatMode {
+    /// Cycling order follows standard music player convention: Off -> Repeat All -> Repeat One
     pub const ALL: [RepeatMode; 3] = [
         RepeatMode::Off,
         RepeatMode::All,
@@ -505,6 +506,8 @@ pub struct AudioTelemetry {
     pub audio_sample_rate: u32,
     pub audio_channels: String,
     pub is_live: bool,
+    pub wave_left: [f32; 512],
+    pub wave_right: [f32; 512],
 }
 
 impl Default for AudioTelemetry {
@@ -522,11 +525,13 @@ impl Default for AudioTelemetry {
             percent_pos: 0.0,
             tape_counter: "00:00".to_string(),
             audio_codec: "STANDBY".to_string(),
-            audio_bit_depth: 16,
+            audio_bit_depth: 0,
             audio_bitrate: 0,
-            audio_sample_rate: 48000,
+            audio_sample_rate: 0,
             audio_channels: "Stereo".to_string(),
             is_live: false,
+            wave_left: [0.0; 512],
+            wave_right: [0.0; 512],
         }
     }
 }
@@ -542,6 +547,14 @@ pub struct HistoryEntry {
     pub duration: f64,
     pub last_played: u64,
     pub play_count: u32,
+    #[serde(default)]
+    pub format: Option<String>,
+    #[serde(default)]
+    pub bitrate: Option<u32>,
+    #[serde(default)]
+    pub sample_rate: Option<u32>,
+    #[serde(default)]
+    pub bit_depth: Option<u32>,
 }
 
 

@@ -70,12 +70,12 @@ impl StreamRecorder {
     }
 
     pub fn current_jobs(&self) -> Vec<RecordJob> {
-        self.jobs.lock().unwrap().values().map(|a| a.job.clone()).collect()
+        self.jobs.lock().unwrap_or_else(|e| e.into_inner()).values().map(|a| a.job.clone()).collect()
     }
 
     pub fn poll(&self) -> Vec<(String, bool)> {
         let mut notifs = Vec::new();
-        let mut jobs = self.jobs.lock().unwrap();
+        let mut jobs = self.jobs.lock().unwrap_or_else(|e| e.into_inner());
         let mut to_remove = Vec::new();
         for (url, active) in jobs.iter_mut() {
             let status = match active.child.try_wait() {
@@ -137,11 +137,17 @@ impl StreamRecorder {
         {
             clean_url = format!("https://{}", clean_url);
         }
+
+        let is_remote = clean_url.starts_with("http://") || clean_url.starts_with("https://") || clean_url.starts_with("ytdl://");
+        if is_remote && !crate::api::stream::is_safe_stream_url(&clean_url) {
+            return Err("Blocked unsafe stream URL".into());
+        }
+
         let title = item.title.clone();
         let artist = item.artist.clone();
 
         let child_to_kill = {
-            let mut jobs = self.jobs.lock().unwrap();
+            let mut jobs = self.jobs.lock().unwrap_or_else(|e| e.into_inner());
             let key = if jobs.contains_key(&url) {
                 Some(url.clone())
             } else if jobs.contains_key(&clean_url) {
@@ -250,7 +256,7 @@ impl StreamRecorder {
             output_path: if is_yt_source { None } else { Some(dir.join(format!("{} - {}.{}", clean_artist, clean_title, format.ext()))) },
         };
 
-        self.jobs.lock().unwrap().insert(
+        self.jobs.lock().unwrap_or_else(|e| e.into_inner()).insert(
             url.clone(),
             ActiveJob {
                 job,
@@ -264,7 +270,7 @@ impl StreamRecorder {
 
     pub async fn cancel(&self, url: Option<&str>) -> bool {
         let children_to_kill = {
-            let mut jobs = self.jobs.lock().unwrap();
+            let mut jobs = self.jobs.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(u) = url {
                 if let Some(mut a) = jobs.remove(u) {
                     a.cancelled = true;

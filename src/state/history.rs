@@ -3,9 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 fn history_file() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")))
-        .join("boombox-tui")
+    crate::state::config::get_config_dir()
         .join("history.json")
 }
 
@@ -69,6 +67,10 @@ pub fn record_history_entry(history: &mut Vec<HistoryEntry>, item: &MediaItem) {
         duration: item.duration,
         last_played: now,
         play_count,
+        format: item.format.clone(),
+        bitrate: item.bitrate,
+        sample_rate: item.sample_rate,
+        bit_depth: item.bit_depth,
     };
 
     history.insert(0, entry);
@@ -77,6 +79,9 @@ pub fn record_history_entry(history: &mut Vec<HistoryEntry>, item: &MediaItem) {
     }
     save_history(history);
 }
+
+use lofty::file::AudioFile;
+use lofty::probe::Probe;
 
 pub fn history_to_media_item(entry: &HistoryEntry) -> MediaItem {
     let is_radio = entry.source == "Radio";
@@ -89,6 +94,39 @@ pub fn history_to_media_item(entry: &HistoryEntry) -> MediaItem {
         _ => "AUDIO",
     };
 
+    let mut sample_rate = entry.sample_rate;
+    let mut bit_depth = entry.bit_depth;
+    let mut bitrate = entry.bitrate.or(Some(192));
+    let mut format = entry.format.clone().or_else(|| Some(format_badge.to_string()));
+    let mut file_size = None;
+
+    // Only probe local file with lofty if metadata wasn't already recorded in history entry
+    if !is_radio && !is_youtube && (sample_rate.is_none() || bit_depth.is_none()) {
+        let p = std::path::Path::new(&entry.url);
+        if p.exists() {
+            if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
+                format = Some(ext.to_uppercase());
+            }
+            if let Ok(probe) = Probe::open(p) {
+                if let Ok(tagged_file) = probe.read() {
+                    let props = tagged_file.properties();
+                    if sample_rate.is_none() {
+                        sample_rate = props.sample_rate();
+                    }
+                    if bit_depth.is_none() {
+                        bit_depth = props.bit_depth().map(|b| b as u32);
+                    }
+                    if entry.bitrate.is_none() {
+                        bitrate = props.audio_bitrate();
+                    }
+                }
+            }
+            file_size = std::fs::metadata(p).ok().map(|m| m.len());
+        }
+    } else if !is_radio && !is_youtube {
+        file_size = std::fs::metadata(&entry.url).ok().map(|m| m.len());
+    }
+
     MediaItem {
         id: entry.id.clone(),
         title: entry.title.clone(),
@@ -96,14 +134,42 @@ pub fn history_to_media_item(entry: &HistoryEntry) -> MediaItem {
         album: entry.album.clone(),
         url: entry.url.clone(),
         duration: entry.duration,
-        format: Some(format_badge.to_string()),
-        bitrate: Some(192),
+        format,
+        bitrate,
         is_radio,
         is_youtube,
         is_favorite: false,
-        file_size: None,
+        file_size,
         track_no: None,
-        sample_rate: Some(48000),
-        bit_depth: Some(16),
+        sample_rate,
+        bit_depth,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_history_to_media_item_fallback() {
+        let entry = HistoryEntry {
+            id: "test".to_string(),
+            title: "Test".to_string(),
+            artist: "Artist".to_string(),
+            album: None,
+            url: "https://example.com/stream".to_string(),
+            source: "Radio".to_string(),
+            duration: 100.0,
+            last_played: 0,
+            play_count: 1,
+            format: None,
+            bitrate: None,
+            sample_rate: None,
+            bit_depth: None,
+        };
+        let item = history_to_media_item(&entry);
+        assert!(item.is_radio);
+        assert_eq!(item.sample_rate, None);
+        assert_eq!(item.bit_depth, None);
     }
 }

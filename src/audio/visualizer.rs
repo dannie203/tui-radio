@@ -25,6 +25,8 @@ pub struct VisualizerEngine {
     peak_decay_rate: f32,
     phase: f32,
     last_update: Instant,
+    wave_decay_l: [f32; 512],
+    wave_decay_r: [f32; 512],
 }
 
 impl VisualizerEngine {
@@ -46,6 +48,8 @@ impl VisualizerEngine {
             peak_decay_rate: 58.0,
             phase: 0.0,
             last_update: now,
+            wave_decay_l: [0.0; 512],
+            wave_decay_r: [0.0; 512],
         }
     }
 
@@ -62,7 +66,16 @@ impl VisualizerEngine {
         is_paused: bool,
         bass_boost: bool,
         eq_gains: [f32; 32],
-    ) -> ([f32; 32], [f32; 32], f32, f32, f32, f32) {
+    ) -> (
+        [f32; 32],
+        [f32; 32],
+        f32,
+        f32,
+        f32,
+        f32,
+        [f32; 512],
+        [f32; 512],
+    ) {
         let now = Instant::now();
         let dt = (now.duration_since(self.last_update).as_secs_f32()).clamp(0.001, 0.1);
         self.last_update = now;
@@ -77,6 +90,14 @@ impl VisualizerEngine {
             self.smoothed_vu_r = (self.smoothed_vu_r - 60.0 * dt).max(0.0);
             self.peak_vu_l = (self.peak_vu_l - 40.0 * dt).max(self.smoothed_vu_l);
             self.peak_vu_r = (self.peak_vu_r - 40.0 * dt).max(self.smoothed_vu_r);
+
+            // Fast CRT phosphor decay for waveform (collapses beam to flat line in ~60ms)
+            let wave_decay = (1.0 - dt * 22.0).max(0.0);
+            for i in 0..512 {
+                self.wave_decay_l[i] *= wave_decay;
+                self.wave_decay_r[i] *= wave_decay;
+            }
+
             return (
                 self.smoothed_bands,
                 self.peak_bands,
@@ -84,6 +105,8 @@ impl VisualizerEngine {
                 self.smoothed_vu_r,
                 self.peak_vu_l,
                 self.peak_vu_r,
+                self.wave_decay_l,
+                self.wave_decay_r,
             );
         }
 
@@ -91,9 +114,11 @@ impl VisualizerEngine {
         let mut raw_bands;
         let raw_vu_l;
         let raw_vu_r;
+        let mut out_wave_l = [0.0f32; 512];
+        let mut out_wave_r = [0.0f32; 512];
 
         if is_live_active {
-            // 1. Use REAL live audio data from PipeWire / PulseAudio!
+            // 1. Use REAL live audio data & PCM waveform from PipeWire / PulseAudio!
             raw_bands = live.raw_bands;
             raw_vu_l = live.raw_vu_left;
             raw_vu_r = live.raw_vu_right;
@@ -104,6 +129,15 @@ impl VisualizerEngine {
                     raw_bands[b] = (raw_bands[b] * 1.35).min(100.0);
                 }
             }
+
+            // Real-time PCM waveform scaled for optimal oscilloscope deflection
+            let wave_scale = if bass_boost { 1.35 } else { 1.15 };
+            for i in 0..512 {
+                out_wave_l[i] = (live.raw_wave_left[i] * wave_scale).clamp(-1.0, 1.0);
+                out_wave_r[i] = (live.raw_wave_right[i] * wave_scale).clamp(-1.0, 1.0);
+            }
+            self.wave_decay_l = out_wave_l;
+            self.wave_decay_r = out_wave_r;
         } else {
             // 2. Organic fallback simulation if audio stream is silent/initializing
             self.phase += dt * 4.2;
@@ -149,6 +183,25 @@ impl VisualizerEngine {
 
             raw_vu_l = (raw_bands[4] * 0.35 + raw_bands[9] * 0.25 + raw_bands[16] * 0.25 + raw_bands[25] * 0.15).clamp(10.0, 98.0);
             raw_vu_r = (raw_bands[5] * 0.32 + raw_bands[10] * 0.26 + raw_bands[17] * 0.24 + raw_bands[26] * 0.18).clamp(10.0, 98.0);
+
+            // Synthesize snappy waveform with punchy harmonics tied to kick/bass/snare
+            let kick = (raw_bands[4] / 100.0).powf(1.6);
+            let bass = raw_bands[1] / 100.0;
+            let snare = raw_bands[15] / 100.0;
+            let hi = raw_bands[24] / 100.0;
+
+            for i in 0..512 {
+                let fi = i as f32;
+                let w_low = ((fi * 0.045 + p * 2.0).sin()) * (0.35 + bass * 0.55);
+                let w_kick = ((fi * 0.09 + p * 3.5).sin()) * kick * 0.65;
+                let w_mid = ((fi * 0.22 - p * 4.0).sin()) * snare * 0.40;
+                let w_hi = ((fi * 0.58 + p * 6.0).cos()) * hi * 0.25;
+
+                out_wave_l[i] = (w_low + w_kick + w_mid + w_hi).clamp(-1.0, 1.0);
+                out_wave_r[i] = (w_low * 0.95 + w_kick * 0.9 + w_mid * 1.1 - w_hi * 0.9).clamp(-1.0, 1.0);
+            }
+            self.wave_decay_l = out_wave_l;
+            self.wave_decay_r = out_wave_r;
         }
 
         // Apply 32-band Equalizer Preset Gain Curves (dB → linear multiplier)
@@ -200,6 +253,8 @@ impl VisualizerEngine {
             self.smoothed_vu_r,
             self.peak_vu_l,
             self.peak_vu_r,
+            out_wave_l,
+            out_wave_r,
         )
     }
 }

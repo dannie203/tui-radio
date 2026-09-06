@@ -45,7 +45,7 @@ pub struct PlayerStatus {
 
 pub struct MpvPlayer {
     socket_path: String,
-    process: Option<Child>,
+    process: Arc<Mutex<Option<Child>>>,
     stream: Arc<Mutex<Option<UnixStream>>>,
     request_id: AtomicU64,
     pub status: Arc<Mutex<PlayerStatus>>,
@@ -83,7 +83,7 @@ impl MpvPlayer {
 
         let player = Self {
             socket_path: socket_path.clone(),
-            process: child,
+            process: Arc::new(Mutex::new(child)),
             stream: stream_arc,
             request_id: AtomicU64::new(1),
             status: status_arc,
@@ -98,7 +98,7 @@ impl MpvPlayer {
             if let Ok(s) = UnixStream::connect(&socket_path) {
                 let _ = s.set_nonblocking(false);
                 if let Ok(reader_stream) = s.try_clone() {
-                    *player.stream.lock().unwrap() = Some(s);
+                    *player.stream.lock().unwrap_or_else(|e| e.into_inner()) = Some(s);
                     player.spawn_reader_thread(reader_stream);
                     player.observe_properties();
                     break;
@@ -118,26 +118,32 @@ impl MpvPlayer {
             ("media-title", 5),
             ("metadata", 6),
             ("audio-codec-name", 7),
-            ("audio-params/samplerate", 8),
-            ("audio-params/channel-count", 9),
+            ("audio-params", 8),
             ("audio-bitrate", 10),
-            ("audio-params/format", 11),
         ];
 
         for (prop, id) in props {
             self.send_json_command_raw(serde_json::json!(["observe_property", id, prop]));
         }
-        let vol = *self.master_volume.lock().unwrap();
+        let vol = *self.master_volume.lock().unwrap_or_else(|e| e.into_inner());
         self.send_json_command_raw(serde_json::json!(["set_property", "volume", vol]));
     }
 
     fn reconnect(&self) {
+        // Clean up previous child process if still running to prevent zombies
+        if let Ok(mut guard) = self.process.lock() {
+            if let Some(mut old_child) = guard.take() {
+                let _ = old_child.kill();
+                let _ = old_child.wait();
+            }
+        }
+
         let socket_path = self.socket_path.clone();
         if Path::new(&socket_path).exists() {
             let _ = fs::remove_file(&socket_path);
         }
 
-        let _ = Command::new("mpv")
+        let child = Command::new("mpv")
             .arg("--no-video")
             .arg("--idle=yes")
             .arg(format!("--input-ipc-server={}", socket_path))
@@ -147,7 +153,12 @@ impl MpvPlayer {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .spawn();
+            .spawn()
+            .ok();
+
+        if let Ok(mut guard) = self.process.lock() {
+            *guard = child;
+        }
 
         for _ in 0..50 {
             thread::sleep(Duration::from_millis(30));
@@ -159,7 +170,7 @@ impl MpvPlayer {
                     }
                     self.spawn_reader_thread(reader_stream);
                     self.observe_properties();
-                    let af = self.current_af.lock().unwrap().clone();
+                    let af = self.current_af.lock().unwrap_or_else(|e| e.into_inner()).clone();
                     if !af.is_empty() {
                         self.send_json_command_raw(serde_json::json!(["set_property", "af", af]));
                     }
@@ -185,7 +196,10 @@ impl MpvPlayer {
                     Ok(0) => break, // Socket closed
                     Ok(_) => {
                         if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
-                            let mut st = status_clone.lock().unwrap();
+                            let mut st = match status_clone.lock() {
+                                Ok(g) => g,
+                                Err(e) => e.into_inner(),
+                            };
 
                             if let Some(event) = val.get("event").and_then(|e| e.as_str()) {
                                 match event {
@@ -243,24 +257,34 @@ impl MpvPlayer {
                                                 st.metadata.codec = Some(c.to_uppercase());
                                             }
                                         }
-                                        "audio-params/samplerate" => {
-                                            if let Some(sr) = data.and_then(|d| d.as_u64()) {
-                                                st.metadata.sample_rate = Some(sr as u32);
-                                            }
-                                        }
-                                        "audio-params/channel-count" => {
-                                            if let Some(ch) = data.and_then(|d| d.as_u64()) {
-                                                st.metadata.channels = Some(if ch == 2 { "Stereo".to_string()} else { format!("{} Ch", ch) });
-                                            }
-                                        }
-                                        "audio-params/format" => {
-                                            if let Some(fmt) = data.and_then(|d| d.as_str()) {
-                                                if fmt.contains("16") {
-                                                    st.metadata.bit_depth = Some(16);
-                                                } else if fmt.contains("24") {
-                                                    st.metadata.bit_depth = Some(24);
-                                                } else if fmt.contains("32") {
-                                                    st.metadata.bit_depth = Some(32);
+                                        "audio-params" => {
+                                            if let Some(obj) = data.and_then(|d| d.as_object()) {
+                                                if let Some(sr) = obj.get("samplerate").and_then(|v| v.as_u64()) {
+                                                    st.metadata.sample_rate = Some(sr as u32);
+                                                }
+                                                if let Some(ch) = obj.get("channel-count").and_then(|v| v.as_u64()) {
+                                                    st.metadata.channels = Some(if ch == 2 { "Stereo".to_string() } else { format!("{} Ch", ch) });
+                                                }
+                                                if let Some(fmt) = obj.get("format").and_then(|v| v.as_str()) {
+                                                    let lower = fmt.to_ascii_lowercase();
+                                                    st.metadata.bit_depth = match lower.as_str() {
+                                                        "u8" | "s8" => Some(8),
+                                                        "s16" | "u16" | "s16p" => Some(16),
+                                                        "s24" | "u24" | "s24p" => Some(24),
+                                                        "s32" | "u32" | "s32p" | "float" | "floatp" => Some(32),
+                                                        "double" | "doublep" => Some(64),
+                                                        _ => {
+                                                            if lower.contains("16") {
+                                                                Some(16)
+                                                            } else if lower.contains("24") {
+                                                                Some(24)
+                                                            } else if lower.contains("32") {
+                                                                Some(32)
+                                                            } else {
+                                                                None
+                                                            }
+                                                        }
+                                                    };
                                                 }
                                             }
                                         }
@@ -324,7 +348,7 @@ impl MpvPlayer {
     }
 
     pub fn apply_audio_filter(&self, af_str: &str) {
-        *self.current_af.lock().unwrap() = af_str.to_string();
+        *self.current_af.lock().unwrap_or_else(|e| e.into_inner()) = af_str.to_string();
         if af_str.is_empty() {
             self.send_json_command(serde_json::json!(["set_property", "af", ""]));
         } else {
@@ -333,15 +357,21 @@ impl MpvPlayer {
     }
 
     pub fn play(&self, url: &str) {
+        let is_remote = url.starts_with("http://") || url.starts_with("https://") || url.starts_with("ytdl://");
+        if is_remote && !crate::api::stream::is_safe_stream_url(url) {
+            return;
+        }
+
         {
-            let mut st = self.status.lock().unwrap();
+            let mut st = self.status.lock().unwrap_or_else(|e| e.into_inner());
             st.is_playing = true;
             st.is_paused = false;
             st.time_pos = 0.0;
+            st.metadata = PlayerMetadata::default();
         }
-        let vol = *self.master_volume.lock().unwrap();
+        let vol = *self.master_volume.lock().unwrap_or_else(|e| e.into_inner());
         self.send_json_command(serde_json::json!(["set_property", "volume", vol]));
-        let af = self.current_af.lock().unwrap().clone();
+        let af = self.current_af.lock().unwrap_or_else(|e| e.into_inner()).clone();
         if !af.is_empty() {
             self.send_json_command(serde_json::json!(["set_property", "af", af]));
         }
@@ -351,7 +381,7 @@ impl MpvPlayer {
 
     pub fn toggle_pause(&self) {
         let new_paused = {
-            let mut st = self.status.lock().unwrap();
+            let mut st = self.status.lock().unwrap_or_else(|e| e.into_inner());
             st.is_paused = !st.is_paused;
             st.is_paused
         };
@@ -360,7 +390,7 @@ impl MpvPlayer {
 
     pub fn stop(&self) {
         self.send_json_command(serde_json::json!(["stop"]));
-        let mut st = self.status.lock().unwrap();
+        let mut st = self.status.lock().unwrap_or_else(|e| e.into_inner());
         st.is_playing = false;
         st.is_paused = false;
         st.eof = false;
@@ -372,16 +402,22 @@ impl MpvPlayer {
     }
 
     pub fn set_volume(&self, delta: i32) {
-        let mut master = self.master_volume.lock().unwrap();
+        let mut master = self.master_volume.lock().unwrap_or_else(|e| e.into_inner());
         let new_vol = (*master as i32 + delta).clamp(0, 100) as u32;
         *master = new_vol;
         self.send_json_command(serde_json::json!(["set_property", "volume", new_vol]));
     }
 
     pub fn get_status(&self) -> PlayerStatus {
-        let mut guard = self.status.lock().unwrap();
+        let mut guard = match self.status.lock() {
+            Ok(g) => g,
+            Err(e) => e.into_inner(),
+        };
         let mut status = guard.clone();
-        status.volume = *self.master_volume.lock().unwrap();
+        status.volume = match self.master_volume.lock() {
+            Ok(g) => *g,
+            Err(e) => *e.into_inner(),
+        };
         // Clear eof pulse so auto-advance only fires once per track completion
         guard.eof = false;
         status
@@ -392,9 +428,11 @@ impl Drop for MpvPlayer {
     fn drop(&mut self) {
         self.running.store(false, Ordering::Relaxed);
         self.stop();
-        if let Some(mut child) = self.process.take() {
-            let _ = child.kill();
-            let _ = child.wait();
+        if let Ok(mut guard) = self.process.lock() {
+            if let Some(mut child) = guard.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
         }
         if Path::new(&self.socket_path).exists() {
             let _ = fs::remove_file(&self.socket_path);
