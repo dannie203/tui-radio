@@ -5,6 +5,29 @@ All notable changes to the **BOOMBOX-RS** project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.7] - 2026-09-06
+
+### Fixed
+- **Stream URL Security Hardening**: `resolve_stream_item()` now rejects untrusted schemes (`file://`, `gopher://`, `smb://`, `dict://`, etc.) before any item enters the playback queue, and `is_search_query()` refuses any payload containing `://`. Combined with the existing SSRF block against cloud metadata endpoints, external stream resolution is now safe by construction.
+- **Subprocess Zombie Prevention**: `MpvPlayer` now tracks its child process through an `Arc<Mutex<Option<Child>>>`; the previous process is killed and fully reaped before every IPC reconnection, eliminating leaked zombie processes during `mpv` restart cycles.
+- **History Metadata At Rest**: `HistoryEntry` now persists `format`, `bitrate`, `sample_rate`, and `bit_depth` with `#[serde(default)]` back-compatibility, so `history_to_media_item()` returns full metadata in O(1) without any blocking disk probe on the main event thread.
+- **Accurate Decoder Bit Depth**: Replaced the fragile `contains()` heuristic in `audio-params` parsing with an exhaustive format-match table (`u8`→8, `s16`→16, `s24`→24, `s32`→32, `double`→64), keeping a safe fallback for extended encodings.
+- **Precise PipeWire Sample Rate**: Clock-rate detection now queries `pw-metadata -n settings 0 clock.rate` directly (sub-10ms, deterministic) instead of parsing the verbose `pw-dump` JSON blob (`pw-dump` retained only as a fallback).
+- **Stream Metadata Integrity**: Spawned stream `MediaItem`s no longer fake `48kHz/16-bit`; the correct decoder parameters arrive live from `mpv` IPC via `audio-params`.
+- **Hardcoded Path Removal**: The fallback radio list is now located relative to the executable and the config directory, and the tray icon fallback resolves `$HOME` dynamically instead of assuming a hardcoded username.
+
+### Changed
+- Introduced a shared `strip_stream_prefixes()` helper to eliminate duplicated URL-normalization logic across stream resolution paths.
+- Static `.lrc` parsing regexes are compiled once via `std::sync::LazyLock` instead of per-call.
+- Clarified the Mixtape removal status message to `"Removed last track '{}' from Mixtape"` when the final track is deleted.
+- Restructured the crate into a library + binary layout (`src/lib.rs`) exposing `api`, `audio`, `state`, and `ui` modules, enabling future unit-testability and reuse.
+
+### Added
+- GitHub Actions CI workflow (`ubuntu-latest`, `windows-latest`) running `cargo check`, `cargo test`, and release builds on push and pull requests.
+- Convenience cargo aliases (`cargo ci`, `cargo lint`) for fast local verification.
+
+---
+
 ## [3.8.6] - 2026-08-31
 
 ### Fixed
