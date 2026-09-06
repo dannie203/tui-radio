@@ -1,9 +1,9 @@
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use ksni::{menu::*, Handle, Orientation, ToolTip, Tray, TrayMethods};
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone)]
-#[cfg_attr(not(unix), allow(dead_code))]
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub enum TrayAction {
     TogglePlay,
     NextTrack,
@@ -16,7 +16,7 @@ pub enum TrayAction {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(not(unix), allow(dead_code))]
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub struct TrayState {
     pub title: String,
     pub artist: String,
@@ -27,12 +27,12 @@ pub struct TrayState {
     pub action_tx: tokio::sync::mpsc::UnboundedSender<TrayAction>,
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 pub struct BoomboxTray {
     pub state: Arc<Mutex<TrayState>>,
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 impl Tray for BoomboxTray {
     fn id(&self) -> String {
         "org.omarchy.boombox".into()
@@ -185,10 +185,10 @@ impl Tray for BoomboxTray {
 }
 
 /// RAII Drop guard to cleanly unregister the StatusNotifierItem tray icon from D-Bus
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 pub struct TrayGuard(pub Option<Handle<BoomboxTray>>);
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 impl Drop for TrayGuard {
     fn drop(&mut self) {
         if let Some(handle) = self.0.take() {
@@ -197,16 +197,16 @@ impl Drop for TrayGuard {
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(not(target_os = "linux"))]
 pub struct TrayGuard;
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 pub async fn spawn_tray(state: Arc<Mutex<TrayState>>) -> TrayGuard {
     let tray = BoomboxTray { state };
     TrayGuard(tray.spawn().await.ok())
 }
 
-#[cfg(not(unix))]
+#[cfg(not(target_os = "linux"))]
 pub async fn spawn_tray(_state: Arc<Mutex<TrayState>>) -> TrayGuard {
     TrayGuard
 }

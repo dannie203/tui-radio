@@ -1,6 +1,6 @@
 [package]
 name = "boombox-rs"
-version = "3.8.7"
+version = "3.8.8"
 edition = "2021"
 authors = ["Nguyễn Trần Duy Hưng <hung23012@gmail.com>"]
 description = "A retro cyberpunk cassette boombox music player and radio explorer in pure Rust"
@@ -40,10 +40,14 @@ regex = "1.10"
 rand = "0.8"
 lofty = "0.25.1"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+interprocess = "2.4.4"
+notify-rust = "4.18"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ksni = "0.3.6"
 
 [target.'cfg(unix)'.dependencies]
-ksni = "0.3.6"
 libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
-uds_windows = "1.2"
+wasapi = "0.24"

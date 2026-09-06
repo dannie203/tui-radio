@@ -41,15 +41,12 @@ fn recordings_dir() -> PathBuf {
 }
 
 pub fn send_notification(title: &str, message: &str) {
-    let _ = Command::new("notify-send")
-        .args([
-            "-a", "BOOMBOX RX-505",
-            "-i", "audio-x-generic",
-            "-h", "string:category:transfer.complete",
-            title,
-            message,
-        ])
-        .spawn();
+    let _ = notify_rust::Notification::new()
+        .appname("BOOMBOX RX-505")
+        .summary(title)
+        .body(message)
+        .icon("audio-x-generic")
+        .show();
 }
 
 pub struct StreamRecorder {

@@ -1,8 +1,9 @@
 #[cfg(unix)]
-use std::os::unix::net::UnixStream;
-
+use interprocess::local_socket::GenericFilePath;
 #[cfg(windows)]
-use uds_windows::UnixStream;
+use interprocess::local_socket::GenericNamespaced;
+use interprocess::local_socket::{prelude::*, Stream as IpcStream};
+use interprocess::TryClone;
 
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
@@ -18,6 +19,20 @@ pub const MPV_SOCKET: &str = "/tmp/boombox-rs-mpv.sock";
 
 #[cfg(windows)]
 pub const MPV_SOCKET: &str = r"\\.\pipe\boombox-rs-mpv";
+
+fn connect_to_mpv(socket_path: &str) -> std::io::Result<IpcStream> {
+    #[cfg(unix)]
+    {
+        let name = socket_path.to_fs_name::<GenericFilePath>()?;
+        IpcStream::connect(name)
+    }
+    #[cfg(windows)]
+    {
+        let _ = socket_path;
+        let name = "boombox-rs-mpv".to_ns_name::<GenericNamespaced>()?;
+        IpcStream::connect(name)
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct PlayerMetadata {
@@ -46,7 +61,7 @@ pub struct PlayerStatus {
 pub struct MpvPlayer {
     socket_path: String,
     process: Arc<Mutex<Option<Child>>>,
-    stream: Arc<Mutex<Option<UnixStream>>>,
+    stream: Arc<Mutex<Option<IpcStream>>>,
     request_id: AtomicU64,
     pub status: Arc<Mutex<PlayerStatus>>,
     running: Arc<AtomicBool>,
@@ -57,6 +72,7 @@ pub struct MpvPlayer {
 impl MpvPlayer {
     pub fn new() -> Self {
         let socket_path = MPV_SOCKET.to_string();
+        #[cfg(unix)]
         if Path::new(&socket_path).exists() {
             let _ = fs::remove_file(&socket_path);
         }
@@ -95,7 +111,7 @@ impl MpvPlayer {
         // Retry connection up to 50 times (1.5 seconds) until MPV is listening
         for _ in 0..50 {
             thread::sleep(Duration::from_millis(30));
-            if let Ok(s) = UnixStream::connect(&socket_path) {
+            if let Ok(s) = connect_to_mpv(&socket_path) {
                 let _ = s.set_nonblocking(false);
                 if let Ok(reader_stream) = s.try_clone() {
                     *player.stream.lock().unwrap_or_else(|e| e.into_inner()) = Some(s);
@@ -139,6 +155,7 @@ impl MpvPlayer {
         }
 
         let socket_path = self.socket_path.clone();
+        #[cfg(unix)]
         if Path::new(&socket_path).exists() {
             let _ = fs::remove_file(&socket_path);
         }
@@ -162,7 +179,7 @@ impl MpvPlayer {
 
         for _ in 0..50 {
             thread::sleep(Duration::from_millis(30));
-            if let Ok(s) = UnixStream::connect(&socket_path) {
+            if let Ok(s) = connect_to_mpv(&socket_path) {
                 let _ = s.set_nonblocking(false);
                 if let Ok(reader_stream) = s.try_clone() {
                     if let Ok(mut guard) = self.stream.lock() {
@@ -180,7 +197,7 @@ impl MpvPlayer {
         }
     }
 
-    fn spawn_reader_thread(&self, stream: UnixStream) {
+    fn spawn_reader_thread(&self, stream: IpcStream) {
         let status_clone = Arc::clone(&self.status);
         let running_clone = Arc::clone(&self.running);
 

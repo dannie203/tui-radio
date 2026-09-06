@@ -5,6 +5,18 @@ All notable changes to the **BOOMBOX-RS** project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.8] - 2026-09-07
+
+### Added
+- **Native Windows WASAPI Loopback Capture**: Integrated direct render loopback audio capture on Windows using the `wasapi` crate, eliminating the need for Stereo Mix or virtual audio cables.
+- **Cross-Platform IPC Abstraction**: Replaced raw Unix domain sockets with `interprocess` streams, supporting Unix domain sockets on Linux/macOS and Named Pipes (`\\.\pipe\boombox-rs-mpv`) on Windows.
+- **Cross-Platform Notifications**: Replaced external `notify-send` shell command with native `notify-rust` notification library for cross-platform desktop notifications.
+
+### Fixed
+- **Direct Sink Monitor Audio Capture on Linux**: Configured `pw-record` with `-P stream.capture.sink=true` (and `parec` fallback with `-d @DEFAULT_MONITOR@`) to capture directly from the active audio sink monitor (speakers/headphones). This resolves the issue where disabling virtual audio sharing in EasyEffects defaulted capture to the microphone input and avoids leaking desktop audio into voice calls (Discord/Vesktop).
+- **Subprocess Lifetime Hygiene**: Configured `libc::PR_SET_PDEATHSIG` on spawned recording child processes (`pw-record`/`parec`), ensuring child recording streams terminate immediately if Boombox exits.
+- **Cross-Platform Compilation Scopes**: Scoped Linux-specific dependencies (`ksni` D-Bus system tray, `libc::prctl`) to `target_os = "linux"`, providing clean fallback stubs on Windows and macOS.
+
 ## [3.8.7] - 2026-09-06
 
 ### Fixed

@@ -29,6 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 0. Set process name & kernel-level flock for single-instance protection (Unix)
     #[cfg(unix)]
     let _lock_file = {
+        #[cfg(target_os = "linux")]
         unsafe {
             libc::prctl(libc::PR_SET_NAME, c"boombox-rs".as_ptr(), 0, 0, 0);
         }
