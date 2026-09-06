@@ -51,3 +51,8 @@ tarpaulin-report.html
 DEV_NOTES.md
 dev-notes*
 TODO_*.md
+
+# ==========================================
+# Code Reviews & Internal Documentation
+# ==========================================
+CODE_REVIEW.md
