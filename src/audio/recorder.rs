@@ -198,7 +198,7 @@ impl StreamRecorder {
 
         let mut cmd = if is_yt_source {
             let output_template = dir.join(format!("{} - {}.%(ext)s", clean_artist, clean_title));
-            let mut c = Command::new("yt-dlp");
+            let mut c = Command::new(crate::audio::player::resolve_executable("yt-dlp"));
             c.args([
                 "-x",
                 "--audio-format",
@@ -215,7 +215,7 @@ impl StreamRecorder {
             c
         } else {
             let output_file = dir.join(format!("{} - {}.{}", clean_artist, clean_title, format.ext()));
-            let mut c = Command::new("ffmpeg");
+            let mut c = Command::new(crate::audio::player::resolve_executable("ffmpeg"));
             c.arg("-y")
                 .arg("-i")
                 .arg(&clean_url)

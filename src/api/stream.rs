@@ -164,7 +164,7 @@ pub async fn resolve_stream_queue(input: &str) -> (String, Vec<MediaItem>) {
 
     if is_search_query(trimmed) {
         let (source, search_cmd) = build_search_target(trimmed);
-        let mut cmd = Command::new("yt-dlp");
+        let mut cmd = Command::new(crate::audio::player::resolve_executable("yt-dlp"));
         cmd.args(["--flat-playlist", "-J", "--no-warnings"])
             .arg("--")
             .arg(&search_cmd)
@@ -242,7 +242,7 @@ pub async fn resolve_stream_queue(input: &str) -> (String, Vec<MediaItem>) {
 
     let clean = strip_stream_prefixes(trimmed);
 
-    let mut cmd = Command::new("yt-dlp");
+    let mut cmd = Command::new(crate::audio::player::resolve_executable("yt-dlp"));
     cmd.args(["--flat-playlist", "-J", "--no-warnings"])
         .arg("--")
         .arg(clean)
@@ -487,7 +487,7 @@ pub async fn fetch_youtube_radio_mix(video_id_or_url: &str) -> Vec<MediaItem> {
     };
 
     let mix_url = format!("https://www.youtube.com/watch?v={}&list=RD{}", video_id, video_id);
-    let mut cmd = Command::new("yt-dlp");
+    let mut cmd = Command::new(crate::audio::player::resolve_executable("yt-dlp"));
     cmd.args(["--flat-playlist", "-J", "--no-warnings"])
         .arg("--")
         .arg(&mix_url)

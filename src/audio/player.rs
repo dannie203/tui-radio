@@ -69,6 +69,29 @@ pub struct MpvPlayer {
     current_af: Arc<Mutex<String>>,
 }
 
+/// Resolves an external helper executable path.
+/// Checks next to the running boombox executable first, then falls back to PATH.
+pub fn resolve_executable(name: &str) -> std::path::PathBuf {
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            #[cfg(windows)]
+            let file_name = if name.ends_with(".exe") {
+                name.to_string()
+            } else {
+                format!("{}.exe", name)
+            };
+            #[cfg(not(windows))]
+            let file_name = name.to_string();
+
+            let candidate = parent.join(&file_name);
+            if candidate.is_file() {
+                return candidate;
+            }
+        }
+    }
+    std::path::PathBuf::from(name)
+}
+
 impl MpvPlayer {
     pub fn new() -> Self {
         let socket_path = MPV_SOCKET.to_string();
@@ -77,7 +100,7 @@ impl MpvPlayer {
             let _ = fs::remove_file(&socket_path);
         }
 
-        let child = Command::new("mpv")
+        let child = Command::new(resolve_executable("mpv"))
             .arg("--no-video")
             .arg("--idle=yes")
             .arg(format!("--input-ipc-server={}", socket_path))
@@ -160,7 +183,7 @@ impl MpvPlayer {
             let _ = fs::remove_file(&socket_path);
         }
 
-        let child = Command::new("mpv")
+        let child = Command::new(resolve_executable("mpv"))
             .arg("--no-video")
             .arg("--idle=yes")
             .arg(format!("--input-ipc-server={}", socket_path))

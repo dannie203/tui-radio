@@ -5,6 +5,17 @@ All notable changes to the **BOOMBOX-RS** project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.9] - 2026-09-12
+
+### Added
+- **Automated Windows Dependency Provisioning**: Completely revamped `install.ps1` and added 1-click `install.bat` launcher. Automatically checks and installs Microsoft Visual C++ 2015-2022 Redistributable (x64) if `vcruntime140.dll` is missing, auto-provisions MPV Audio Engine (via `winget` or standalone portable archive), and deploys standalone `yt-dlp.exe` for instant zero-configuration streaming.
+- **Automated Linux Package Manager Integration**: Enhanced `install.sh` to auto-detect Linux distribution package managers (`pacman`, `apt`, `dnf`, `zypper`, `apk`, `xbps`) to automatically install `mpv` with interactive TTY support, alongside automatic zero-root standalone `yt-dlp` download to `~/.local/bin`.
+- **Local Portable Binary Resolution (`resolve_executable`)**: Implemented dynamic helper discovery across `player.rs`, `stream.rs`, `recorder.rs`, and `artwork.rs`. Boombox now prioritizes `mpv.exe`, `yt-dlp.exe`, and `ffmpeg.exe` placed alongside the binary before falling back to system `PATH`, enabling true plug-and-play portable execution.
+- **Cross-Platform Toast Notifications**: Replaced residual Linux-specific `notify-send` subprocess commands in `main.rs` with native cross-platform `notify-rust` toast notifications.
+
+### Changed
+- **Windows Terminal & UTF-8 Integration**: Updated Windows batch launchers (`RUN-BOOMBOX.bat`) to enforce `chcp 65001` UTF-8 code page and auto-detect Windows Terminal (`wt.exe`) for pristine retro cyberpunk TrueColor palette rendering.
+
 ## [3.8.8] - 2026-09-07
 
 ### Added

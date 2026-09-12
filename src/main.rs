@@ -154,21 +154,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     };
 
-    // Helper to send desktop notification (tray-like notification)
+    // Helper to send desktop notification (cross-platform native toast / libnotify)
     let send_track_notification = |title: &str, artist: &str, badge: &str| {
         let title_c = title.to_string();
         let artist_c = artist.to_string();
         let badge_c = badge.to_string();
         tokio::spawn(async move {
-            let _ = tokio::process::Command::new("notify-send")
-                .arg("-a")
-                .arg("Boombox Audio")
-                .arg("-i")
-                .arg("audio-x-generic")
-                .arg(format!("🎵 {}", title_c))
-                .arg(format!("{} • [{}]", artist_c, badge_c))
-                .output()
-                .await;
+            let _ = notify_rust::Notification::new()
+                .appname("BOOMBOX RX-505")
+                .summary(&format!("🎵 {}", title_c))
+                .body(&format!("{} • [{}]", artist_c, badge_c))
+                .icon("audio-x-generic")
+                .show();
         });
     };
 
@@ -410,15 +407,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             state.available_update = Some(info);
             if state.notifications_enabled {
                 tokio::spawn(async move {
-                    let _ = tokio::process::Command::new("notify-send")
-                        .arg("-a")
-                        .arg("Boombox Audio")
-                        .arg("-i")
-                        .arg("software-update-available")
-                        .arg("🎉 Boombox Update Available!")
-                        .arg(format!("Phiên bản mới v{} đã có sẵn trên GitHub!", ver))
-                        .output()
-                        .await;
+                    let _ = notify_rust::Notification::new()
+                        .appname("BOOMBOX RX-505")
+                        .summary("🎉 Boombox Update Available!")
+                        .body(&format!("Phiên bản mới v{} đã có sẵn trên GitHub!", ver))
+                        .icon("software-update-available")
+                        .show();
                 });
             }
         }

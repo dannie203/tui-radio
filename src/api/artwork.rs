@@ -30,7 +30,7 @@ pub async fn fetch_artwork(
         // 2. Check if source is an online streaming URL (SoundCloud, Spotify, Bandcamp, etc.)
         if src.starts_with("http://") || src.starts_with("https://") {
             // Try extracting thumbnail URL via yt-dlp
-            if let Ok(output) = tokio::process::Command::new("yt-dlp")
+            if let Ok(output) = tokio::process::Command::new(crate::audio::player::resolve_executable("yt-dlp"))
                 .args(["--no-warnings", "--print", "thumbnail", src])
                 .output()
                 .await
