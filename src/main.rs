@@ -72,6 +72,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, crossterm::terminal::SetTitle("BOOMBOX RX-505"))?;
     let _terminal_guard = TerminalGuard;
+
+    let default_panic = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = disable_raw_mode();
+        let _ = execute!(io::stdout(), LeaveAlternateScreen, crossterm::cursor::Show);
+        default_panic(info);
+    }));
+
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -156,17 +164,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Helper to send desktop notification (cross-platform native toast / libnotify)
     let send_track_notification = |title: &str, artist: &str, badge: &str| {
-        let title_c = title.to_string();
-        let artist_c = artist.to_string();
-        let badge_c = badge.to_string();
-        tokio::spawn(async move {
-            let _ = notify_rust::Notification::new()
-                .appname("BOOMBOX RX-505")
-                .summary(&format!("🎵 {}", title_c))
-                .body(&format!("{} • [{}]", artist_c, badge_c))
-                .icon("audio-x-generic")
-                .show();
-        });
+        ui::notification::send_desktop_notification(
+            &format!("🎵 {}", title),
+            &format!("{} • [{}]", artist, badge),
+            Some("audio-x-generic"),
+        );
     };
 
     // Consolidated helper to initiate track playback, sync UI, reset history flags, and dispatch background lyrics/artwork
@@ -406,14 +408,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             state.status_message = format!("🌟 New update available: v{} (Press 'o' or visit GitHub)", ver);
             state.available_update = Some(info);
             if state.notifications_enabled {
-                tokio::spawn(async move {
-                    let _ = notify_rust::Notification::new()
-                        .appname("BOOMBOX RX-505")
-                        .summary("🎉 Boombox Update Available!")
-                        .body(&format!("Phiên bản mới v{} đã có sẵn trên GitHub!", ver))
-                        .icon("software-update-available")
-                        .show();
-                });
+                ui::notification::send_desktop_notification(
+                    "🎉 Boombox Update Available!",
+                    &format!("Phiên bản mới v{} đã có sẵn trên GitHub!", ver),
+                    Some("software-update-available"),
+                );
             }
         }
 
@@ -560,6 +559,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // 1. Emergency Quit (Ctrl+C)
                 if is_ctrl && key.code == KeyCode::Char('c') {
                     break;
+                }
+
+                // Force Screen Redraw / Clear (Ctrl+L)
+                if is_ctrl && key.code == KeyCode::Char('l') {
+                    let _ = terminal.clear();
+                    continue;
                 }
 
                 // 2. Modal Context Handling

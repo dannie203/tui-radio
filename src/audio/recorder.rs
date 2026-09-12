@@ -41,12 +41,7 @@ fn recordings_dir() -> PathBuf {
 }
 
 pub fn send_notification(title: &str, message: &str) {
-    let _ = notify_rust::Notification::new()
-        .appname("BOOMBOX RX-505")
-        .summary(title)
-        .body(message)
-        .icon("audio-x-generic")
-        .show();
+    crate::ui::notification::send_desktop_notification(title, message, Some("audio-x-generic"));
 }
 
 pub struct StreamRecorder {
