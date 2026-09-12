@@ -5,6 +5,13 @@ All notable changes to the **BOOMBOX-RS** project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.10] - 2026-09-13
+
+### Fixed
+- **Windows Double-Keystroke & Release Glitch**: Filtered out `KeyEventKind::Release` events in `main.rs`, eliminating phantom double-stepping on Windows Console and Windows Terminal.
+- **Smooth Windowed List Scrolling**: Implemented sliding-window scroll calculation with persistent `scroll_offset` in `AppState` across Browser and History lists. Cursors now move freely within the viewport without triggering jarring full-screen list shifts on every keystroke.
+- **Web Pipeline Installer Null Path**: Fixed `Split-Path` parameter binding failure in `install.ps1` when executed via `irm ... | iex`.
+
 ## [3.8.9] - 2026-09-12
 
 ### Added

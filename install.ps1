@@ -20,7 +20,7 @@ Write-Host " | __ ) / __ \ / __ \|  \/  | __ ) / __ \ \/ /" -ForegroundColor Yel
 Write-Host " |  _ \| |  | | |  | | |\/| |  _ \| |  | |\  / " -ForegroundColor Yellow
 Write-Host " | |_) | |__| | |__| | |  | | |_) | |__| |/  \ " -ForegroundColor Yellow
 Write-Host " |____/ \____/ \____/|_|  |_|____/ \____//_/\_\ RX-505" -ForegroundColor Yellow
-Write-Host " 📼 Automated Installer for Windows (v3.8.9+)" -ForegroundColor Cyan
+Write-Host " 📼 Automated Installer for Windows (v3.8.10+)" -ForegroundColor Cyan
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
 
 # ------------------------------------------------------------------------------
