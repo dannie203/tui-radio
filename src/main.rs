@@ -178,6 +178,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                lyrics_tx: &mpsc::UnboundedSender<(String, Vec<SyncedLyricLine>)>,
                                artwork_tx: &mpsc::UnboundedSender<(String, Option<api::artwork::ArtworkHalfblocks>)>,
                                status_prefix: Option<&str>| {
+        let is_remote = item.url.starts_with("http://") || item.url.starts_with("https://") || item.url.starts_with("ytdl://");
+        if is_remote && !api::stream::is_safe_stream_url(&item.url) {
+            state.status_message = format!("⚠️ Blocked unsafe stream URL: {}", item.url);
+            return;
+        }
+
         player.play(&item.url);
         let title = item.title.clone();
         let artist = item.artist.clone();

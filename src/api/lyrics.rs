@@ -175,7 +175,7 @@ pub fn parse_lrc(content: &str) -> Vec<SyncedLyricLine> {
             }
         }
     }
-    lines.sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap());
+    lines.sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap_or(std::cmp::Ordering::Equal));
     lines
 }
 

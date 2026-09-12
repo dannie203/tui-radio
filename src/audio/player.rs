@@ -399,6 +399,10 @@ impl MpvPlayer {
     pub fn play(&self, url: &str) {
         let is_remote = url.starts_with("http://") || url.starts_with("https://") || url.starts_with("ytdl://");
         if is_remote && !crate::api::stream::is_safe_stream_url(url) {
+            let mut st = self.status.lock().unwrap_or_else(|e| e.into_inner());
+            st.is_playing = false;
+            st.is_paused = false;
+            st.metadata.title = Some("⚠️ Blocked unsafe stream URL".to_string());
             return;
         }
 

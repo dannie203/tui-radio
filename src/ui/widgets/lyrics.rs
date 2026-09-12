@@ -102,7 +102,7 @@ pub fn render_lyrics(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme)
                             .add_modifier(Modifier::BOLD),
                     ),
                 ]));
-            } else if active_opt.is_some() && actual_idx < active_opt.unwrap() {
+            } else if active_opt.map_or(false, |act| actual_idx < act) {
                 // PAST LINES (Dimmed out)
                 lines.push(Line::from(vec![
                     Span::styled("   ", Style::default()),

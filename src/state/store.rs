@@ -571,7 +571,13 @@ impl AppState {
 
     pub fn create_mixtape(&mut self) {
         let name = format!("Mixtape #{}", self.mixtapes.len() + 1);
-        let id = format!("mixtape:{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+        let id = format!(
+            "mixtape:{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0)
+        );
         let mt = Mixtape {
             id,
             name: name.clone(),

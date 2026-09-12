@@ -324,6 +324,7 @@ fn run_capture_loop(data: Arc<Mutex<LiveAudioData>>, running: Arc<AtomicBool>) {
                 }
             }
             let _ = proc.kill();
+            let _ = proc.wait();
         }
 
         // Retry backoff

@@ -8,6 +8,7 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState},
     Frame,
 };
+use unicode_width::UnicodeWidthChar;
 
 pub fn render_browser(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
     let total_width = area.width as usize;
@@ -26,15 +27,15 @@ pub fn render_browser(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme
                         let icon_span = Span::styled("💽 ", Style::default().fg(theme.gold).add_modifier(Modifier::BOLD));
                         let idx_span = Span::styled(format!("{:02}. ", i + 1), Style::default().fg(theme.amber_bright));
 
-                        let name_text = truncate_to_width(&album.name, title_width);
+                        let name_text = pad_to_width(&album.name, title_width);
                         let name_span = Span::styled(
-                            format!("{:<width$} ", name_text, width = title_width),
+                            format!("{} ", name_text),
                             Style::default().fg(theme.cream).add_modifier(Modifier::BOLD),
                         );
 
-                        let artist_text = truncate_to_width(&album.artist, artist_width);
+                        let artist_text = pad_to_width(&album.artist, artist_width);
                         let artist_span = Span::styled(
-                            format!("{:<width$} ", artist_text, width = artist_width),
+                            format!("{} ", artist_text),
                             Style::default().fg(theme.cyan_dolby),
                         );
 
@@ -176,15 +177,15 @@ fn render_tracks_items(
                 Style::default().fg(theme.amber_bright),
             );
 
-            let title_text = truncate_to_width(&item.title, title_width);
+            let title_text = pad_to_width(&item.title, title_width);
             let title_span = Span::styled(
-                format!("{:<width$} ", title_text, width = title_width),
+                format!("{} ", title_text),
                 Style::default().fg(theme.cream).add_modifier(Modifier::BOLD),
             );
 
-            let artist_text = truncate_to_width(&item.artist, artist_width);
+            let artist_text = pad_to_width(&item.artist, artist_width);
             let artist_span = Span::styled(
-                format!("{:<width$} ", artist_text, width = artist_width),
+                format!("{} ", artist_text),
                 Style::default().fg(theme.cyan_dolby),
             );
 
@@ -210,15 +211,21 @@ fn render_tracks_items(
         .collect()
 }
 
-fn truncate_to_width(s: &str, max_len: usize) -> String {
+fn pad_to_width(s: &str, target_width: usize) -> String {
     let mut out = String::new();
-    let mut count = 0;
+    let mut current_width = 0;
     for ch in s.chars() {
-        if count >= max_len {
+        let w = ch.width().unwrap_or(0);
+        if current_width + w > target_width {
             break;
         }
         out.push(ch);
-        count += 1;
+        current_width += w;
+    }
+    while current_width < target_width {
+        out.push(' ');
+        current_width += 1;
     }
     out
 }
+

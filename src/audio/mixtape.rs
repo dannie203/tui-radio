@@ -14,9 +14,14 @@ pub struct Mixtape {
 }
 
 fn config_dir() -> PathBuf {
+    crate::state::config::get_config_dir()
+}
+
+fn legacy_mixtapes_file() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")))
         .join("boombox-tui")
+        .join("mixtapes.json")
 }
 
 fn mixtapes_file() -> PathBuf {
@@ -25,8 +30,17 @@ fn mixtapes_file() -> PathBuf {
 
 pub fn load_mixtapes() -> Vec<Mixtape> {
     let path = mixtapes_file();
-    if path.exists() {
-        if let Ok(content) = fs::read_to_string(&path) {
+    let legacy = legacy_mixtapes_file();
+    let target = if path.exists() {
+        path
+    } else if legacy.exists() {
+        legacy
+    } else {
+        path
+    };
+
+    if target.exists() {
+        if let Ok(content) = fs::read_to_string(&target) {
             if let Ok(list) = serde_json::from_str::<Vec<Mixtape>>(&content) {
                 if !list.is_empty() {
                     return list;
