@@ -55,7 +55,7 @@ if (!(Test-Path $VcRuntimePath)) {
 # ------------------------------------------------------------------------------
 # 3. Install Boombox-RS Executable (Local file or Remote Release)
 # ------------------------------------------------------------------------------
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path -ErrorAction SilentlyContinue
+$ScriptDir = if ($MyInvocation.MyCommand.Path) { Split-Path -Parent $MyInvocation.MyCommand.Path } else { $null }
 $LocalExe = if ($ScriptDir) { Join-Path $ScriptDir "boombox-rs.exe" } else { $null }
 
 if ($LocalExe -and (Test-Path $LocalExe)) {
