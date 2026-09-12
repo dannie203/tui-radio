@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use crate::api::stations::get_curated_stations;
 use crate::audio::library::scan_local_library;
 use crate::audio::mixtape::{load_mixtapes, save_mixtapes, Mixtape};
@@ -23,6 +24,8 @@ pub struct AppState {
     pub youtube_results: Vec<MediaItem>,
     pub favorites: Vec<MediaItem>,
     pub selected_index: usize,
+    pub scroll_offset: Cell<usize>,
+    pub history_scroll_offset: Cell<usize>,
     pub current_track: Option<MediaItem>,
     pub is_playing: bool,
     pub is_paused: bool,
@@ -97,6 +100,8 @@ impl AppState {
             youtube_results: Vec::new(),
             favorites: Vec::new(),
             selected_index: 0,
+            scroll_offset: Cell::new(0),
+            history_scroll_offset: Cell::new(0),
             current_track: None,
             is_playing: false,
             is_paused: false,
@@ -227,6 +232,7 @@ impl AppState {
     pub fn set_mode(&mut self, mode: AppMode) {
         self.mode = mode;
         self.selected_index = 0;
+        self.scroll_offset.set(0);
         self.status_message = format!("Switched to {}", mode.title());
     }
 
@@ -249,6 +255,7 @@ impl AppState {
                 self.filtered_local = album.tracks.clone();
                 self.local_view_level = LocalViewLevel::Tracks;
                 self.selected_index = 0;
+                self.scroll_offset.set(0);
                 self.status_message = format!("Opened Album: {} ({} tracks)", album.name, album.tracks.len());
                 return None;
             }
@@ -261,6 +268,7 @@ impl AppState {
             self.local_view_level = LocalViewLevel::Albums;
             self.filtered_local = self.local_tracks.clone();
             self.selected_index = self.selected_album_idx.unwrap_or(0);
+            self.scroll_offset.set(0);
             self.status_message = "Returned to Albums list".to_string();
             return true;
         }
@@ -273,11 +281,13 @@ impl AppState {
                 self.local_view_level = LocalViewLevel::AllTracks;
                 self.filtered_local = self.local_tracks.clone();
                 self.selected_index = 0;
+                self.scroll_offset.set(0);
                 self.status_message = "View: All Tracks (Flat List)".to_string();
             } else {
                 self.local_view_level = LocalViewLevel::Albums;
                 self.filtered_albums = self.local_albums.clone();
                 self.selected_index = 0;
+                self.scroll_offset.set(0);
                 self.status_message = "View: Albums & Crates".to_string();
             }
         }
@@ -318,6 +328,7 @@ impl AppState {
     pub fn clear_queue(&mut self) {
         self.queue.clear();
         self.selected_index = 0;
+        self.scroll_offset.set(0);
         self.status_message = "Playback Queue Cleared".to_string();
     }
 
@@ -538,6 +549,8 @@ impl AppState {
         self.filter_radio(query);
         self.filter_history(query);
         self.selected_index = 0;
+        self.scroll_offset.set(0);
+        self.history_scroll_offset.set(0);
     }
 
     pub fn cycle_theme(&mut self, delta: i32) {

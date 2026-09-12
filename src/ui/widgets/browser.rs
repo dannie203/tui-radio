@@ -106,11 +106,20 @@ pub fn render_browser(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme
     if total > 0 {
         let sel = state.selected_index.min(total - 1);
         let visible_height = area.height.saturating_sub(2) as usize;
-        let offset = if visible_height > 0 && sel >= visible_height {
-            sel - visible_height + 1
+        let mut offset = state.scroll_offset.get();
+        if visible_height > 0 {
+            if sel < offset {
+                offset = sel;
+            } else if sel >= offset + visible_height {
+                offset = sel.saturating_sub(visible_height) + 1;
+            }
         } else {
-            0
-        };
+            offset = 0;
+        }
+        if offset >= total {
+            offset = 0;
+        }
+        state.scroll_offset.set(offset);
         *list_state.offset_mut() = offset;
         list_state.select(Some(sel));
     }

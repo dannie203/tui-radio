@@ -382,11 +382,16 @@ fn render_history_modal(f: &mut Frame, area: Rect, state: &AppState, theme: &The
         )));
     } else {
         let max_visible = 18;
-        let start_idx = if state.selected_history_idx >= max_visible {
-            state.selected_history_idx - max_visible + 1
-        } else {
-            0
-        };
+        let mut start_idx = state.history_scroll_offset.get();
+        if state.selected_history_idx < start_idx {
+            start_idx = state.selected_history_idx;
+        } else if state.selected_history_idx >= start_idx + max_visible {
+            start_idx = state.selected_history_idx.saturating_sub(max_visible) + 1;
+        }
+        if start_idx >= state.filtered_history.len() {
+            start_idx = 0;
+        }
+        state.history_scroll_offset.set(start_idx);
 
         for (i, item) in state.filtered_history.iter().skip(start_idx).take(max_visible).enumerate() {
             let actual_idx = start_idx + i;

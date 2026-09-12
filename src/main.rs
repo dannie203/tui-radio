@@ -11,7 +11,7 @@ use audio::player::MpvPlayer;
 use audio::recorder::StreamRecorder;
 use audio::visualizer::VisualizerEngine;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyModifiers},
+    event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -551,6 +551,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // D. Non-blocking Event Polling (16ms = ~60 FPS)
         if event::poll(Duration::from_millis(16))? {
             if let Event::Key(key) = event::read()? {
+                // Ignore key release events (critical on Windows to avoid phantom double-keystrokes)
+                if key.kind == KeyEventKind::Release {
+                    continue;
+                }
                 let is_ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
 
                 // 1. Emergency Quit (Ctrl+C)
