@@ -5,6 +5,13 @@ All notable changes to the **BOOMBOX-RS** project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.11] - 2026-09-13
+
+### Fixed
+- **Tokio Runtime block_on Panic on Linux**: Resolved nested runtime panic when triggering desktop notifications via `notify-rust` inside Tokio worker threads. Replaced blocking calls with non-blocking `show_async()` on Linux and safe off-thread blocking tasks on Windows/macOS.
+- **TUI Garbled Screen Recovery**: Added `Ctrl + L` shortcut to force an immediate full terminal clear and re-render.
+- **Terminal State Protection on Panic**: Installed global panic hook to ensure terminal raw mode and alternate screen are properly restored if any background or main thread panics.
+
 ## [3.8.10] - 2026-09-13
 
 ### Fixed

@@ -28,7 +28,7 @@ cat << "EOF"
  | |_) | |__| | |__| | |  | | |_) | |__| |/  \ 
  |____/ \____/ \____/|_|  |_|____/ \____//_/\_\ RX-505
 EOF
-echo -e "${CYAN}📼 Automated Installer for Linux (v3.8.9+)${NC}\n"
+echo -e "${CYAN}📼 Automated Installer for Linux (v3.8.11+)${NC}\n"
 
 # ------------------------------------------------------------------------------
 # 1. Detect Architecture & OS
