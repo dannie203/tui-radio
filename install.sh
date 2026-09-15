@@ -200,11 +200,11 @@ fi
 
 # 4.2 .desktop launchers
 if [ -n "$SCRIPT_DIR" ] && [ -f "${SCRIPT_DIR}/assets/boombox.desktop" ]; then
-    cp "${SCRIPT_DIR}/assets/boombox.desktop" "${DESKTOP_DIR}/boombox.desktop"
     cp "${SCRIPT_DIR}/assets/boombox.desktop" "${DESKTOP_DIR}/org.omarchy.boombox.desktop"
+    rm -f "${DESKTOP_DIR}/boombox.desktop"
 else
-    curl -sSL "${RAW_BASE}/assets/boombox.desktop" -o "${DESKTOP_DIR}/boombox.desktop"
     curl -sSL "${RAW_BASE}/assets/boombox.desktop" -o "${DESKTOP_DIR}/org.omarchy.boombox.desktop"
+    rm -f "${DESKTOP_DIR}/boombox.desktop"
 fi
 
 # 4.3 Icons (Local copy if in repo, otherwise GitHub download)
