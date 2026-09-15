@@ -5,6 +5,25 @@ All notable changes to the **BOOMBOX-RS** project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.12] - 2026-09-16
+
+### Fixed
+- **Zombie Process Leak on Hot-Reload and Exit**: Explicitly drop background engine handles (`MpvPlayer`, `StreamRecorder`, `AudioCaptureEngine`) before process replacement or clean exit, eliminating orphaned child processes.
+- **YouTube Autoplay Task Flood**: Reset player EOF state immediately upon spawning radio mix recommendations, preventing rapid task generation (~60 req/s) at end-of-stream.
+- **Spotify oEmbed Timeout**: Enforced a strict 5-second timeout on Spotify oEmbed HTTP requests to prevent indefinite background hangs on dropped connections.
+- **Recording File Leaks on Cancellation**: Ensure cancelled recordings immediately delete in-progress audio files and `.part` buffers, with RAII cleanup on `StreamRecorder::drop`.
+- **TUI Freeze During MPV Reconnect**: Optimized IPC reconnect retry loop to 20 × 15ms (max 300ms) with early child exit detection (`try_wait()`) to maintain 60 FPS responsiveness.
+- **Atomic State Persistence**: Config (`config.toml`) and history (`history.json`) writes now use atomic temporary-file-and-rename semantics, preventing data corruption across power failures and process crashes.
+- **Network & SSRF Hardening**: Enforced `--` argument separator for `yt-dlp` and validated thumbnail URLs with `is_safe_stream_url()` before retrieval.
+- **Unicode & CJK Display Width**: Added display width calculation via `unicode-width` in Phosphor Monitor widget, preventing multi-column Asian characters and emojis from pushing telemetry badges off-screen.
+- **Shuffle Playback Stalling**: Filtered shuffle candidates by index instead of track ID, ensuring smooth playback even with duplicate items in queue.
+- **History Metadata Deduplication**: Guarded history deduplication against merging unrelated untagged tracks with empty metadata.
+- **Hex Color Parsing Safety**: Added ASCII verification prior to byte slicing in theme hex parser, eliminating potential UTF-8 boundary panics.
+- **Small Terminal Visualizer Sizing**: Dynamically allocated Phosphor Monitor height with `Constraint::Min(10)` reserved for the visualizer, ensuring EQ bands and frequency labels are never truncated.
+- **Audio Capture Clock Rate Slicing**: Replaced unsafe byte-offset slicing with safe character iteration when parsing PipeWire sample rates.
+- **Stream Playlist Duplicate Playback**: Fixed first track of resolved stream playlists playing twice by properly skipping the initial playing track when populating queue.
+- **History Modal Favorites Persistence**: Ensured pressing `m` in history modal immediately persists favorites to disk.
+
 ## [3.8.11] - 2026-09-13
 
 ### Fixed
