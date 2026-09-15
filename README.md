@@ -23,40 +23,64 @@
 
 ---
 
-## Keybindings
+## ⌨️ Keybindings
 
+### 🎵 Audio Playback & Transport
 | Key | Action | Description |
 | :--- | :--- | :--- |
 | **`Space`** | Play / Pause | Toggle audio playback |
 | **`s`** | Stop | Stop playback and reset track position |
 | **`n` / `p`** | Next / Previous | Skip to next or previous track in list/queue |
-| **`[` / `]`** | Seek / Sync Offset | Seek ±10s in Deck view, or adjust Lyrics timing ±0.25s in Lyrics view |
-| **`{` / `}`** | Fine Sync Offset | Adjust Lyrics timing offset by ±1.0s |
-| **`0`** | Reset Sync Offset | Reset Lyrics offset to `0.0s` |
-| **`Shift+S`** | Matrix Scramble | Toggle Matrix cipher text decryption effect in Lyrics view |
-| **`+` / `-`** | Volume | Adjust audio volume |
-| **`b`** | Mega Bass | Toggle analog sub-harmonic low-end boost |
-| **`d`** | Dolby NR | Cycle Dolby Noise Reduction (Off, Dolby B, Dolby C, Dolby S) |
-| **`e`** | EQ Preset | Cycle Equalizer curves (Flat, Mega Bass, Vocal, Rock, Lo-Fi, Synth, EDM) |
-| **`t`** | Theme | Cycle color themes |
-| **`r`** | Repeat Mode | Cycle repeat mode (Off, Repeat Track, Repeat All) |
-| **`z`** | Shuffle | Toggle playlist shuffle |
-| **`1` - `4`** | Mode Select | `1`: Local Library, `2`: Radio Stations, `3`: Queue, `4`: Streams |
-| **`Tab`** | Cycle Mode | Switch between Local, Radio, Queue, and Streams views |
-| **`g`** | Cycle Genre | Filter radio stations by genre |
-| **`l`** | Lyrics View | Toggle synchronized karaoke lyrics view |
-| **`w`** | Artwork View | Toggle high-resolution album cover artwork view |
-| **`H`** | History | Open smart playback history modal (deduplicated recency list) |
-| **`u`** | Stream Search | Universal stream URL resolver and online search (YouTube, SoundCloud, Spotify) |
-| **`/`** | Live Filter | Zero-latency in-memory filter across tracks, artists, stations, and history |
-| **`m`** | Favorite | Toggle star / favorite flag on selected track |
-| **`M`** | Mixtapes | Open mixtape playlist manager |
-| **`R`** | Record | Start recording audio stream to local library |
-| **`Ctrl+R`** | Cancel Record | Abort active recording |
-| **`o`** | Settings | Open settings dashboard (Autoplay, Equalizer, Dolby, Tape, Theme) |
-| **`F5`** | Hot-Reload | Reload configuration and theme without dropping playback |
-| **`?`** | Help | Show shortcut and reference modal |
-| **`q`** | Quit | Exit application |
+| **`+` / `-`** | Volume ±5% | Adjust audio output volume |
+| **`[` / `]`** | Seek ±10s | Seek backward/forward 10 seconds (or adjust Lyrics offset in Lyrics view) |
+| **`{` / `}`** | Fine Lyrics Offset | Adjust lyrics sync calibration by ±1.0s (Lyrics view) |
+| **`0`** | Reset Lyrics Offset | Reset lyrics timing calibration back to `0.0s` |
+| **`Shift+S`** | Matrix Cipher | Toggle real-time Matrix decryption cipher effect on lyrics |
+
+### 🧭 Navigation & Library Exploration
+| Key | Action | Description |
+| :--- | :--- | :--- |
+| **`1` — `4`** | Mode Select | `1`: Local Crates, `2`: Radio Stations, `3`: Queue, `4`: Online Streams |
+| **`Tab`** | Cycle Modes | Seamlessly cycle through all 4 audio modes |
+| **`j` / `k`** *(or `↓` / `↑`)* | Move Cursor | Move selection up / down in any list |
+| **`Enter`** | Drill In / Play | Play selected track or enter Album / Crate view |
+| **`h` / `Backspace`** *(or `←`)* | Drill Out / Back | Return from Album view back to Albums overview |
+| **`v`** | View Style | Toggle Local Library view (`Albums & Crates` ↔ `All Tracks Flat`) |
+| **`g`** | Genre Filter | Cycle radio station genre filter (Lo-Fi, Synthwave, Jazz, Rock, etc.) |
+
+### 🗂️ Queue, Favorites & Playlists
+| Key | Action | Description |
+| :--- | :--- | :--- |
+| **`a`** | Add to Queue | Enqueue selected track or entire album into playback queue |
+| **`x`** | Remove from Queue | Remove highlighted item from the queue |
+| **`c`** | Clear Queue | Clear all pending tracks from the queue |
+| **`m`** | Favorite | Toggle favorite star (`★`) on current or selected track |
+| **`M`** *(Shift+M)* | Mixtapes | Open / Close **Mixtape Manager** (`Enter` to play, `a` to add, `x` to del) |
+| **`H`** *(Shift+H)* | History | Open / Close **Playback History** (`Enter` to play, `a` to queue) |
+
+### 🎛️ DSP Equalization & Tape Recording
+| Key | Action | Description |
+| :--- | :--- | :--- |
+| **`b`** | Mega Bass | Toggle analog sub-harmonic +7dB low-end boost |
+| **`d`** | Dolby NR | Cycle hardware Dolby Noise Reduction (Off, Dolby B, Dolby C, Dolby S) |
+| **`e`** | 32-Band EQ | Cycle ISO Equalizer presets (Flat, Rock, Vocal, Lo-Fi, Synth, EDM) |
+| **`t`** | Theme | Cycle cyberpunk CRT color palettes |
+| **`r`** | Repeat Mode | Cycle repeat state (Off, Repeat Track, Repeat All) |
+| **`z`** | Shuffle | Toggle random playback shuffle |
+| **`R`** *(Shift+R)* | Tape Record | Start / Stop stream recording directly to audio file |
+| **`Ctrl+R`** | Cancel Record | Abort active audio recording immediately |
+
+### 🔍 Search, Views & System
+| Key | Action | Description |
+| :--- | :--- | :--- |
+| **`/`** | Live Filter | Real-time fuzzy filter across tracks, artists, and radio stations |
+| **`u`** | Universal Search | Universal stream URL resolver (YouTube, Spotify, SoundCloud, direct URLs) |
+| **`l`** | Lyrics Deck | Toggle live synchronized karaoke lyrics display |
+| **`w`** | Artwork Deck | Toggle 24-bit TrueColor album cover art display |
+| **`o`** | Settings | Open interactive configuration dashboard |
+| **`?`** | Help | Toggle complete on-screen keyboard shortcut reference |
+| **`F5`** | Hot-Reload | Re-read configuration and reload app in-place without stopping audio |
+| **`q`** | Quit | Exit Boombox cleanly |
 
 ---
 

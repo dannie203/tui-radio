@@ -677,7 +677,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         _ => {}
                     },
                     ModalType::Mixtape => match key.code {
-                        KeyCode::Esc | KeyCode::Char('m') | KeyCode::Char('q') => {
+                        KeyCode::Esc | KeyCode::Char('m') | KeyCode::Char('M') | KeyCode::Char('q') => {
                             state.active_modal = ModalType::None;
                         }
                         KeyCode::Up | KeyCode::Char('k') => {
@@ -702,13 +702,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         KeyCode::Char('d') => {
                             state.remove_selected_mixtape_track();
                         }
-                        KeyCode::Enter => {
-                            state.add_current_track_to_mixtape();
+                        KeyCode::Enter | KeyCode::Char(' ') => {
+                            if let Some(mt) = state.selected_mixtape().cloned() {
+                                if mt.tracks.is_empty() {
+                                    state.status_message = format!("Mixtape '{}' is empty! Press 'a' to add tracks", mt.name);
+                                } else {
+                                    let name = mt.name.clone();
+                                    let tracks = mt.tracks.clone();
+                                    let first = tracks[0].clone();
+                                    state.queue = tracks.into_iter().skip(1).collect();
+                                    dispatch_play_track(&mut state, &player, first, &lyrics_tx, &artwork_tx, Some(&format!("Mixtape ({})", name)));
+                                    state.mode = AppMode::Queue;
+                                    state.active_modal = ModalType::None;
+                                    state.status_message = format!("▶ Playing Mixtape: '{}' ({} tracks)", name, mt.tracks.len());
+                                }
+                            }
                         }
                         _ => {}
                     },
                     ModalType::History => match key.code {
-                        KeyCode::Esc | KeyCode::Char('q') => {
+                        KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('H') | KeyCode::Char('h') => {
                             state.active_modal = ModalType::None;
                         }
                         KeyCode::Up | KeyCode::Char('k') => {
@@ -845,13 +858,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             // List Navigation & Action
                             KeyCode::Up | KeyCode::Char('k') => state.move_selection(-1),
                             KeyCode::Down | KeyCode::Char('j') => state.move_selection(1),
+                            KeyCode::Left | KeyCode::Char('h') | KeyCode::Backspace => {
+                                state.drill_up();
+                            }
                             KeyCode::Enter => {
                                 if let Some(track) = state.drill_down() {
                                     dispatch_play_track(&mut state, &player, track, &lyrics_tx, &artwork_tx, None);
                                 }
-                            }
-                            KeyCode::Backspace => {
-                                state.drill_up();
                             }
                             KeyCode::Char('v') => {
                                 state.toggle_local_view();
