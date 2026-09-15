@@ -439,7 +439,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 state.youtube_results = tracks.clone();
                 state.mode = AppMode::YoutubeMusic;
                 state.selected_index = 0;
-                for t in tracks {
+                for t in tracks.into_iter().skip(1) {
                     if !state.queue.iter().any(|q| q.id == t.id) {
                         state.queue.push(t);
                     }
@@ -492,6 +492,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let _ = atx.send(mix);
                             }
                         });
+                        player.stop();
+                        state.status_message = "⏳ Fetching autoplay recommendations...".to_string();
                     }
                 }
             }
@@ -738,6 +740,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 item.is_favorite = true;
                                 if !state.favorites.iter().any(|f| f.id == item.id) {
                                     state.favorites.push(item.clone());
+                                    state.save_config();
                                     state.status_message = format!("Saved '{}' to Favorites ★", item.title);
                                 }
                             }
@@ -1010,6 +1013,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 7. If Hot-Reload requested via SIGUSR1/SIGHUP/Tray, re-execute binary in-place!
     if should_hot_reload {
+        drop(recorder);
+        drop(capture);
+        drop(player);
         let exe = std::env::current_exe()?;
         let args: Vec<String> = std::env::args().skip(1).collect();
         #[cfg(unix)]
@@ -1020,12 +1026,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(not(unix))]
         {
             let _ = std::process::Command::new(exe).args(args).spawn();
-            std::process::exit(0);
         }
+        return Ok(());
     }
 
+    drop(recorder);
+    drop(capture);
+    drop(player);
+
     println!("📼 Boombox-rs terminated cleanly.");
-    std::process::exit(0);
+    Ok(())
 }
 
 /// Dispatches window toggle to raise, focus, or minimize the Boombox window

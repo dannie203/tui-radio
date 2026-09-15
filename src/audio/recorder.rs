@@ -138,7 +138,7 @@ impl StreamRecorder {
         let title = item.title.clone();
         let artist = item.artist.clone();
 
-        let child_to_kill = {
+        let child_and_path_to_kill = {
             let mut jobs = self.jobs.lock().unwrap_or_else(|e| e.into_inner());
             let key = if jobs.contains_key(&url) {
                 Some(url.clone())
@@ -153,7 +153,7 @@ impl StreamRecorder {
                     if jobs.is_empty() {
                         self.is_recording.store(false, Ordering::Relaxed);
                     }
-                    Some(a.child)
+                    Some((a.child, a.job.output_path))
                 } else {
                     None
                 }
@@ -162,8 +162,13 @@ impl StreamRecorder {
             }
         };
 
-        if let Some(mut child) = child_to_kill {
+        if let Some((mut child, path_opt)) = child_and_path_to_kill {
             let _ = child.kill().await;
+            if let Some(path) = path_opt {
+                let _ = std::fs::remove_file(&path);
+                let part_path = PathBuf::from(format!("{}.part", path.to_string_lossy()));
+                let _ = std::fs::remove_file(&part_path);
+            }
             send_notification("⏹️ Tape Recording Cancelled", "Recording was stopped and discarded.");
             return Ok(false);
         }
@@ -191,9 +196,11 @@ impl StreamRecorder {
             return Err(format!("Could not create recordings dir: {}", e));
         }
 
+        let output_file = dir.join(format!("{} - {}.{}", clean_artist, clean_title, format.ext()));
         let mut cmd = if is_yt_source {
             let output_template = dir.join(format!("{} - {}.%(ext)s", clean_artist, clean_title));
             let mut c = Command::new(crate::audio::player::resolve_executable("yt-dlp"));
+            c.kill_on_drop(true);
             c.args([
                 "-x",
                 "--audio-format",
@@ -209,8 +216,8 @@ impl StreamRecorder {
             ]);
             c
         } else {
-            let output_file = dir.join(format!("{} - {}.{}", clean_artist, clean_title, format.ext()));
             let mut c = Command::new(crate::audio::player::resolve_executable("ffmpeg"));
+            c.kill_on_drop(true);
             c.arg("-y")
                 .arg("-i")
                 .arg(&clean_url)
@@ -245,7 +252,7 @@ impl StreamRecorder {
         let job = RecordJob {
             title,
             artist,
-            output_path: if is_yt_source { None } else { Some(dir.join(format!("{} - {}.{}", clean_artist, clean_title, format.ext()))) },
+            output_path: Some(output_file),
         };
 
         self.jobs.lock().unwrap_or_else(|e| e.into_inner()).insert(
@@ -269,7 +276,7 @@ impl StreamRecorder {
                     if jobs.is_empty() {
                         self.is_recording.store(false, Ordering::Relaxed);
                     }
-                    vec![a.child]
+                    vec![(a.child, a.job.output_path)]
                 } else {
                     Vec::new()
                 }
@@ -277,7 +284,7 @@ impl StreamRecorder {
                 let mut list = Vec::new();
                 for (_, mut a) in jobs.drain() {
                     a.cancelled = true;
-                    list.push(a.child);
+                    list.push((a.child, a.job.output_path));
                 }
                 self.is_recording.store(false, Ordering::Relaxed);
                 list
@@ -285,12 +292,33 @@ impl StreamRecorder {
         };
 
         if !children_to_kill.is_empty() {
-            for mut child in children_to_kill {
+            for (mut child, path_opt) in children_to_kill {
                 let _ = child.kill().await;
+                if let Some(path) = path_opt {
+                    let _ = std::fs::remove_file(&path);
+                    let part_path = PathBuf::from(format!("{}.part", path.to_string_lossy()));
+                    let _ = std::fs::remove_file(&part_path);
+                }
             }
             send_notification("⏹️ Tape Recording Cancelled", "Recording was stopped and discarded.");
             return true;
         }
         false
+    }
+}
+
+impl Drop for StreamRecorder {
+    fn drop(&mut self) {
+        if let Ok(mut jobs) = self.jobs.lock() {
+            for (_, mut active) in jobs.drain() {
+                active.cancelled = true;
+                let _ = active.child.start_kill();
+                if let Some(path) = active.job.output_path {
+                    let _ = std::fs::remove_file(&path);
+                    let part_path = PathBuf::from(format!("{}.part", path.to_string_lossy()));
+                    let _ = std::fs::remove_file(&part_path);
+                }
+            }
+        }
     }
 }

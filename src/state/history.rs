@@ -25,7 +25,10 @@ pub fn save_history(history: &[HistoryEntry]) {
         let _ = fs::create_dir_all(parent);
     }
     if let Ok(json) = serde_json::to_string(history) {
-        let _ = fs::write(file, json);
+        let tmp_file = file.with_extension("tmp");
+        if fs::write(&tmp_file, json).is_ok() {
+            let _ = fs::rename(&tmp_file, file);
+        }
     }
 }
 
@@ -51,7 +54,7 @@ pub fn record_history_entry(history: &mut Vec<HistoryEntry>, item: &MediaItem) {
     let mut play_count = 1;
     if let Some(pos) = history
         .iter()
-        .position(|h| h.url == item.url || (h.title == item.title && h.artist == item.artist))
+        .position(|h| h.url == item.url || (!item.title.is_empty() && h.title == item.title && h.artist == item.artist))
     {
         let existing = history.remove(pos);
         play_count = existing.play_count + 1;

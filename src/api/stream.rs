@@ -352,7 +352,11 @@ pub async fn resolve_stream_item(input: &str) -> MediaItem {
         };
 
         let oembed_url = format!("https://open.spotify.com/oembed?url={}", urlencoding::encode(&clean_url));
-        if let Ok(resp) = reqwest::get(&oembed_url).await {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap_or_default();
+        if let Ok(resp) = client.get(&oembed_url).send().await {
             if resp.status().is_success() {
                 if let Ok(data) = resp.json::<SpotifyOEmbed>().await {
                     let raw_title = data.title.unwrap_or_else(|| "Spotify Track".to_string());

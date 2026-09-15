@@ -159,7 +159,7 @@ impl AppState {
     pub fn get_active_list(&self) -> &[MediaItem] {
         match self.mode {
             AppMode::LocalTracks => {
-                if (self.local_view_level == LocalViewLevel::Tracks || self.local_view_level == LocalViewLevel::AllTracks) && !self.filtered_local.is_empty() {
+                if self.local_view_level == LocalViewLevel::Tracks || self.local_view_level == LocalViewLevel::AllTracks {
                     &self.filtered_local
                 } else {
                     &self.local_tracks
@@ -365,11 +365,11 @@ impl AppState {
         if self.shuffle {
             use rand::Rng;
             let mut rng = rand::thread_rng();
-            let cur_id = self.current_track.as_ref().map(|t| &t.id);
+            let cur_idx = self.selected_index;
             let candidates: Vec<(usize, &MediaItem)> = pool
                 .iter()
                 .enumerate()
-                .filter(|(_, t)| Some(&t.id) != cur_id)
+                .filter(|(idx, _)| *idx != cur_idx || pool.len() == 1)
                 .collect();
             if candidates.is_empty() {
                 return self.current_track.clone();

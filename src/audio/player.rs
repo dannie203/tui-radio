@@ -196,18 +196,24 @@ impl MpvPlayer {
             .spawn()
             .ok();
 
-        if let Ok(mut guard) = self.process.lock() {
-            *guard = child;
-        }
+        let mut process_guard = self.process.lock().unwrap_or_else(|e| e.into_inner());
+        *process_guard = child;
+        drop(process_guard);
 
-        for _ in 0..50 {
-            thread::sleep(Duration::from_millis(30));
+        for _ in 0..20 {
+            thread::sleep(Duration::from_millis(15));
+            if let Ok(mut guard) = self.process.lock() {
+                if let Some(ref mut child) = *guard {
+                    if let Ok(Some(_)) = child.try_wait() {
+                        break;
+                    }
+                }
+            }
             if let Ok(s) = connect_to_mpv(&socket_path) {
                 let _ = s.set_nonblocking(false);
                 if let Ok(reader_stream) = s.try_clone() {
-                    if let Ok(mut guard) = self.stream.lock() {
-                        *guard = Some(s);
-                    }
+                    let mut guard = self.stream.lock().unwrap_or_else(|e| e.into_inner());
+                    *guard = Some(s);
                     self.spawn_reader_thread(reader_stream);
                     self.observe_properties();
                     let af = self.current_af.lock().unwrap_or_else(|e| e.into_inner()).clone();
@@ -366,8 +372,8 @@ impl MpvPlayer {
     }
 
     fn send_json_command_raw(&self, cmd: serde_json::Value) -> bool {
-        if let Ok(mut guard) = self.stream.lock() {
-            if let Some(ref mut s) = *guard {
+        let mut guard = self.stream.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(ref mut s) = *guard {
                 let id = self.request_id.fetch_add(1, Ordering::SeqCst);
                 let payload = if cmd.is_array() {
                     serde_json::json!({
@@ -379,9 +385,8 @@ impl MpvPlayer {
                 };
                 let mut cmd_str = payload.to_string();
                 cmd_str.push('\n');
-                if s.write_all(cmd_str.as_bytes()).is_ok() && s.flush().is_ok() {
-                    return true;
-                }
+            if s.write_all(cmd_str.as_bytes()).is_ok() && s.flush().is_ok() {
+                return true;
             }
         }
         false

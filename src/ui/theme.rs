@@ -25,7 +25,7 @@ pub struct Theme {
 
 pub fn hex(h: &str) -> Color {
     let clean = h.trim_start_matches('#');
-    if clean.len() == 6 {
+    if clean.len() == 6 && clean.is_ascii() {
         let r = u8::from_str_radix(&clean[0..2], 16).unwrap_or(0);
         let g = u8::from_str_radix(&clean[2..4], 16).unwrap_or(0);
         let b = u8::from_str_radix(&clean[4..6], 16).unwrap_or(0);

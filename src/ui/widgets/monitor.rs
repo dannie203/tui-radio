@@ -96,8 +96,12 @@ pub fn render_monitor(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme
     let file_info_str = if let Some(t) = current {
         if !t.is_radio && !t.is_youtube && !t.url.starts_with("http") {
             let path_display = if let Some(home) = dirs::home_dir() {
-                if t.url.starts_with(home.to_str().unwrap_or("")) {
-                    t.url.replacen(home.to_str().unwrap_or(""), "~", 1)
+                if let Some(home_str) = home.to_str() {
+                    if !home_str.is_empty() && t.url.starts_with(home_str) {
+                        t.url.replacen(home_str, "~", 1)
+                    } else {
+                        t.url.clone()
+                    }
                 } else {
                     t.url.clone()
                 }
@@ -125,10 +129,10 @@ pub fn render_monitor(f: &mut Frame, area: Rect, state: &AppState, theme: &Theme
     };
 
     let width = (area.width as usize).saturating_sub(4);
-    let title_clip: String = title.chars().take(width.saturating_sub(12)).collect();
-    let artist_clip: String = artist.chars().take(width.saturating_sub(26)).collect();
-    let album_clip: String = album_name.chars().take(width.saturating_sub(30)).collect();
-    let file_clip: String = file_info_str.chars().take(width.saturating_sub(12)).collect();
+    let title_clip = clip_to_width(title, width.saturating_sub(12));
+    let artist_clip = clip_to_width(artist, width.saturating_sub(26));
+    let album_clip = clip_to_width(album_name, width.saturating_sub(30));
+    let file_clip = clip_to_width(&file_info_str, width.saturating_sub(12));
 
     // Line 1: Source & Soundstage & Sample Rate Spec
     let live_badge_span = if state.telemetry.is_live {
@@ -529,4 +533,19 @@ fn render_crt_oscilloscope_lines<'a>(
     }
 
     lines
+}
+
+fn clip_to_width(s: &str, max_width: usize) -> String {
+    use unicode_width::UnicodeWidthChar;
+    let mut out = String::new();
+    let mut current_width = 0;
+    for ch in s.chars() {
+        let w = ch.width().unwrap_or(0);
+        if current_width + w > max_width {
+            break;
+        }
+        out.push(ch);
+        current_width += w;
+    }
+    out
 }

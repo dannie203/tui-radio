@@ -202,8 +202,10 @@ impl AppConfig {
         let dir = get_config_dir();
         let _ = fs::create_dir_all(&dir);
         let path = get_config_path();
-        let toml_str = toml::to_string_pretty(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-        fs::write(path, toml_str)
+        let toml_str = toml::to_string_pretty(self).map_err(std::io::Error::other)?;
+        let tmp_path = dir.join("config.toml.tmp");
+        fs::write(&tmp_path, toml_str)?;
+        fs::rename(&tmp_path, &path)
     }
 
     pub fn resolved_music_dir(&self) -> PathBuf {

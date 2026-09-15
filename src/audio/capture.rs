@@ -195,7 +195,7 @@ pub fn detect_pipewire_sample_rate() -> u32 {
     if let Ok(output) = Command::new("pw-dump").output() {
         if let Ok(text) = String::from_utf8(output.stdout) {
             if let Some(pos) = text.find("\"key\": \"clock.rate\"") {
-                let slice = &text[pos..std::cmp::min(pos + 120, text.len())];
+                let slice: String = text[pos..].chars().take(120).collect();
                 if let Some(val_idx) = slice.find("\"value\":") {
                     let sub = &slice[val_idx + 8..];
                     let digits: String = sub

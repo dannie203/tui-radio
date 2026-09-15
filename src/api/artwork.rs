@@ -31,13 +31,16 @@ pub async fn fetch_artwork(
         if src.starts_with("http://") || src.starts_with("https://") {
             // Try extracting thumbnail URL via yt-dlp
             if let Ok(output) = tokio::process::Command::new(crate::audio::player::resolve_executable("yt-dlp"))
-                .args(["--no-warnings", "--print", "thumbnail", src])
+                .args(["--no-warnings", "--print", "thumbnail", "--", src])
                 .output()
                 .await
             {
                 if output.status.success() {
                     let thumb_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                    if !thumb_url.is_empty() && thumb_url.starts_with("http") {
+                    if !thumb_url.is_empty()
+                        && (thumb_url.starts_with("http://") || thumb_url.starts_with("https://"))
+                        && crate::api::stream::is_safe_stream_url(&thumb_url)
+                    {
                         if let Ok(resp) = client.get(&thumb_url).header("User-Agent", "boombox-rs/3.2.0").send().await {
                             if resp.status().is_success() {
                                 if let Ok(bytes) = resp.bytes().await {

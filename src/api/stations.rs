@@ -319,7 +319,6 @@ pub fn get_curated_stations() -> Vec<MediaItem> {
                         .collect();
                     if !file_items.is_empty() {
                         items.append(&mut file_items);
-                        return deduplicate_stations(items);
                     }
                 }
             }
