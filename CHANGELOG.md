@@ -5,6 +5,18 @@ All notable changes to the **BOOMBOX-RS** project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.13] - 2026-09-16
+
+### Fixed
+- **Mixtape Modal Playback**: Pressing `Enter` or `Space` on a selected mixtape in the Mixtape modal now populates the playback queue and begins playback immediately instead of appending the current track.
+- **Modal Toggle Consistency**: Added symmetrical toggle-close support for `M`/`m` in Mixtape Manager and `H`/`h` in Playback History modal.
+- **Vim Navigation Ergonomics**: Added `h` and `Left` arrow as shortcuts for `drill_up()` (returning from Album track view back to Albums overview) alongside `Backspace`.
+- **UI Text Duplication**: Eliminated duplicate `[M] Mixtape Manager` in Help modal, added `[H] History` to bottom statusline shortcuts, and updated footer hints across modals.
+- **Desktop Launcher Duplication**: Prevented duplicate application entries on Linux desktops by installing only `org.omarchy.boombox.desktop`.
+
+### Documentation
+- **Keybindings Overhaul**: Reorganized the keybindings reference in `README.md` into 5 intuitive, categorized tables (Playback, Navigation, Queue & Playlists, DSP & Recording, Search & Views).
+
 ## [3.8.12] - 2026-09-16
 
 ### Fixed
